@@ -253,3 +253,142 @@ export interface PrefGateway {
   ): Promise<PrefCapabilityResult>;
   diagnostics(): PrefGatewayDiagnostics;
 }
+
+export const PrefConnectionStateSchema = z.enum([
+  'disconnected',
+  'connecting',
+  'connected',
+  'auth_required',
+  'error',
+]);
+export const PrefCredentialStateSchema = z.enum(['configured', 'missing', 'not_required']);
+
+const PrefPublicDescriptionSchema = z.string().trim().min(1).max(500);
+const PrefPublicNameSchema = z.string().trim().min(1).max(256);
+
+export const PrefToolPrimitiveSchema = z.strictObject({
+  name: PrefPublicNameSchema,
+  title: PrefPublicNameSchema.optional(),
+  description: PrefPublicDescriptionSchema.optional(),
+  inputFields: z.array(PrefPublicNameSchema).max(64),
+  readOnly: z.boolean().nullable(),
+});
+
+export const PrefResourcePrimitiveSchema = z.strictObject({
+  name: PrefPublicNameSchema,
+  uri: z.string().trim().min(1).max(2_048),
+  description: PrefPublicDescriptionSchema.optional(),
+  mimeType: z.string().trim().min(1).max(255).optional(),
+});
+
+export const PrefResourceTemplatePrimitiveSchema = z.strictObject({
+  name: PrefPublicNameSchema,
+  uriTemplate: z.string().trim().min(1).max(2_048),
+  description: PrefPublicDescriptionSchema.optional(),
+  mimeType: z.string().trim().min(1).max(255).optional(),
+});
+
+export const PrefPromptPrimitiveSchema = z.strictObject({
+  name: PrefPublicNameSchema,
+  description: PrefPublicDescriptionSchema.optional(),
+  argumentNames: z.array(PrefPublicNameSchema).max(32),
+});
+
+export const PrefPrimitiveInventorySchema = z.strictObject({
+  tools: z.array(PrefToolPrimitiveSchema).max(256),
+  resources: z.array(PrefResourcePrimitiveSchema).max(256),
+  resourceTemplates: z.array(PrefResourceTemplatePrimitiveSchema).max(256),
+  prompts: z.array(PrefPromptPrimitiveSchema).max(256),
+});
+
+export const PrefCapabilityMappingStatusSchema = z.strictObject({
+  canonicalName: PrefCanonicalCapabilitySchema,
+  toolRef: PrefPublicNameSchema,
+  providerServer: PrefPublicNameSchema,
+  status: z.enum(['unverified', 'valid', 'invalid', 'disabled']),
+  message: PrefPublicDescriptionSchema.optional(),
+});
+
+export const PrefMcpConnectionErrorCodeSchema = z.enum([
+  'pref_auth_required',
+  'pref_connection_failed',
+  'pref_discovery_failed',
+  'pref_server_denied',
+  'pref_tool_denied',
+  'pref_mapping_invalid',
+  'pref_response_too_large',
+  'pref_timeout',
+  'pref_canceled',
+  'pref_disconnected',
+  'pref_upstream_error',
+]);
+
+export const PrefMcpConnectionDiagnosticsSchema = z.strictObject({
+  mode: z.enum(['fixture', 'live']),
+  serverName: PrefPublicNameSchema,
+  transport: PrefTransportSchema,
+  state: PrefConnectionStateSchema,
+  connected: z.boolean(),
+  credentialState: PrefCredentialStateSchema,
+  endpointHost: z.string().trim().min(1).max(253).optional(),
+  readOnly: z.literal(true),
+  lastTransitionAt: DateTimeSchema,
+  lastCheckedAt: DateTimeSchema.optional(),
+  serverVersion: PrefPublicNameSchema.optional(),
+  protocolVersion: PrefPublicNameSchema.optional(),
+  catalogVersion: PrefPublicNameSchema.optional(),
+  indexedCapabilityCount: z.number().int().nonnegative().optional(),
+  inventory: PrefPrimitiveInventorySchema,
+  mappings: z.array(PrefCapabilityMappingStatusSchema).max(16),
+  lastError: z
+    .strictObject({
+      code: PrefMcpConnectionErrorCodeSchema,
+      message: PrefPublicDescriptionSchema,
+    })
+    .optional(),
+});
+
+export type PrefConnectionState = z.infer<typeof PrefConnectionStateSchema>;
+export type PrefCredentialState = z.infer<typeof PrefCredentialStateSchema>;
+export type PrefToolPrimitive = z.infer<typeof PrefToolPrimitiveSchema>;
+export type PrefResourcePrimitive = z.infer<typeof PrefResourcePrimitiveSchema>;
+export type PrefResourceTemplatePrimitive = z.infer<typeof PrefResourceTemplatePrimitiveSchema>;
+export type PrefPromptPrimitive = z.infer<typeof PrefPromptPrimitiveSchema>;
+export type PrefPrimitiveInventory = z.infer<typeof PrefPrimitiveInventorySchema>;
+export type PrefCapabilityMappingStatus = z.infer<typeof PrefCapabilityMappingStatusSchema>;
+export type PrefMcpConnectionErrorCode = z.infer<typeof PrefMcpConnectionErrorCodeSchema>;
+export type PrefMcpConnectionDiagnostics = z.infer<typeof PrefMcpConnectionDiagnosticsSchema>;
+
+export class PrefMcpConnectionError extends Error {
+  readonly code: PrefMcpConnectionErrorCode;
+  readonly retryable: boolean;
+
+  constructor(code: PrefMcpConnectionErrorCode, message: string, retryable = false) {
+    super(message);
+    this.name = 'PrefMcpConnectionError';
+    this.code = code;
+    this.retryable = retryable;
+  }
+}
+
+export interface PrefMcpCallOptions {
+  signal?: AbortSignal;
+  timeoutMs?: number;
+}
+
+export interface PrefMcpCallResult {
+  structuredContent?: Record<string, unknown>;
+  text?: string;
+  responseBytes: number;
+}
+
+export interface PrefMcpConnection {
+  connect(): Promise<PrefMcpConnectionDiagnostics>;
+  disconnect(): Promise<void>;
+  diagnostics(): PrefMcpConnectionDiagnostics;
+  callProviderTool(
+    toolRef: string,
+    argumentsValue: Record<string, unknown>,
+    options?: PrefMcpCallOptions,
+  ): Promise<PrefMcpCallResult>;
+}
