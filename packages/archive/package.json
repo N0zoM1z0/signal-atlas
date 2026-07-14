@@ -10,9 +10,16 @@
     }
   },
   "scripts": {
-    "build": "tsc --project tsconfig.json",
+    "build": "tsc --project tsconfig.build.json",
     "typecheck": "tsc --project tsconfig.json --noEmit --pretty false",
-    "test": "vitest run --passWithNoTests",
+    "test": "vitest run",
     "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@signal-atlas/contracts": "workspace:*",
+    "@signal-atlas/simulation": "workspace:*"
+  },
+  "devDependencies": {
+    "@signal-atlas/test-fixtures": "workspace:*"
   }
 }

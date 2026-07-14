@@ -1,5 +1,6 @@
 export interface EvidencePreferences {
   pinnedSignalIds: string[];
+  caseFileEntryIds: string[];
   archivedSignalIds: string[];
   seenSignalIds: string[];
 }
@@ -8,6 +9,7 @@ const storageKey = 'signal-atlas:evidence-preferences:v1';
 
 export const emptyEvidencePreferences: EvidencePreferences = {
   pinnedSignalIds: [],
+  caseFileEntryIds: [],
   archivedSignalIds: [],
   seenSignalIds: [],
 };
@@ -26,6 +28,7 @@ export function readEvidencePreferences(): EvidencePreferences {
     const parsed = JSON.parse(stored) as Partial<Record<keyof EvidencePreferences, unknown>>;
     return {
       pinnedSignalIds: stringArray(parsed.pinnedSignalIds),
+      caseFileEntryIds: stringArray(parsed.caseFileEntryIds),
       archivedSignalIds: stringArray(parsed.archivedSignalIds),
       seenSignalIds: stringArray(parsed.seenSignalIds),
     };

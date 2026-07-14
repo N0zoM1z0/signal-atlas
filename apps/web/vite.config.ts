@@ -7,6 +7,9 @@ export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: {
+      '@signal-atlas/archive': fileURLToPath(
+        new URL('../../packages/archive/src/index.ts', import.meta.url),
+      ),
       '@signal-atlas/contracts': fileURLToPath(
         new URL('../../packages/contracts/src/index.ts', import.meta.url),
       ),

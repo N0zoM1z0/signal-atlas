@@ -1,4 +1,4 @@
-import type { MissionVerb, WorldCommand } from '@signal-atlas/contracts';
+import type { MissionVerb, WorldCommand, WorldEvent } from '@signal-atlas/contracts';
 import type { WorldProjection } from '@signal-atlas/simulation';
 
 import { shellModel } from './model.js';
@@ -69,6 +69,15 @@ export async function fetchExpeditionSnapshot(): Promise<WorldProjection> {
     `/api/expeditions/${expeditionId}/snapshot`,
   );
   return response.projection;
+}
+
+export async function fetchExpeditionEvents(after = 0): Promise<{
+  events: WorldEvent[];
+  sequence: number;
+}> {
+  return requestJson<{ events: WorldEvent[]; sequence: number }>(
+    `/api/expeditions/${expeditionId}/events?after=${after}`,
+  );
 }
 
 export async function fetchFixtureConfiguration(): Promise<FixtureConfiguration> {

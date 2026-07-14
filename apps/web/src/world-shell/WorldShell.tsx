@@ -1,7 +1,13 @@
-import { SCHEMA_VERSION, type MissionVerb, type WorldCommand } from '@signal-atlas/contracts';
+import {
+  SCHEMA_VERSION,
+  type MissionVerb,
+  type WorldCommand,
+  type WorldEvent,
+} from '@signal-atlas/contracts';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { AgentDock } from './AgentDock.js';
+import { ArchiveWorkspace } from './ArchiveWorkspace.js';
 import { CommandTray } from './CommandTray.js';
 import {
   appendSignalId,
@@ -14,6 +20,7 @@ import { MarketRibbon } from './MarketRibbon.js';
 import { createShellModel, shellModel } from './model.js';
 import {
   createClientId,
+  fetchExpeditionEvents,
   fetchExpeditionSnapshot,
   fetchFixtureConfiguration,
   interpretMissionDraft,
@@ -28,6 +35,7 @@ import { WorldStageHost } from './WorldStageHost.js';
 
 type RuntimeState = 'ready' | 'loading' | 'disconnected';
 type MobilePanel = 'agents' | 'signals' | null;
+type Workspace = 'world' | 'archive';
 
 function runtimeStateFromLocation(): RuntimeState {
   if (typeof window === 'undefined') return 'ready';
@@ -79,6 +87,9 @@ export function WorldShell() {
   const [commandError, setCommandError] = useState<string>();
   const [skipTravel, setSkipTravel] = useState(skipTravelPreference);
   const [fixtureScenario, setFixtureScenario] = useState<FixtureMissionScenario>('success');
+  const [workspace, setWorkspace] = useState<Workspace>('world');
+  const [archiveEvents, setArchiveEvents] = useState<WorldEvent[]>([]);
+  const [archiveLoading, setArchiveLoading] = useState(false);
   const [evidencePreferences, setEvidencePreferences] =
     useState<EvidencePreferences>(readEvidencePreferences);
   const [inspectedSignalId, setInspectedSignalId] = useState<string>();
@@ -114,10 +125,38 @@ export function WorldShell() {
     const wasPinned = evidencePreferences.pinnedSignalIds.includes(signalId);
     saveEvidencePreferences((current) => ({
       ...current,
-      pinnedSignalIds: toggleSignalId(current.pinnedSignalIds, signalId),
+      pinnedSignalIds: wasPinned
+        ? current.pinnedSignalIds.filter((id) => id !== signalId)
+        : appendSignalId(current.pinnedSignalIds, signalId),
+      caseFileEntryIds: wasPinned
+        ? current.caseFileEntryIds.filter((id) => id !== `signal:${signalId}`)
+        : appendSignalId(current.caseFileEntryIds, `signal:${signalId}`),
     }));
     setAnnouncement(
       `${wasPinned ? 'Removed' : 'Pinned'} signal ${wasPinned ? 'from' : 'to'} the case file.`,
+    );
+  };
+
+  const toggleCaseFileEntry = (archiveId: string) => {
+    const wasSelected = evidencePreferences.caseFileEntryIds.includes(archiveId);
+    const signalId = archiveId.startsWith('signal:')
+      ? archiveId.slice('signal:'.length)
+      : undefined;
+    saveEvidencePreferences((current) => ({
+      ...current,
+      caseFileEntryIds: wasSelected
+        ? current.caseFileEntryIds.filter((id) => id !== archiveId)
+        : appendSignalId(current.caseFileEntryIds, archiveId),
+      pinnedSignalIds: signalId
+        ? wasSelected
+          ? current.pinnedSignalIds.filter((id) => id !== signalId)
+          : appendSignalId(current.pinnedSignalIds, signalId)
+        : current.pinnedSignalIds,
+    }));
+    setAnnouncement(
+      wasSelected
+        ? 'Removed archive record from the case file.'
+        : 'Added archive record to the case file.',
     );
   };
 
@@ -155,6 +194,44 @@ export function WorldShell() {
     setRuntimeState('ready');
     return nextProjection;
   }, []);
+
+  const openArchiveWorkspace = useCallback(async () => {
+    setWorkspace('archive');
+    setTrayExpanded(false);
+    setMobilePanel(null);
+    setArchiveLoading(true);
+    try {
+      const [nextProjection, eventLog] = await Promise.all([
+        fetchExpeditionSnapshot(),
+        fetchExpeditionEvents(),
+      ]);
+      setProjection(nextProjection);
+      setArchiveEvents(eventLog.events);
+      setRuntimeState('ready');
+      setAnnouncement('Archive Quarter opened with the current expedition index.');
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Archive index failed to load.';
+      setCommandError(message);
+      setAnnouncement(`Archive loading failed: ${message}`);
+    } finally {
+      setArchiveLoading(false);
+    }
+  }, []);
+
+  const openPanel = useCallback(
+    (panel: 'agents' | 'signals' | 'archive' | 'professor') => {
+      if (panel === 'agents' || panel === 'signals') {
+        setMobilePanel((current) => (current === panel ? null : panel));
+        return;
+      }
+      if (panel === 'archive') {
+        void openArchiveWorkspace();
+        return;
+      }
+      setAnnouncement('Professor Vale arrives in the collaboration journey.');
+    },
+    [openArchiveWorkspace],
+  );
 
   const changePauseState = useCallback(async () => {
     const issuedAt = new Date().toISOString();
@@ -298,6 +375,10 @@ export function WorldShell() {
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
+        if (workspace !== 'world') {
+          setWorkspace('world');
+          setAnnouncement('Returned to the world atlas.');
+        }
         setMobilePanel(null);
         setMissionDraft(undefined);
         setTrayExpanded(false);
@@ -309,6 +390,18 @@ export function WorldShell() {
       if (event.key === '/') {
         event.preventDefault();
         inputRef.current?.focus();
+        return;
+      }
+
+      if (event.key.toLocaleLowerCase('en-US') === 'a') {
+        event.preventDefault();
+        void openArchiveWorkspace();
+        return;
+      }
+
+      if (event.key.toLocaleLowerCase('en-US') === 'p') {
+        event.preventDefault();
+        openPanel('professor');
         return;
       }
 
@@ -334,24 +427,11 @@ export function WorldShell() {
 
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [changePauseState, changeSpeed, model.agents]);
+  }, [changePauseState, changeSpeed, model.agents, openArchiveWorkspace, openPanel, workspace]);
 
   if (!selectedAgent) {
     return <main role="alert">The fixture does not define an expedition team.</main>;
   }
-
-  const openPanel = (panel: 'agents' | 'signals' | 'archive' | 'professor') => {
-    if (panel === 'agents' || panel === 'signals') {
-      setMobilePanel((current) => (current === panel ? null : panel));
-      return;
-    }
-
-    setAnnouncement(
-      panel === 'archive'
-        ? 'Archive workspace arrives in the investigation journey.'
-        : 'Professor Vale arrives in the collaboration journey.',
-    );
-  };
 
   const prepareMissionDraft = async (objective = command) => {
     setCommand(objective);
@@ -620,37 +700,51 @@ export function WorldShell() {
         selectedAgentId={selectedAgentId}
       />
 
-      <WorldStageHost
-        agentsDrawerOpen={mobilePanel === 'agents'}
-        autoCamera={model.projection.expedition.settings.autoCamera}
-        followRequest={followRequest}
-        loading={runtimeState === 'loading'}
-        onOpenPanel={openPanel}
-        onSelectAgent={(agentId) => {
-          const agent = model.agents.find((candidate) => candidate.id === agentId);
-          setSelectedAgentId(agentId);
-          setAnnouncement(`${agent?.name ?? 'Agent'} selected from the world.`);
-        }}
-        onSelectPlace={(placeId) => {
-          const place = model.places.find((candidate) => candidate.id === placeId);
-          setSelectedPlaceId(placeId);
-          setAnnouncement(`${place?.name ?? 'Place'} selected.`);
-        }}
-        onSkipTravelChange={(enabled) => {
-          setSkipTravel(enabled);
-          window.localStorage.setItem('signal-atlas:skip-travel', String(enabled));
-          setAnnouncement(`Skip-travel preference ${enabled ? 'enabled' : 'disabled'}.`);
-        }}
-        places={model.places}
-        reducedMotion={reducedMotion}
-        routes={model.routes}
-        sceneDefinition={model.sceneDefinition}
-        selectedAgentId={selectedAgentId}
-        selectedAgentName={selectedAgent.name}
-        selectedPlaceId={selectedPlaceId}
-        signalsDrawerOpen={mobilePanel === 'signals'}
-        skipTravel={skipTravel}
-      />
+      {workspace === 'archive' ? (
+        <ArchiveWorkspace
+          caseFileEntryIds={evidencePreferences.caseFileEntryIds}
+          events={archiveEvents}
+          loading={archiveLoading}
+          onClose={() => {
+            setWorkspace('world');
+            setAnnouncement('Returned to the world atlas.');
+          }}
+          onToggleCaseFile={toggleCaseFileEntry}
+          projection={projection}
+        />
+      ) : (
+        <WorldStageHost
+          agentsDrawerOpen={mobilePanel === 'agents'}
+          autoCamera={model.projection.expedition.settings.autoCamera}
+          followRequest={followRequest}
+          loading={runtimeState === 'loading'}
+          onOpenPanel={openPanel}
+          onSelectAgent={(agentId) => {
+            const agent = model.agents.find((candidate) => candidate.id === agentId);
+            setSelectedAgentId(agentId);
+            setAnnouncement(`${agent?.name ?? 'Agent'} selected from the world.`);
+          }}
+          onSelectPlace={(placeId) => {
+            const place = model.places.find((candidate) => candidate.id === placeId);
+            setSelectedPlaceId(placeId);
+            setAnnouncement(`${place?.name ?? 'Place'} selected.`);
+          }}
+          onSkipTravelChange={(enabled) => {
+            setSkipTravel(enabled);
+            window.localStorage.setItem('signal-atlas:skip-travel', String(enabled));
+            setAnnouncement(`Skip-travel preference ${enabled ? 'enabled' : 'disabled'}.`);
+          }}
+          places={model.places}
+          reducedMotion={reducedMotion}
+          routes={model.routes}
+          sceneDefinition={model.sceneDefinition}
+          selectedAgentId={selectedAgentId}
+          selectedAgentName={selectedAgent.name}
+          selectedPlaceId={selectedPlaceId}
+          signalsDrawerOpen={mobilePanel === 'signals'}
+          skipTravel={skipTravel}
+        />
+      )}
 
       <SignalRail
         archivedSignalIds={evidencePreferences.archivedSignalIds}

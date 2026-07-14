@@ -65,6 +65,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@signal-atlas/archive':
+        specifier: workspace:*
+        version: link:../../packages/archive
       '@signal-atlas/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
@@ -100,7 +103,18 @@ importers:
         specifier: 8.1.4
         version: 8.1.4(@types/node@26.1.1)(esbuild@0.28.1)(tsx@4.23.1)
 
-  packages/archive: {}
+  packages/archive:
+    dependencies:
+      '@signal-atlas/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@signal-atlas/simulation':
+        specifier: workspace:*
+        version: link:../simulation
+    devDependencies:
+      '@signal-atlas/test-fixtures':
+        specifier: workspace:*
+        version: link:../test-fixtures
 
   packages/codex-runtime: {}
 
