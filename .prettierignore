@@ -7,3 +7,30 @@ preparation
 prototype
 previews
 DESIGN_BIBLE.md
+
+# Imported design handoff and byte-stable fixture inputs
+codex
+docs/00_index.md
+docs/01_product_vision_and_principles.md
+docs/02_experience_and_game_loop.md
+docs/03_world_and_location_system.md
+docs/04_agents_and_social_system.md
+docs/05_information_archive_professor.md
+docs/06_ui_ux_specification.md
+docs/07_art_audio_motion_direction.md
+docs/08_pref_mcp_and_codex_architecture.md
+docs/09_technical_architecture.md
+docs/10_data_models_and_events.md
+docs/11_trust_safety_accessibility.md
+docs/12_mvp_roadmap_and_metrics.md
+docs/13_open_questions_and_decisions.md
+docs/CODEX_KICKOFF_TASKBOOK.md
+docs/DEFINITION_OF_DONE.md
+docs/EXECUTIVE_SUMMARY.md
+docs/VALIDATION_REPORT.md
+fixtures
+
+# Deterministically generated artifacts
+packages/ui/src/generated
+pnpm-lock.yaml
+schemas

@@ -20,7 +20,12 @@ function cssValue(parts, value) {
   const [section, group, name] = parts;
   if (['spacing', 'size', 'radius', 'border'].includes(section)) return `${value}px`;
   if (section === 'typography' && group === 'size') return `${value}px`;
-  if (section === 'motion' && !String(name ?? group).toLowerCase().includes('fps')) {
+  if (
+    section === 'motion' &&
+    !String(name ?? group)
+      .toLowerCase()
+      .includes('fps')
+  ) {
     return `${value}ms`;
   }
   return String(value);

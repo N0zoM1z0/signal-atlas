@@ -20,7 +20,13 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 export function Button({ className, type = 'button', variant = 'primary', ...props }: ButtonProps) {
-  return <button className={classes('sa-button', `sa-button--${variant}`, className)} type={type} {...props} />;
+  return (
+    <button
+      className={classes('sa-button', `sa-button--${variant}`, className)}
+      type={type}
+      {...props}
+    />
+  );
 }
 
 export interface IconButtonProps extends Omit<ButtonProps, 'aria-label'> {
@@ -127,7 +133,12 @@ export function Dialog({ children, description, onClose, open, title }: DialogPr
 
   return (
     <div className="sa-dialog-layer">
-      <button aria-label="Close dialog" className="sa-dialog__backdrop" onClick={onClose} type="button" />
+      <button
+        aria-label="Close dialog"
+        className="sa-dialog__backdrop"
+        onClick={onClose}
+        type="button"
+      />
       <section
         aria-describedby={description ? descriptionId : undefined}
         aria-labelledby={titleId}

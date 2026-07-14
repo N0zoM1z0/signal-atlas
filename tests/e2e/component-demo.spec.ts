@@ -21,7 +21,10 @@ test('component foundation supports keyboard tabs and dialog dismissal', async (
   const newTab = page.getByRole('tab', { name: 'New 3' });
   await newTab.focus();
   await page.keyboard.press('ArrowRight');
-  await expect(page.getByRole('tab', { name: 'Pinned 2' })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByRole('tab', { name: 'Pinned 2' })).toHaveAttribute(
+    'aria-selected',
+    'true',
+  );
 
   await page.getByRole('button', { name: 'Open evidence dialog' }).click();
   await expect(page.getByRole('dialog', { name: 'Inspect provenance' })).toBeVisible();

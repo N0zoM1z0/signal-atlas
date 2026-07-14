@@ -74,7 +74,7 @@ Keep packages focused. Avoid circular dependencies. `contracts` and `simulation`
 The world reducer is a pure function:
 
 ```ts
-nextState = reduceWorldEvent(previousState, event)
+nextState = reduceWorldEvent(previousState, event);
 ```
 
 It performs no I/O, random generation, date reads, or model calls. Inject deterministic IDs/timestamps before the reducer.

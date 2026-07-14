@@ -3,7 +3,17 @@ import { userEvent } from '@testing-library/user-event';
 import { useState } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { Badge, Button, Card, Dialog, IconButton, Panel, Progress, Tabs, Tooltip } from '../src/index.js';
+import {
+  Badge,
+  Button,
+  Card,
+  Dialog,
+  IconButton,
+  Panel,
+  Progress,
+  Tabs,
+  Tooltip,
+} from '../src/index.js';
 
 afterEach(cleanup);
 
@@ -24,7 +34,10 @@ describe('Signal Atlas UI primitives', () => {
     expect(screen.getByRole('region', { name: 'Mission controls' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Dispatch Mira' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Inspect source' })).toBeTruthy();
-    expect(screen.getByRole('progressbar', { name: 'Mission progress' })).toHaveProperty('value', 68);
+    expect(screen.getByRole('progressbar', { name: 'Mission progress' })).toHaveProperty(
+      'value',
+      68,
+    );
     expect(screen.getByRole('article', { name: 'Crosswind advisory' }).textContent).toContain(
       'Fresh official guidance',
     );

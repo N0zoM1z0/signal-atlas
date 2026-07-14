@@ -28,8 +28,17 @@ textarea {
   place-items: center;
   overflow: hidden;
   background:
-    radial-gradient(circle at 50% 28%, color-mix(in srgb, var(--sa-color-harbor-blue) 28%, transparent), transparent 32rem),
-    linear-gradient(180deg, var(--sa-color-atlas-night), var(--sa-color-deep-ink) 68%, var(--sa-color-atlas-night));
+    radial-gradient(
+      circle at 50% 28%,
+      color-mix(in srgb, var(--sa-color-harbor-blue) 28%, transparent),
+      transparent 32rem
+    ),
+    linear-gradient(
+      180deg,
+      var(--sa-color-atlas-night),
+      var(--sa-color-deep-ink) 68%,
+      var(--sa-color-atlas-night)
+    );
 }
 
 .loading-card {
@@ -111,8 +120,15 @@ h1 {
   padding: var(--sa-spacing-8);
   color: var(--sa-color-paper-light);
   background:
-    linear-gradient(color-mix(in srgb, var(--sa-color-slate-cloud) 14%, transparent) 1px, transparent 1px),
-    linear-gradient(90deg, color-mix(in srgb, var(--sa-color-slate-cloud) 14%, transparent) 1px, transparent 1px),
+    linear-gradient(
+      color-mix(in srgb, var(--sa-color-slate-cloud) 14%, transparent) 1px,
+      transparent 1px
+    ),
+    linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--sa-color-slate-cloud) 14%, transparent) 1px,
+      transparent 1px
+    ),
     var(--sa-color-atlas-night);
   background-size: var(--sa-spacing-8) var(--sa-spacing-8);
 }
