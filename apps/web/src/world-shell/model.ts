@@ -61,15 +61,21 @@ export const shellModel = {
   agents: fixture.agents.map((fixtureAgent) => {
     const agent = agentById[fixtureAgent.id] ?? fixtureAgent;
     const place = placeById[agent.placeId];
+    const activeMission = agent.activeMissionId
+      ? projection.missionsById[agent.activeMissionId]
+      : undefined;
     return {
       id: agent.id,
       name: agent.displayName,
       role: roleLabels[agent.role],
+      roleKey: agent.role,
       placeName: place?.name ?? agent.placeId,
-      status:
-        agent.publicState === 'idle'
-          ? `Ready at ${place?.name ?? agent.placeId}`
-          : agent.publicState,
+      status: sentenceCase(agent.publicState),
+      mission:
+        activeMission?.objective ??
+        (agent.queuedMissionIds.length > 0
+          ? `${agent.queuedMissionIds.length} queued mission${agent.queuedMissionIds.length === 1 ? '' : 's'}`
+          : 'Awaiting mission'),
       forecast: percentage(agent.belief.probabilities['yes']),
       knowledgeCount: agent.knownSignalIds.length,
     };

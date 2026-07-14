@@ -488,10 +488,14 @@ textarea {
   list-style: none;
 }
 
+.atlas-agent-entry {
+  display: grid;
+}
+
 .atlas-agent-card {
   display: grid;
   width: 100%;
-  min-height: 72px;
+  min-height: 104px;
   align-items: center;
   grid-template-columns: var(--sa-size-portrait-medium) minmax(0, 1fr) auto;
   gap: var(--sa-spacing-2);
@@ -641,6 +645,79 @@ textarea {
   font-size: 10px;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.atlas-role-badge {
+  width: max-content;
+  padding: 1px var(--sa-spacing-1);
+  border: var(--sa-border-hairline) solid var(--sa-color-weather-cyan);
+  border-radius: var(--sa-radius-pill);
+  color: var(--sa-color-weather-cyan) !important;
+  background: color-mix(in srgb, var(--sa-color-weather-cyan) 9%, transparent);
+  font-family: var(--sa-typography-mono-family);
+  font-size: 8px !important;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.atlas-role-badge[data-role='archivist'] {
+  border-color: var(--sa-color-scholar-violet);
+  color: var(--sa-color-scholar-violet) !important;
+  background: color-mix(in srgb, var(--sa-color-scholar-violet) 9%, transparent);
+}
+
+.atlas-role-badge[data-role='skeptic'] {
+  border-color: var(--sa-color-moss-signal);
+  color: var(--sa-color-moss-signal) !important;
+  background: color-mix(in srgb, var(--sa-color-moss-signal) 9%, transparent);
+}
+
+.atlas-agent-card__mission {
+  overflow: hidden;
+  color: var(--sa-color-paper-light);
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.atlas-agent-card__details {
+  display: grid;
+  min-width: 0;
+  grid-column: 1 / -1;
+  gap: 1px;
+  padding-top: var(--sa-spacing-1);
+  border-top: var(--sa-border-hairline) solid var(--sa-color-slate-cloud);
+}
+
+.atlas-agent-card__location {
+  overflow: hidden;
+  color: var(--sa-color-muted-steel);
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.atlas-agent-card__location i {
+  color: var(--sa-color-weather-cyan);
+  font-style: normal;
+}
+
+.atlas-agent-follow {
+  min-height: var(--sa-spacing-8);
+  margin-top: calc(var(--sa-border-hairline) * -1);
+  border: var(--sa-border-hairline) solid var(--sa-color-weather-cyan);
+  border-radius: 0 0 var(--sa-radius-small) var(--sa-radius-small) !important;
+  color: var(--sa-color-weather-cyan) !important;
+  background: color-mix(in srgb, var(--sa-color-harbor-blue) 24%, var(--sa-color-atlas-night));
+  font-family: var(--sa-typography-mono-family);
+  font-size: 9px;
+  font-weight: var(--sa-typography-weight-bold);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.atlas-agent-entry[data-selected='true'] .atlas-agent-card {
+  border-radius: var(--sa-radius-small) var(--sa-radius-small) 0 0;
 }
 
 .atlas-agent-card__status i,

@@ -39,6 +39,9 @@ export function WorldShell() {
   );
   const [announcement, setAnnouncement] = useState('Fixture projection ready.');
   const [reducedMotion, setReducedMotion] = useState(false);
+  const [followRequest, setFollowRequest] = useState<
+    { agentId: string; requestId: number } | undefined
+  >();
   const inputRef = useRef<HTMLInputElement>(null);
   const runtimeState = runtimeStateFromLocation();
 
@@ -144,6 +147,14 @@ export function WorldShell() {
         collapsed={agentDockCollapsed}
         disconnected={runtimeState === 'disconnected'}
         mobileOpen={mobilePanel === 'agents'}
+        onFollowAgent={(agentId) => {
+          setFollowRequest((current) => ({
+            agentId,
+            requestId: (current?.requestId ?? 0) + 1,
+          }));
+          const agent = shellModel.agents.find((candidate) => candidate.id === agentId);
+          setAnnouncement(`Camera following ${agent?.name ?? 'agent'}.`);
+        }}
         onSelectAgent={(agentId) => {
           const agent = shellModel.agents.find((candidate) => candidate.id === agentId);
           setSelectedAgentId(agentId);
@@ -155,6 +166,7 @@ export function WorldShell() {
 
       <WorldStageHost
         agentsDrawerOpen={mobilePanel === 'agents'}
+        followRequest={followRequest}
         loading={runtimeState === 'loading'}
         onOpenPanel={openPanel}
         onSelectAgent={(agentId) => {

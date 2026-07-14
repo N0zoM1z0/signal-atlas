@@ -1,3 +1,11 @@
+export {
+  agentAnimationKey,
+  agentSpriteFrameCounts,
+  agentSpriteStateForPublicState,
+  agentSpriteStates,
+  agentTextureKey,
+  type AgentSpriteState,
+} from './agent-sprites.js';
 export { createWorldSceneBridge } from './bridge.js';
 export {
   calculateIntegerCanvasMetrics,

@@ -1,4 +1,12 @@
 import {
+  agentAnimationKey,
+  agentSpriteFrameCounts,
+  agentSpriteStateForPublicState,
+  agentSpriteStates,
+  agentTextureKey,
+  type AgentSpriteState,
+} from './agent-sprites.js';
+import {
   calculateIntegerCanvasMetrics,
   clampZoomStep,
   parseCssColor,
@@ -7,6 +15,7 @@ import {
 import type {
   MountedWorldScene,
   MountWorldSceneOptions,
+  SceneAgent,
   ScenePlace,
   WorldSceneCommand,
 } from './types.js';
@@ -87,12 +96,16 @@ export async function mountWorldScene(options: MountWorldSceneOptions): Promise<
   };
 
   class SignalAtlasScene extends PhaserRuntime.Scene {
-    private readonly agentTargets = new Map<string, Phaser.GameObjects.Container>();
+    private acceptingCommands = true;
+    private readonly agentHighlights = new Map<string, Phaser.GameObjects.Arc>();
+    private readonly agentSprites = new Map<string, Phaser.GameObjects.Sprite>();
+    private readonly agentTargets = new Map<string, Phaser.GameObjects.Sprite>();
     private basePixelScale = initialMetrics.pixelScale;
     private followingAgentId: string | null = null;
     private lastPerformanceSampleAt = 0;
     private readonly placeHighlights = new Map<string, Phaser.GameObjects.Arc>();
     private reducedMotion = options.reducedMotion;
+    private selectedAgentId = options.initialSelectedAgentId;
     private selectedPlaceId = options.initialSelectedPlaceId;
     private spaceKey: Phaser.Input.Keyboard.Key | undefined;
     private zoomStep = 0;
@@ -141,10 +154,11 @@ export async function mountWorldScene(options: MountWorldSceneOptions): Promise<
       );
 
       disconnectBridge = options.bridge.connect((command) => {
-        if (!this.scene.isActive() || !this.cameras.main) return;
+        if (!this.acceptingCommands || !this.cameras.main) return;
         this.handleCommand(command);
       });
       this.selectPlace(this.selectedPlaceId);
+      this.selectAgent(this.selectedAgentId);
       this.centerOnPlace(model.defaultSpawnPlaceId, true);
       this.applyReducedMotion();
       options.bridge.emit({
@@ -155,6 +169,7 @@ export async function mountWorldScene(options: MountWorldSceneOptions): Promise<
       });
       this.emitCameraChanged();
       this.events.once(PhaserRuntime.Scenes.Events.SHUTDOWN, () => {
+        this.acceptingCommands = false;
         disconnectBridge?.();
         disconnectBridge = undefined;
       });
@@ -366,31 +381,109 @@ export async function mountWorldScene(options: MountWorldSceneOptions): Promise<
 
     private drawAgents() {
       const offsets = [
-        { x: 1.8, y: 0.6 },
+        { x: 2.1, y: 0.6 },
         { x: -1.4, y: 0.8 },
-        { x: 0.3, y: 1.5 },
+        { x: -1.9, y: 1.4 },
       ];
-      const colors = [palette.weatherCyan, palette.scholarViolet, palette.mossSignal];
       model.agents.forEach((agent, index) => {
         const place = model.places.find((candidate) => candidate.id === agent.placeId);
         if (!place) return;
         const offset = offsets[index % offsets.length] ?? { x: 0, y: 0 };
-        const marker = this.add
-          .container(place.position.x + offset.x, place.position.y + offset.y)
-          .setDepth(7);
-        const body = this.add.graphics();
-        body.fillStyle(colors[index % colors.length] ?? palette.weatherCyan);
-        body.fillCircle(0, -0.65, 0.42);
-        body.fillRoundedRect(-0.48, -0.2, 0.96, 1.25, 0.28);
-        body.lineStyle(2 / this.basePixelScale, palette.paperLight, 0.82);
-        body.lineBetween(-0.32, 1, -0.32, 1.55);
-        body.lineBetween(0.32, 1, 0.32, 1.55);
-        marker.add(body).setSize(2, 3).setInteractive({ useHandCursor: true });
-        marker.on('pointerdown', () => {
+        this.createAgentAnimations(agent);
+        const state = agentSpriteStateForPublicState(agent.publicState);
+        const x = place.position.x + offset.x;
+        const y = place.position.y + offset.y;
+        const highlight = this.add
+          .circle(x, y - 0.9, 1.25)
+          .setDepth(6)
+          .setStrokeStyle(2 / this.basePixelScale, palette.weatherCyan, 1)
+          .setVisible(false);
+        const sprite = this.add
+          .sprite(x, y, agentTextureKey(agent.id, state, 0))
+          .setDepth(7)
+          .setDisplaySize(1.5, 2)
+          .setOrigin(0.5, 1)
+          .setInteractive({ useHandCursor: true });
+        sprite.play(agentAnimationKey(agent.id, state));
+        sprite.on('pointerdown', () => {
+          this.selectAgent(agent.id);
           options.bridge.emit({ type: 'agent.selected', agentId: agent.id, source: 'canvas' });
         });
-        this.agentTargets.set(agent.id, marker);
+        this.agentHighlights.set(agent.id, highlight);
+        this.agentSprites.set(agent.id, sprite);
+        this.agentTargets.set(agent.id, sprite);
       });
+    }
+
+    private createAgentAnimations(agent: SceneAgent) {
+      agentSpriteStates.forEach((state) => {
+        const animationKey = agentAnimationKey(agent.id, state);
+        const frameKeys = Array.from({ length: agentSpriteFrameCounts[state] }, (_, frame) => {
+          const textureKey = agentTextureKey(agent.id, state, frame);
+          if (!this.textures.exists(textureKey))
+            this.createAgentTexture(agent, state, frame, textureKey);
+          return { key: textureKey };
+        });
+        if (this.anims.exists(animationKey)) return;
+        this.anims.create({
+          key: animationKey,
+          frames: frameKeys,
+          frameRate: state === 'walk' ? 8 : state === 'idle' ? 4 : 6,
+          repeat: -1,
+        });
+      });
+    }
+
+    private createAgentTexture(
+      agent: SceneAgent,
+      state: AgentSpriteState,
+      frame: number,
+      textureKey: string,
+    ) {
+      const graphic = this.make.graphics({ x: 0, y: 0 });
+      const bob = state === 'idle' ? frame % 2 : 0;
+      const step = state === 'walk' ? frame % 2 : 0;
+      const coat =
+        agent.role === 'scout'
+          ? palette.weatherCyan
+          : agent.role === 'archivist'
+            ? palette.scholarViolet
+            : palette.mossSignal;
+      const accent = agent.role === 'archivist' ? palette.windowGold : palette.alertCoral;
+      const hair = agent.role === 'skeptic' ? palette.alertCoral : palette.deepInk;
+
+      graphic.fillStyle(palette.atlasNight).fillRect(2, 14, 8, 2);
+      graphic.fillStyle(palette.parchment).fillRect(4, 3 + bob, 4, 4);
+      graphic.fillStyle(hair).fillRect(3, 2 + bob, 6, 2);
+      if (agent.role === 'skeptic') graphic.fillTriangle(8, 2 + bob, 11, 5 + bob, 8, 5 + bob);
+      graphic.fillStyle(coat).fillRect(3, 7 + bob, 6, 6);
+      graphic.fillStyle(palette.deepInk);
+      graphic.fillRect(step ? 3 : 4, 13, 2, 3);
+      graphic.fillRect(step ? 7 : 6, 13, 2, 3);
+
+      if (agent.role === 'scout') {
+        graphic.fillStyle(accent).fillRect(9, 7 + bob, 2, 3);
+        graphic.fillStyle(palette.paperLight).fillRect(10, 7 + bob, 1, 1);
+      } else if (agent.role === 'archivist') {
+        graphic.lineStyle(1, palette.deepInk, 1);
+        graphic.strokeRect(3, 4 + bob, 3, 2);
+        graphic.strokeRect(6, 4 + bob, 3, 2);
+        graphic.fillStyle(accent).fillRect(1, 9 + bob, 3, 4);
+      } else {
+        graphic.fillStyle(accent).fillTriangle(3, 7 + bob, 10, 8 + bob, 9, 10 + bob);
+      }
+
+      if (state === 'work') {
+        graphic.fillStyle(palette.paperLight).fillRect(2 + (frame % 2), 9, 8, 5);
+        graphic.fillStyle(palette.harborBlue).fillRect(3, 10 + (frame % 2), 5, 1);
+        graphic.fillRect(3, 12, 4, 1);
+      } else if (state === 'share') {
+        graphic.fillStyle(coat).fillRect(9, 8 + (frame % 2), 3, 2);
+        graphic.fillStyle(palette.windowGold).fillRect(10, 6 + (frame % 2), 2, 2);
+      }
+
+      graphic.generateTexture(textureKey, 12, 16);
+      graphic.destroy();
     }
 
     private drawWeather() {
@@ -429,6 +522,12 @@ export async function mountWorldScene(options: MountWorldSceneOptions): Promise<
           return;
         case 'camera.follow-agent':
           this.followAgent(command.agentId);
+          return;
+        case 'agent.select':
+          this.selectAgent(command.agentId);
+          return;
+        case 'agent.set-animation':
+          this.setAgentAnimation(command.agentId, command.state);
           return;
         case 'place.center':
           this.centerOnPlace(command.placeId);
@@ -477,9 +576,33 @@ export async function mountWorldScene(options: MountWorldSceneOptions): Promise<
       this.placeHighlights.forEach((highlight, id) => highlight.setVisible(id === placeId));
     }
 
+    private selectAgent(agentId: string) {
+      if (!this.agentSprites.has(agentId)) return;
+      this.selectedAgentId = agentId;
+      this.agentHighlights.forEach((highlight, id) => highlight.setVisible(id === agentId));
+      options.bridge.emit({ type: 'agent.selection-rendered', agentId });
+    }
+
+    private setAgentAnimation(agentId: string, state: AgentSpriteState) {
+      const sprite = this.agentSprites.get(agentId);
+      if (!sprite) return;
+      sprite.play(agentAnimationKey(agentId, state), true);
+      if (this.reducedMotion) sprite.anims.pause();
+    }
+
     private applyReducedMotion() {
-      if (this.reducedMotion) this.tweens.pauseAll();
-      else this.tweens.resumeAll();
+      if (this.reducedMotion) {
+        this.tweens.pauseAll();
+        this.agentSprites.forEach((sprite) => sprite.anims.pause());
+      } else {
+        this.tweens.resumeAll();
+        this.agentSprites.forEach((sprite) => sprite.anims.resume());
+      }
+      options.bridge.emit({
+        type: 'motion.changed',
+        agentAnimationsPaused: this.reducedMotion,
+        reduced: this.reducedMotion,
+      });
     }
 
     private emitCameraChanged() {

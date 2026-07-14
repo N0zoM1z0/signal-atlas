@@ -20,8 +20,14 @@ export interface WorldCanvasHandle {
   send: (command: WorldSceneCommand) => void;
 }
 
+export interface CameraFollowRequest {
+  agentId: string;
+  requestId: number;
+}
+
 export interface WorldCanvasProps {
   children: ReactNode;
+  followRequest: CameraFollowRequest | undefined;
   model: WorldSceneDefinition;
   reducedMotion: boolean;
   selectedAgentId: string;
@@ -47,6 +53,7 @@ function isEditableTarget(target: EventTarget | null): boolean {
 export const WorldCanvas = forwardRef<WorldCanvasHandle, WorldCanvasProps>(function WorldCanvas(
   {
     children,
+    followRequest,
     model,
     onAgentSelect,
     onPlaceSelect,
@@ -59,14 +66,18 @@ export const WorldCanvas = forwardRef<WorldCanvasHandle, WorldCanvasProps>(funct
   const parentRef = useRef<HTMLDivElement>(null);
   const callbacksRef = useRef({ onAgentSelect, onPlaceSelect });
   const initialOptionsRef = useRef({ reducedMotion, selectedAgentId, selectedPlaceId });
+  const viewStateRef = useRef({ followRequest, reducedMotion, selectedAgentId, selectedPlaceId });
   const bridge = useMemo(() => createWorldSceneBridge(), []);
   const [metrics, setMetrics] = useState<CanvasMetrics>();
   const [framesPerSecond, setFramesPerSecond] = useState<number>();
   const [followingAgentId, setFollowingAgentId] = useState<string>();
+  const [renderedAgentId, setRenderedAgentId] = useState<string>();
+  const [agentAnimationPaused, setAgentAnimationPaused] = useState(false);
   const [cameraCenter, setCameraCenter] = useState({ x: 0, y: 0 });
   const [zoomStep, setZoomStep] = useState(0);
   const [error, setError] = useState<string>();
   callbacksRef.current = { onAgentSelect, onPlaceSelect };
+  viewStateRef.current = { followRequest, reducedMotion, selectedAgentId, selectedPlaceId };
 
   useImperativeHandle(ref, () => ({ send: bridge.send }), [bridge]);
 
@@ -77,6 +88,29 @@ export const WorldCanvas = forwardRef<WorldCanvasHandle, WorldCanvasProps>(funct
     const unsubscribe = bridge.subscribe((event) => {
       switch (event.type) {
         case 'scene.ready':
+          bridge.send({
+            type: 'motion.set-reduced',
+            reduced: viewStateRef.current.reducedMotion,
+          });
+          bridge.send({ type: 'agent.select', agentId: viewStateRef.current.selectedAgentId });
+          if (viewStateRef.current.selectedPlaceId) {
+            bridge.send({
+              type: 'place.select',
+              placeId: viewStateRef.current.selectedPlaceId,
+            });
+          }
+          if (viewStateRef.current.followRequest) {
+            bridge.send({
+              type: 'camera.follow-agent',
+              agentId: viewStateRef.current.followRequest.agentId,
+            });
+          }
+          setMetrics({
+            height: event.canvasHeight,
+            pixelScale: event.pixelScale,
+            width: event.canvasWidth,
+          });
+          return;
         case 'scene.resized':
           setMetrics({
             height: event.canvasHeight,
@@ -97,6 +131,12 @@ export const WorldCanvas = forwardRef<WorldCanvasHandle, WorldCanvasProps>(funct
           return;
         case 'agent.selected':
           callbacksRef.current.onAgentSelect(event.agentId);
+          return;
+        case 'agent.selection-rendered':
+          setRenderedAgentId(event.agentId);
+          return;
+        case 'motion.changed':
+          setAgentAnimationPaused(event.agentAnimationsPaused);
       }
     });
 
@@ -127,6 +167,16 @@ export const WorldCanvas = forwardRef<WorldCanvasHandle, WorldCanvasProps>(funct
       mountedScene?.destroy();
     };
   }, [bridge, model]);
+
+  useEffect(() => {
+    bridge.send({ type: 'agent.select', agentId: selectedAgentId });
+  }, [bridge, selectedAgentId]);
+
+  useEffect(() => {
+    if (followRequest) {
+      bridge.send({ type: 'camera.follow-agent', agentId: followRequest.agentId });
+    }
+  }, [bridge, followRequest]);
 
   useEffect(() => {
     if (selectedPlaceId) bridge.send({ type: 'place.select', placeId: selectedPlaceId });
@@ -161,11 +211,13 @@ export const WorldCanvas = forwardRef<WorldCanvasHandle, WorldCanvasProps>(funct
       className="atlas-world-canvas"
       data-camera-center-x={cameraCenter.x}
       data-camera-center-y={cameraCenter.y}
+      data-agent-animation-paused={agentAnimationPaused}
       data-following-agent={followingAgentId ?? ''}
       data-fps={framesPerSecond ?? ''}
       data-pixel-scale={metrics?.pixelScale ?? ''}
       data-scene-ready={ready}
       data-reduced-motion={reducedMotion}
+      data-rendered-agent={renderedAgentId ?? ''}
       data-zoom-step={zoomStep}
     >
       <div aria-hidden="true" className="atlas-phaser-mount" ref={parentRef} />

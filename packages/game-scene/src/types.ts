@@ -1,10 +1,12 @@
 import type { Agent, Place, Route, WorldManifest } from '@signal-atlas/contracts';
 
+import type { AgentSpriteState } from './agent-sprites.js';
+
 export type ScenePlace = Pick<Place, 'archetype' | 'id' | 'name' | 'position' | 'visualState'>;
 
 export type SceneRoute = Pick<Route, 'id' | 'waypoints'>;
 
-export type SceneAgent = Pick<Agent, 'displayName' | 'id' | 'placeId' | 'publicState'>;
+export type SceneAgent = Pick<Agent, 'displayName' | 'id' | 'placeId' | 'publicState' | 'role'>;
 
 export interface WorldSceneDefinition {
   agents: SceneAgent[];
@@ -22,6 +24,8 @@ export type WorldSceneCommand =
   | { type: 'camera.pan'; deltaX: number; deltaY: number }
   | { type: 'camera.zoom'; delta: -1 | 1 }
   | { type: 'camera.follow-agent'; agentId: string }
+  | { type: 'agent.select'; agentId: string }
+  | { type: 'agent.set-animation'; agentId: string; state: AgentSpriteState }
   | { type: 'place.center'; placeId: string }
   | { type: 'place.select'; placeId: string }
   | { type: 'motion.set-reduced'; reduced: boolean };
@@ -41,6 +45,7 @@ export type WorldSceneEvent =
     }
   | { type: 'place.selected'; placeId: string; source: 'canvas' }
   | { type: 'agent.selected'; agentId: string; source: 'canvas' }
+  | { type: 'agent.selection-rendered'; agentId: string }
   | {
       type: 'camera.changed';
       centerX: number;
@@ -49,6 +54,7 @@ export type WorldSceneEvent =
       pixelScale: number;
       zoomStep: number;
     }
+  | { type: 'motion.changed'; agentAnimationsPaused: boolean; reduced: boolean }
   | { type: 'performance.sample'; framesPerSecond: number };
 
 export interface MountedWorldScene {
@@ -77,11 +83,12 @@ export function createWorldSceneDefinition(
   agents: readonly Agent[],
 ): WorldSceneDefinition {
   return {
-    agents: agents.map(({ displayName, id, placeId, publicState }) => ({
+    agents: agents.map(({ displayName, id, placeId, publicState, role }) => ({
       displayName,
       id,
       placeId,
       publicState,
+      role,
     })),
     ambientLayers: structuredClone(manifest.ambientLayers),
     defaultSpawnPlaceId: manifest.defaultSpawnPlaceId,

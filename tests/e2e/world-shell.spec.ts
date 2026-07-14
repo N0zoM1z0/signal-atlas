@@ -129,6 +129,8 @@ test('Phaser owns a crisp 48 × 30 world while the DOM mirror and camera stay sy
   await expect(scene).toHaveAttribute('data-scene-ready', 'true');
   await expect(scene).toHaveAttribute('data-pixel-scale', '18');
   await expect(scene).toHaveAttribute('data-reduced-motion', 'true');
+  await expect(scene).toHaveAttribute('data-agent-animation-paused', 'true');
+  await expect(scene).toHaveAttribute('data-rendered-agent', 'mira');
   await expect(canvas).toHaveCount(1);
   await expect
     .poll(() => canvas.evaluate((element) => ({ height: element.height, width: element.width })))
@@ -187,4 +189,54 @@ test('Phaser owns a crisp 48 × 30 world while the DOM mirror and camera stay sy
   });
   await canvas.click({ position: { x: 666, y: 80 } });
   await expect(weatherTower).toHaveAttribute('aria-pressed', 'true');
+});
+
+test('agent cards and procedural sprites synchronize selection, follow, and motion state', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.goto('/');
+
+  const scene = page.locator('.atlas-world-canvas');
+  const canvas = scene.locator('canvas');
+  await expect(scene).toHaveAttribute('data-scene-ready', 'true');
+  await expect(scene).toHaveAttribute('data-agent-animation-paused', 'true');
+
+  const mira = page.locator('.atlas-agent-card[data-agent="mira"]');
+  const orin = page.locator('.atlas-agent-card[data-agent="orin"]');
+  const kestrel = page.locator('.atlas-agent-card[data-agent="kestrel"]');
+  await expect(mira).toContainText('Field scout');
+  await expect(mira).toContainText('Idle');
+  await expect(mira).toContainText('Meridian Observatory');
+  await expect(mira).toContainText('Awaiting mission');
+  await expect(mira).toContainText('56%');
+  await expect(orin).toContainText('Archivist');
+  await expect(kestrel).toContainText('Skeptical analyst');
+
+  await orin.focus();
+  await page.keyboard.press('Enter');
+  await expect(orin).toHaveAttribute('aria-pressed', 'true');
+  await expect(scene).toHaveAttribute('data-rendered-agent', 'orin');
+  await expect(page.locator('.atlas-command-agent strong')).toHaveText('Orin');
+  await page.getByRole('button', { name: 'Follow Orin' }).click();
+  await expect(scene).toHaveAttribute('data-following-agent', 'orin');
+
+  await page.getByRole('button', { name: 'Center map' }).click();
+  await page.locator('.atlas-place').evaluateAll((elements) => {
+    elements.forEach((element) => {
+      (element as HTMLElement).style.pointerEvents = 'none';
+    });
+  });
+  await canvas.click({ position: { x: 218, y: 242 } });
+  await expect(kestrel).toHaveAttribute('aria-pressed', 'true');
+  await expect(scene).toHaveAttribute('data-rendered-agent', 'kestrel');
+  await expect(page.locator('.atlas-command-agent strong')).toHaveText('Kestrel');
+  await page.getByRole('button', { name: 'Follow Kestrel' }).click();
+  await expect(scene).toHaveAttribute('data-following-agent', 'kestrel');
+
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  await expect(scene).toHaveAttribute('data-agent-animation-paused', 'false');
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await expect(scene).toHaveAttribute('data-agent-animation-paused', 'true');
 });

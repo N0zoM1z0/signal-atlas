@@ -3,7 +3,7 @@ import { useRef, type CSSProperties } from 'react';
 import type { WorldSceneDefinition } from '@signal-atlas/game-scene';
 
 import type { ShellPlace } from './model.js';
-import { WorldCanvas, type WorldCanvasHandle } from './WorldCanvas.js';
+import { WorldCanvas, type CameraFollowRequest, type WorldCanvasHandle } from './WorldCanvas.js';
 
 interface RouteModel {
   id: string;
@@ -12,6 +12,7 @@ interface RouteModel {
 
 export interface WorldStageHostProps {
   agentsDrawerOpen: boolean;
+  followRequest: CameraFollowRequest | undefined;
   loading: boolean;
   places: readonly ShellPlace[];
   reducedMotion: boolean;
@@ -35,6 +36,7 @@ function placeStyle(place: ShellPlace): CSSProperties {
 
 export function WorldStageHost({
   agentsDrawerOpen,
+  followRequest,
   loading,
   onOpenPanel,
   onSelectAgent,
@@ -150,6 +152,7 @@ export function WorldStageHost({
         </div>
 
         <WorldCanvas
+          followRequest={followRequest}
           model={sceneDefinition}
           onAgentSelect={onSelectAgent}
           onPlaceSelect={onSelectPlace}

@@ -6,6 +6,7 @@ export interface AgentDockProps {
   disconnected: boolean;
   mobileOpen: boolean;
   selectedAgentId: string;
+  onFollowAgent: (agentId: string) => void;
   onSelectAgent: (agentId: string) => void;
   onToggleCollapsed: () => void;
 }
@@ -15,6 +16,7 @@ export function AgentDock({
   collapsed,
   disconnected,
   mobileOpen,
+  onFollowAgent,
   onSelectAgent,
   onToggleCollapsed,
   selectedAgentId,
@@ -46,11 +48,12 @@ export function AgentDock({
           {agents.map((agent, index) => {
             const selected = agent.id === selectedAgentId;
             return (
-              <li key={agent.id}>
+              <li className="atlas-agent-entry" data-selected={selected} key={agent.id}>
                 <button
                   aria-pressed={selected}
                   className="atlas-agent-card"
                   data-agent={agent.id}
+                  data-state={agent.status.toLowerCase()}
                   onClick={() => onSelectAgent(agent.id)}
                   title={`${agent.name}, ${agent.role}`}
                   type="button"
@@ -63,7 +66,9 @@ export function AgentDock({
                       <strong>{agent.name}</strong>
                       <em>{agent.forecast}%</em>
                     </span>
-                    <small>{agent.role}</small>
+                    <small className="atlas-role-badge" data-role={agent.roleKey}>
+                      {agent.role}
+                    </small>
                     <span className="atlas-agent-card__status">
                       <i aria-hidden="true" /> {agent.status}
                     </span>
@@ -72,7 +77,22 @@ export function AgentDock({
                     <b>{agent.knowledgeCount}</b>
                     <kbd>{index + 1}</kbd>
                   </span>
+                  <span className="atlas-agent-card__details">
+                    <span className="atlas-agent-card__location" title={agent.placeName}>
+                      <i aria-hidden="true">⌖</i> {agent.placeName}
+                    </span>
+                    <span className="atlas-agent-card__mission">{agent.mission}</span>
+                  </span>
                 </button>
+                {selected && (
+                  <button
+                    className="atlas-agent-follow"
+                    onClick={() => onFollowAgent(agent.id)}
+                    type="button"
+                  >
+                    <span aria-hidden="true">◎</span> Follow {agent.name}
+                  </button>
+                )}
               </li>
             );
           })}
