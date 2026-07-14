@@ -54,3 +54,39 @@ The recommended first release is a **simulation-first desktop web app** with:
 - no real-money trading or automatic market execution.
 
 This slice is deliberately narrow. It is enough to prove the central magic: **information becomes a place, research becomes movement, and forecasting becomes a story the player can understand.**
+
+## Development quick start
+
+Signal Atlas is implemented as a pnpm TypeScript workspace. The default development profile is local and fixture-first.
+
+Prerequisites:
+
+- Node.js 22.12 or newer;
+- pnpm 10 or newer.
+
+Before an installation or another command that requires Internet access, enable the project owner's local proxy in the same shell:
+
+```bash
+source ~/clash.sh
+proxy_on
+```
+
+Install and start both the web application and local orchestrator:
+
+```bash
+pnpm install
+pnpm dev
+```
+
+The web application listens on `http://127.0.0.1:4173` and the orchestrator health endpoint is `http://127.0.0.1:4317/api/health`.
+
+Run the current repository gate with:
+
+```bash
+pnpm typecheck
+pnpm lint
+pnpm test
+pnpm build
+```
+
+Local credentials, databases, runtime transcripts, and cached source bodies must not be committed.

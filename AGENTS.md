@@ -107,6 +107,12 @@ All Codex outputs must conform to `agent-turn-output.schema.json`, then pass run
 - Do not log raw credentials, authorization headers, or private notes.
 - Avoid premature abstraction outside the defined service boundaries.
 
+## Network and dependency operations
+
+- Before any command that installs dependencies or requires Internet access, enable the local proxy in the same shell with `source ~/clash.sh; proxy_on`.
+- Do not persist proxy credentials, proxy environment values, authorization headers, or generated connection URLs in the repository, worklogs, command output, screenshots, or logs.
+- Keep offline validation and fixture-mode commands independent of the proxy whenever they do not require network access.
+
 ## Visual quality
 
 The reference viewport is 1440 x 900.

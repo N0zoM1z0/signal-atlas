@@ -1,0 +1,36 @@
+{
+  "name": "signal-atlas",
+  "version": "0.0.0",
+  "private": true,
+  "description": "A local-first pixel-world interface for evidence-grounded forecasting.",
+  "type": "module",
+  "packageManager": "pnpm@10.33.0",
+  "engines": {
+    "node": ">=22.12.0",
+    "pnpm": ">=10.0.0"
+  },
+  "scripts": {
+    "dev": "concurrently --kill-others-on-fail --names orchestrator,web --prefix-colors yellow,cyan \"pnpm --filter @signal-atlas/orchestrator dev\" \"pnpm --filter @signal-atlas/web dev\"",
+    "build": "pnpm --recursive --if-present build",
+    "typecheck": "pnpm --recursive --if-present typecheck",
+    "lint": "eslint . --max-warnings 0",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "pnpm --recursive --if-present test",
+    "clean": "pnpm --recursive --if-present clean"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@types/node": "26.1.1",
+    "concurrently": "10.0.3",
+    "eslint": "10.7.0",
+    "eslint-plugin-react-hooks": "7.1.1",
+    "eslint-plugin-react-refresh": "0.5.3",
+    "globals": "17.7.0",
+    "prettier": "3.9.5",
+    "tsx": "4.23.1",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.64.0",
+    "vitest": "4.1.10"
+  }
+}
