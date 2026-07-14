@@ -3,12 +3,17 @@ import { describe, expect, it } from 'vitest';
 
 import { App } from './App.js';
 
-describe('Signal Atlas bootstrap shell', () => {
-  it('communicates the product identity and fixture expedition', () => {
+describe('Signal Atlas world shell', () => {
+  it('renders the five fixture-backed application regions in logical order', () => {
     const markup = renderToStaticMarkup(<App />);
 
     expect(markup).toContain('Signal Atlas');
-    expect(markup).toContain('Walk the world. Gather the signal. Price the future.');
-    expect(markup).toContain('Helios-3 expedition');
+    expect(markup).toContain('Will the Helios-3 mission launch before September 30?');
+    expect(markup).toContain('aria-label="Agents"');
+    expect(markup).toContain('aria-label="Interactive world stage"');
+    expect(markup).toContain('aria-label="Signals"');
+    expect(markup).toContain('aria-label="Agent command desk"');
+    expect(markup).toContain('Fixture preview · staged until mission events');
+    expect(markup).toContain('Check whether the weather advisory');
   });
 });

@@ -11,6 +11,8 @@
     "clean": "rm -rf dist .vite"
   },
   "dependencies": {
+    "@signal-atlas/simulation": "workspace:*",
+    "@signal-atlas/test-fixtures": "workspace:*",
     "@signal-atlas/ui": "workspace:*",
     "react": "19.2.7",
     "react-dom": "19.2.7"

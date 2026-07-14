@@ -56,6 +56,12 @@ importers:
 
   apps/web:
     dependencies:
+      '@signal-atlas/simulation':
+        specifier: workspace:*
+        version: link:../../packages/simulation
+      '@signal-atlas/test-fixtures':
+        specifier: workspace:*
+        version: link:../../packages/test-fixtures
       '@signal-atlas/ui':
         specifier: workspace:*
         version: link:../../packages/ui
