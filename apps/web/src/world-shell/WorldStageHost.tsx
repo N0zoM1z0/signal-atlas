@@ -12,6 +12,7 @@ interface RouteModel {
 
 export interface WorldStageHostProps {
   agentsDrawerOpen: boolean;
+  autoCamera: boolean;
   followRequest: CameraFollowRequest | undefined;
   loading: boolean;
   places: readonly ShellPlace[];
@@ -21,10 +22,12 @@ export interface WorldStageHostProps {
   selectedAgentId: string;
   selectedAgentName: string;
   selectedPlaceId: string | undefined;
+  skipTravel: boolean;
   signalsDrawerOpen: boolean;
   onOpenPanel: (panel: 'agents' | 'signals' | 'archive' | 'professor') => void;
   onSelectAgent: (agentId: string) => void;
   onSelectPlace: (placeId: string) => void;
+  onSkipTravelChange: (enabled: boolean) => void;
 }
 
 function placeStyle(place: ShellPlace): CSSProperties {
@@ -36,11 +39,13 @@ function placeStyle(place: ShellPlace): CSSProperties {
 
 export function WorldStageHost({
   agentsDrawerOpen,
+  autoCamera,
   followRequest,
   loading,
   onOpenPanel,
   onSelectAgent,
   onSelectPlace,
+  onSkipTravelChange,
   places,
   reducedMotion,
   routes,
@@ -48,6 +53,7 @@ export function WorldStageHost({
   selectedAgentId,
   selectedAgentName,
   selectedPlaceId,
+  skipTravel,
   signalsDrawerOpen,
 }: WorldStageHostProps) {
   const canvasRef = useRef<WorldCanvasHandle>(null);
@@ -152,6 +158,7 @@ export function WorldStageHost({
         </div>
 
         <WorldCanvas
+          autoCamera={autoCamera}
           followRequest={followRequest}
           model={sceneDefinition}
           onAgentSelect={onSelectAgent}
@@ -204,9 +211,19 @@ export function WorldStageHost({
         <span className="atlas-event-ticker" role="status">
           <i aria-hidden="true" /> <strong>18:32</strong> {selectedAgentName} selected.
         </span>
-        <button type="button">
-          <i aria-hidden="true" /> Convene at Lantern Square
-        </button>
+        <span className="atlas-world-footer__actions">
+          <label className="atlas-travel-preference">
+            <input
+              checked={skipTravel}
+              onChange={(event) => onSkipTravelChange(event.target.checked)}
+              type="checkbox"
+            />
+            Skip travel
+          </label>
+          <button type="button">
+            <i aria-hidden="true" /> Convene at Lantern Square
+          </button>
+        </span>
       </footer>
     </main>
   );

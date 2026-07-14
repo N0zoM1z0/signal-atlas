@@ -36,7 +36,8 @@ function statusForRejectedCommand(issues: readonly { code: string }[]): number {
 
 export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   const app = Fastify({
-    logger: process.env['NODE_ENV'] !== 'test',
+    logger:
+      process.env['NODE_ENV'] === 'test' ? false : { level: process.env['LOG_LEVEL'] ?? 'warn' },
   });
   const runtime = options.runtime ?? new ExpeditionRuntime(createHelios3ExpeditionFixture());
   const runScheduler = options.runScheduler ?? process.env['NODE_ENV'] !== 'test';
@@ -120,6 +121,13 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
       return reply.code(result.duplicate ? 200 : 202).send(result);
     },
   );
+
+  if (process.env['SIGNAL_ATLAS_E2E'] === '1') {
+    app.post('/api/testing/reset', async () => {
+      runtime.resetToFixture();
+      return { reset: true, sequence: runtime.snapshot().sequence };
+    });
+  }
 
   return app;
 }

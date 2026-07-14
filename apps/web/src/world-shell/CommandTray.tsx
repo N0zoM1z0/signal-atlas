@@ -265,7 +265,8 @@ export function CommandTray({
               <ol>
                 {missions.map((mission, index) => {
                   const agentMissions = missions.filter(
-                    (candidate) => candidate.agentId === mission.agentId,
+                    (candidate) =>
+                      candidate.agentId === mission.agentId && candidate.status === 'queued',
                   );
                   const agentIndex = agentMissions.findIndex(
                     (candidate) => candidate.id === mission.id,
@@ -282,7 +283,7 @@ export function CommandTray({
                       <span className="atlas-queue-actions">
                         <button
                           aria-label={`Move ${mission.objective} earlier`}
-                          disabled={busy || agentIndex <= 0}
+                          disabled={busy || mission.status !== 'queued' || agentIndex <= 0}
                           onClick={() => onMoveMission(mission.id, -1)}
                           type="button"
                         >
@@ -290,7 +291,11 @@ export function CommandTray({
                         </button>
                         <button
                           aria-label={`Move ${mission.objective} later`}
-                          disabled={busy || agentIndex === agentMissions.length - 1}
+                          disabled={
+                            busy ||
+                            mission.status !== 'queued' ||
+                            agentIndex === agentMissions.length - 1
+                          }
                           onClick={() => onMoveMission(mission.id, 1)}
                           type="button"
                         >

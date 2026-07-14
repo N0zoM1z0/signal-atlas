@@ -26,6 +26,7 @@ export interface CameraFollowRequest {
 }
 
 export interface WorldCanvasProps {
+  autoCamera: boolean;
   children: ReactNode;
   followRequest: CameraFollowRequest | undefined;
   model: WorldSceneDefinition;
@@ -52,6 +53,7 @@ function isEditableTarget(target: EventTarget | null): boolean {
 
 export const WorldCanvas = forwardRef<WorldCanvasHandle, WorldCanvasProps>(function WorldCanvas(
   {
+    autoCamera,
     children,
     followRequest,
     model,
@@ -66,18 +68,38 @@ export const WorldCanvas = forwardRef<WorldCanvasHandle, WorldCanvasProps>(funct
   const parentRef = useRef<HTMLDivElement>(null);
   const callbacksRef = useRef({ onAgentSelect, onPlaceSelect });
   const initialOptionsRef = useRef({ reducedMotion, selectedAgentId, selectedPlaceId });
-  const viewStateRef = useRef({ followRequest, reducedMotion, selectedAgentId, selectedPlaceId });
+  const initialModelRef = useRef(model);
+  const modelRef = useRef(model);
+  const previousAgentStatesRef = useRef<Record<string, string>>({});
+  const viewStateRef = useRef({
+    autoCamera,
+    followRequest,
+    reducedMotion,
+    selectedAgentId,
+    selectedPlaceId,
+  });
   const bridge = useMemo(() => createWorldSceneBridge(), []);
   const [metrics, setMetrics] = useState<CanvasMetrics>();
   const [framesPerSecond, setFramesPerSecond] = useState<number>();
   const [followingAgentId, setFollowingAgentId] = useState<string>();
   const [renderedAgentId, setRenderedAgentId] = useState<string>();
   const [agentAnimationPaused, setAgentAnimationPaused] = useState(false);
+  const [arrivalAgentId, setArrivalAgentId] = useState<string>();
+  const [renderedProjections, setRenderedProjections] = useState<
+    Record<string, { progress: number | null; state: string; x: number; y: number }>
+  >({});
   const [cameraCenter, setCameraCenter] = useState({ x: 0, y: 0 });
   const [zoomStep, setZoomStep] = useState(0);
   const [error, setError] = useState<string>();
   callbacksRef.current = { onAgentSelect, onPlaceSelect };
-  viewStateRef.current = { followRequest, reducedMotion, selectedAgentId, selectedPlaceId };
+  modelRef.current = model;
+  viewStateRef.current = {
+    autoCamera,
+    followRequest,
+    reducedMotion,
+    selectedAgentId,
+    selectedPlaceId,
+  };
 
   useImperativeHandle(ref, () => ({ send: bridge.send }), [bridge]);
 
@@ -105,6 +127,7 @@ export const WorldCanvas = forwardRef<WorldCanvasHandle, WorldCanvasProps>(funct
               agentId: viewStateRef.current.followRequest.agentId,
             });
           }
+          modelRef.current.agents.forEach((agent) => bridge.send({ type: 'agent.project', agent }));
           setMetrics({
             height: event.canvasHeight,
             pixelScale: event.pixelScale,
@@ -135,6 +158,17 @@ export const WorldCanvas = forwardRef<WorldCanvasHandle, WorldCanvasProps>(funct
         case 'agent.selection-rendered':
           setRenderedAgentId(event.agentId);
           return;
+        case 'agent.projection-rendered':
+          setRenderedProjections((current) => ({
+            ...current,
+            [event.agentId]: {
+              progress: event.progress,
+              state: event.state,
+              x: event.x,
+              y: event.y,
+            },
+          }));
+          return;
         case 'motion.changed':
           setAgentAnimationPaused(event.agentAnimationsPaused);
       }
@@ -146,7 +180,7 @@ export const WorldCanvas = forwardRef<WorldCanvasHandle, WorldCanvasProps>(funct
       bridge,
       initialSelectedAgentId: initialOptionsRef.current.selectedAgentId,
       initialSelectedPlaceId: initialOptionsRef.current.selectedPlaceId,
-      model,
+      model: initialModelRef.current,
       parent,
       reducedMotion: initialOptionsRef.current.reducedMotion,
       signal: abortController.signal,
@@ -166,7 +200,23 @@ export const WorldCanvas = forwardRef<WorldCanvasHandle, WorldCanvasProps>(funct
       unsubscribe();
       mountedScene?.destroy();
     };
-  }, [bridge, model]);
+  }, [bridge]);
+
+  useEffect(() => {
+    const previousStates = previousAgentStatesRef.current;
+    for (const agent of model.agents) {
+      bridge.send({ type: 'agent.project', agent });
+      if (
+        previousStates[agent.id] === 'traveling' &&
+        agent.publicState === 'working' &&
+        autoCamera
+      ) {
+        bridge.send({ type: 'camera.follow-agent', agentId: agent.id });
+        setArrivalAgentId(agent.id);
+      }
+      previousStates[agent.id] = agent.publicState;
+    }
+  }, [autoCamera, bridge, model.agents]);
 
   useEffect(() => {
     bridge.send({ type: 'agent.select', agentId: selectedAgentId });
@@ -202,6 +252,7 @@ export const WorldCanvas = forwardRef<WorldCanvasHandle, WorldCanvasProps>(funct
   }, [bridge, selectedAgentId]);
 
   const ready = Boolean(metrics) && !error;
+  const renderedProjection = renderedProjections[selectedAgentId];
   const coordinatePlaneStyle = metrics
     ? { height: `${metrics.height}px`, width: `${metrics.width}px` }
     : undefined;
@@ -212,6 +263,11 @@ export const WorldCanvas = forwardRef<WorldCanvasHandle, WorldCanvasProps>(funct
       data-camera-center-x={cameraCenter.x}
       data-camera-center-y={cameraCenter.y}
       data-agent-animation-paused={agentAnimationPaused}
+      data-agent-progress={renderedProjection?.progress ?? ''}
+      data-agent-state={renderedProjection?.state ?? ''}
+      data-agent-x={renderedProjection?.x ?? ''}
+      data-agent-y={renderedProjection?.y ?? ''}
+      data-arrival-agent={arrivalAgentId ?? ''}
       data-following-agent={followingAgentId ?? ''}
       data-fps={framesPerSecond ?? ''}
       data-pixel-scale={metrics?.pixelScale ?? ''}

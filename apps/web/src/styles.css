@@ -702,7 +702,28 @@ textarea {
   font-style: normal;
 }
 
-.atlas-agent-follow {
+.atlas-agent-travel-progress {
+  display: block;
+  width: 100%;
+  height: 3px;
+  margin-top: var(--sa-spacing-1);
+  overflow: hidden;
+  background: var(--sa-color-slate-cloud);
+}
+
+.atlas-agent-travel-progress i {
+  display: block;
+  block-size: 100%;
+  background: var(--sa-color-weather-cyan);
+}
+
+.atlas-agent-actions {
+  display: grid;
+  grid-template-columns: 1fr auto;
+}
+
+.atlas-agent-follow,
+.atlas-agent-skip {
   min-height: var(--sa-spacing-8);
   margin-top: calc(var(--sa-border-hairline) * -1);
   border: var(--sa-border-hairline) solid var(--sa-color-weather-cyan);
@@ -713,6 +734,21 @@ textarea {
   font-size: 9px;
   font-weight: var(--sa-typography-weight-bold);
   letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.atlas-agent-actions .atlas-agent-follow {
+  border-radius: 0 0 0 var(--sa-radius-small) !important;
+}
+
+.atlas-agent-skip {
+  padding: 0 var(--sa-spacing-2);
+  border-color: var(--sa-color-window-gold);
+  border-radius: 0 0 var(--sa-radius-small) 0 !important;
+  color: var(--sa-color-window-gold) !important;
+  background: var(--sa-color-atlas-night);
+  font-family: var(--sa-typography-mono-family);
+  font-size: 8px;
   text-transform: uppercase;
 }
 
@@ -1701,6 +1737,29 @@ kbd {
   height: 6px;
   border-radius: var(--sa-radius-pill);
   background: var(--sa-color-window-gold);
+}
+
+.atlas-world-footer__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--sa-spacing-2);
+}
+
+.atlas-travel-preference {
+  display: flex;
+  min-height: 26px;
+  align-items: center;
+  gap: var(--sa-spacing-1);
+  padding: 0 var(--sa-spacing-2);
+  border: var(--sa-border-hairline) solid var(--sa-color-slate-cloud);
+  color: var(--sa-color-muted-steel);
+  background: var(--sa-color-atlas-night);
+  font-family: var(--sa-typography-mono-family);
+  font-size: 9px;
+}
+
+.atlas-travel-preference input {
+  accent-color: var(--sa-color-weather-cyan);
 }
 
 /* Command tray */

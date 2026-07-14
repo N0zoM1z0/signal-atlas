@@ -180,6 +180,9 @@ describe('ExpeditionRuntime commands', () => {
       'mission-mira-weather-2',
     ]);
     expect(runtime.snapshot().missionsById['mission-mira-weather-3']?.status).toBe('canceled');
+    expect(runtime.advance(1_000).some((event) => event.type === 'agent.travel.progressed')).toBe(
+      true,
+    );
   });
 
   it('pauses, resumes, accelerates, and skips travel into the work phase', () => {

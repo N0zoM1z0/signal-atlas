@@ -47,6 +47,16 @@ export function createShellModel(projection: WorldProjection) {
     projection.worldManifest.places.map((place) => [place.id, place]),
   );
   const agentById = projection.agentsById;
+  const missionRankById = new Map<string, number>();
+  let missionRank = 0;
+  for (const fixtureAgent of fixture.agents) {
+    const agent = agentById[fixtureAgent.id];
+    if (!agent) continue;
+    if (agent.activeMissionId) missionRankById.set(agent.activeMissionId, missionRank++);
+    for (const missionId of agent.queuedMissionIds) {
+      missionRankById.set(missionId, missionRank++);
+    }
+  }
 
   return {
     fixture,
@@ -65,12 +75,15 @@ export function createShellModel(projection: WorldProjection) {
       const activeMission = agent.activeMissionId
         ? projection.missionsById[agent.activeMissionId]
         : undefined;
+      const movementDestination = agent.movement ? placeById[agent.movement.toPlaceId] : undefined;
       return {
         id: agent.id,
         name: agent.displayName,
         role: roleLabels[agent.role],
         roleKey: agent.role,
-        placeName: place?.name ?? agent.placeId,
+        placeName: movementDestination
+          ? `En route to ${movementDestination.name}`
+          : (place?.name ?? agent.placeId),
         status: sentenceCase(agent.publicState),
         mission:
           activeMission?.objective ??
@@ -79,11 +92,24 @@ export function createShellModel(projection: WorldProjection) {
             : 'Awaiting mission'),
         forecast: percentage(agent.belief.probabilities['yes']),
         knowledgeCount: agent.knownSignalIds.length,
+        movement: agent.movement
+          ? {
+              missionId: agent.activeMissionId,
+              progress: agent.movement.progress,
+              routeId: agent.movement.routeId,
+              destinationName: movementDestination?.name ?? agent.movement.toPlaceId,
+            }
+          : undefined,
       };
     }),
     missions: Object.values(projection.missionsById)
       .filter((mission) => !['completed', 'failed', 'canceled'].includes(mission.status))
-      .sort((left, right) => left.createdAt.localeCompare(right.createdAt))
+      .sort(
+        (left, right) =>
+          (missionRankById.get(left.id) ?? Number.MAX_SAFE_INTEGER) -
+            (missionRankById.get(right.id) ?? Number.MAX_SAFE_INTEGER) ||
+          left.createdAt.localeCompare(right.createdAt),
+      )
       .map((mission) => ({
         id: mission.id,
         agentId: mission.assignedAgentId,

@@ -15,6 +15,7 @@ export {
   type IntegerCanvasMetrics,
 } from './geometry.js';
 export { mountWorldScene } from './mount.js';
+export { pointAlongWaypoints, type ScenePoint } from './movement.js';
 export {
   createWorldSceneDefinition,
   type MountedWorldScene,

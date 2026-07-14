@@ -1,5 +1,5 @@
 import { SCHEMA_VERSION, type MissionVerb, type WorldCommand } from '@signal-atlas/contracts';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { AgentDock } from './AgentDock.js';
 import { CommandTray } from './CommandTray.js';
@@ -44,6 +44,11 @@ function commandEnvelope(id: string, idempotencyKey: string, issuedAt: string) {
   };
 }
 
+function skipTravelPreference(): boolean {
+  if (typeof window === 'undefined') return false;
+  return window.localStorage.getItem('signal-atlas:skip-travel') === 'true';
+}
+
 export function WorldShell() {
   const [projection, setProjection] = useState(shellModel.projection);
   const model = useMemo(() => createShellModel(projection), [projection]);
@@ -53,8 +58,6 @@ export function WorldShell() {
   const [mobilePanel, setMobilePanel] = useState<MobilePanel>(null);
   const [selectedAgentId, setSelectedAgentId] = useState(model.agents[0]?.id ?? 'mira');
   const [selectedPlaceId, setSelectedPlaceId] = useState<string | undefined>('observatory');
-  const [paused, setPaused] = useState(false);
-  const [speed, setSpeed] = useState<1 | 2 | 4>(1);
   const [mode, setMode] = useState<'director' | 'observatory'>('director');
   const [command, setCommand] = useState('Check latest weather at Galehaven Weather Tower');
   const [announcement, setAnnouncement] = useState('Fixture projection ready.');
@@ -63,22 +66,108 @@ export function WorldShell() {
   const [missionDraft, setMissionDraft] = useState<MissionDraft>();
   const [commandBusy, setCommandBusy] = useState(false);
   const [commandError, setCommandError] = useState<string>();
+  const [skipTravel, setSkipTravel] = useState(skipTravelPreference);
   const [followRequest, setFollowRequest] = useState<
     { agentId: string; requestId: number } | undefined
   >();
   const inputRef = useRef<HTMLInputElement>(null);
+  const autoSkippedTravelRef = useRef(new Set<string>());
+  const paused = projection.expedition.status === 'paused';
+  const projectionSpeed = projection.expedition.simulationSpeed;
+  const speed: 1 | 2 | 4 = projectionSpeed === 2 || projectionSpeed === 4 ? projectionSpeed : 1;
+  const runtimeActive = Object.values(projection.agentsById).some((agent) =>
+    ['traveling', 'working', 'meeting'].includes(agent.publicState),
+  );
 
   const selectedAgent = useMemo(
     () => model.agents.find((agent) => agent.id === selectedAgentId) ?? model.agents[0],
     [model.agents, selectedAgentId],
   );
 
-  const refreshProjection = async () => {
+  const refreshProjection = useCallback(async () => {
     const nextProjection = await fetchExpeditionSnapshot();
     setProjection(nextProjection);
     setRuntimeState('ready');
     return nextProjection;
-  };
+  }, []);
+
+  const changePauseState = useCallback(async () => {
+    const issuedAt = new Date().toISOString();
+    const id = createClientId(paused ? 'cmd-resume' : 'cmd-pause');
+    const worldCommand: WorldCommand = paused
+      ? {
+          ...commandEnvelope(id, `resume:${id}`, issuedAt),
+          type: 'expedition.start',
+          payload: {},
+        }
+      : {
+          ...commandEnvelope(id, `pause:${id}`, issuedAt),
+          type: 'expedition.pause',
+          payload: { reason: 'Paused by player.' },
+        };
+    try {
+      await submitWorldCommand(worldCommand);
+      await refreshProjection();
+      setAnnouncement(paused ? 'Expedition resumed.' : 'Expedition paused.');
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Pause control failed.';
+      setCommandError(message);
+      setAnnouncement(`Simulation control failed: ${message}`);
+    }
+  }, [paused, refreshProjection]);
+
+  const changeSpeed = useCallback(
+    async (direction: -1 | 1 = 1) => {
+      const speeds = [1, 2, 4] as const;
+      const index = speeds.indexOf(speed);
+      const nextSpeed = speeds[(index + direction + speeds.length) % speeds.length] ?? 1;
+      const issuedAt = new Date().toISOString();
+      const id = createClientId('cmd-speed');
+      const worldCommand = {
+        ...commandEnvelope(id, `speed:${id}`, issuedAt),
+        type: 'expedition.change_speed',
+        payload: { speed: nextSpeed },
+      } satisfies WorldCommand;
+      try {
+        await submitWorldCommand(worldCommand);
+        await refreshProjection();
+        setAnnouncement(`Simulation speed changed to ${nextSpeed} times.`);
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Speed control failed.';
+        setCommandError(message);
+        setAnnouncement(`Simulation control failed: ${message}`);
+      }
+    },
+    [refreshProjection, speed],
+  );
+
+  const skipTravelForAgent = useCallback(
+    async (agentId: string, missionId: string, automatic = false) => {
+      const issuedAt = new Date().toISOString();
+      const id = createClientId('cmd-skip');
+      const worldCommand = {
+        ...commandEnvelope(id, `skip:${agentId}:${missionId}:${id}`, issuedAt),
+        type: 'agent.skip_travel',
+        payload: { agentId, missionId },
+      } satisfies WorldCommand;
+      try {
+        await submitWorldCommand(worldCommand);
+        await refreshProjection();
+        setAnnouncement(
+          automatic
+            ? 'Skip-travel preference applied; arrival events were preserved.'
+            : 'Travel skipped; the agent has begun location work.',
+        );
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Skip-travel control failed.';
+        if (!automatic) {
+          setCommandError(message);
+          setAnnouncement(`Skip travel failed: ${message}`);
+        }
+      }
+    },
+    [refreshProjection],
+  );
 
   useEffect(() => {
     const forcedState = runtimeStateFromLocation();
@@ -102,6 +191,35 @@ export function WorldShell() {
       active = false;
     };
   }, []);
+
+  useEffect(() => {
+    if (!runtimeActive || runtimeStateFromLocation() !== 'ready') return;
+    let requestRunning = false;
+    const timer = setInterval(() => {
+      if (requestRunning) return;
+      requestRunning = true;
+      void refreshProjection()
+        .catch(() => {
+          setRuntimeState('disconnected');
+          setAnnouncement('Orchestrator disconnected. The last valid projection remains visible.');
+        })
+        .finally(() => {
+          requestRunning = false;
+        });
+    }, 250);
+    return () => clearInterval(timer);
+  }, [refreshProjection, runtimeActive]);
+
+  useEffect(() => {
+    if (!skipTravel) return;
+    for (const agent of Object.values(projection.agentsById)) {
+      if (!agent.movement || !agent.activeMissionId) continue;
+      const key = `${agent.id}:${agent.activeMissionId}:${agent.movement.startedAt}`;
+      if (autoSkippedTravelRef.current.has(key)) continue;
+      autoSkippedTravelRef.current.add(key);
+      void skipTravelForAgent(agent.id, agent.activeMissionId, true);
+    }
+  }, [projection.agentsById, skipTravel, skipTravelForAgent]);
 
   useEffect(() => {
     const media = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -138,24 +256,19 @@ export function WorldShell() {
 
       if (event.key === ' ') {
         event.preventDefault();
-        setPaused((current) => !current);
+        void changePauseState();
         return;
       }
 
       if (event.key === '[' || event.key === ']') {
         event.preventDefault();
-        setSpeed((current) => {
-          const speeds = [1, 2, 4] as const;
-          const index = speeds.indexOf(current);
-          const delta = event.key === ']' ? 1 : -1;
-          return speeds[(index + delta + speeds.length) % speeds.length] ?? 1;
-        });
+        void changeSpeed(event.key === ']' ? 1 : -1);
       }
     };
 
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [model.agents]);
+  }, [changePauseState, changeSpeed, model.agents]);
 
   if (!selectedAgent) {
     return <main role="alert">The fixture does not define an expedition team.</main>;
@@ -363,8 +476,8 @@ export function WorldShell() {
         onModeChange={() =>
           setMode((current) => (current === 'director' ? 'observatory' : 'director'))
         }
-        onPauseChange={() => setPaused((current) => !current)}
-        onSpeedChange={() => setSpeed((current) => (current === 1 ? 2 : current === 2 ? 4 : 1))}
+        onPauseChange={() => void changePauseState()}
+        onSpeedChange={() => void changeSpeed()}
         paused={paused}
         runtimeState={runtimeState}
         speed={speed}
@@ -392,12 +505,14 @@ export function WorldShell() {
           setSelectedAgentId(agentId);
           setAnnouncement(`${agent?.name ?? 'Agent'} selected.`);
         }}
+        onSkipTravel={(agentId, missionId) => void skipTravelForAgent(agentId, missionId)}
         onToggleCollapsed={() => setAgentDockCollapsed((current) => !current)}
         selectedAgentId={selectedAgentId}
       />
 
       <WorldStageHost
         agentsDrawerOpen={mobilePanel === 'agents'}
+        autoCamera={model.projection.expedition.settings.autoCamera}
         followRequest={followRequest}
         loading={runtimeState === 'loading'}
         onOpenPanel={openPanel}
@@ -411,6 +526,11 @@ export function WorldShell() {
           setSelectedPlaceId(placeId);
           setAnnouncement(`${place?.name ?? 'Place'} selected.`);
         }}
+        onSkipTravelChange={(enabled) => {
+          setSkipTravel(enabled);
+          window.localStorage.setItem('signal-atlas:skip-travel', String(enabled));
+          setAnnouncement(`Skip-travel preference ${enabled ? 'enabled' : 'disabled'}.`);
+        }}
         places={model.places}
         reducedMotion={reducedMotion}
         routes={model.routes}
@@ -419,6 +539,7 @@ export function WorldShell() {
         selectedAgentName={selectedAgent.name}
         selectedPlaceId={selectedPlaceId}
         signalsDrawerOpen={mobilePanel === 'signals'}
+        skipTravel={skipTravel}
       />
 
       <SignalRail

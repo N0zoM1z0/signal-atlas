@@ -8,6 +8,7 @@ export interface AgentDockProps {
   selectedAgentId: string;
   onFollowAgent: (agentId: string) => void;
   onPrepareMission: (objective?: string) => void;
+  onSkipTravel: (agentId: string, missionId: string) => void;
   onSelectAgent: (agentId: string) => void;
   onToggleCollapsed: () => void;
 }
@@ -19,6 +20,7 @@ export function AgentDock({
   mobileOpen,
   onFollowAgent,
   onPrepareMission,
+  onSkipTravel,
   onSelectAgent,
   onToggleCollapsed,
   selectedAgentId,
@@ -84,16 +86,39 @@ export function AgentDock({
                       <i aria-hidden="true">⌖</i> {agent.placeName}
                     </span>
                     <span className="atlas-agent-card__mission">{agent.mission}</span>
+                    {agent.movement && (
+                      <span
+                        aria-label={`${agent.name} travel progress ${Math.round(agent.movement.progress * 100)} percent`}
+                        className="atlas-agent-travel-progress"
+                        role="progressbar"
+                        aria-valuemax={100}
+                        aria-valuemin={0}
+                        aria-valuenow={Math.round(agent.movement.progress * 100)}
+                      >
+                        <i style={{ inlineSize: `${agent.movement.progress * 100}%` }} />
+                      </span>
+                    )}
                   </span>
                 </button>
                 {selected && (
-                  <button
-                    className="atlas-agent-follow"
-                    onClick={() => onFollowAgent(agent.id)}
-                    type="button"
-                  >
-                    <span aria-hidden="true">◎</span> Follow {agent.name}
-                  </button>
+                  <span className="atlas-agent-actions">
+                    <button
+                      className="atlas-agent-follow"
+                      onClick={() => onFollowAgent(agent.id)}
+                      type="button"
+                    >
+                      <span aria-hidden="true">◎</span> Follow {agent.name}
+                    </button>
+                    {agent.movement?.missionId && (
+                      <button
+                        className="atlas-agent-skip"
+                        onClick={() => onSkipTravel(agent.id, agent.movement!.missionId!)}
+                        type="button"
+                      >
+                        Skip travel
+                      </button>
+                    )}
+                  </span>
                 )}
               </li>
             );

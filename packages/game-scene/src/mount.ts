@@ -12,6 +12,7 @@ import {
   parseCssColor,
   pixelScaleForZoom,
 } from './geometry.js';
+import { pointAlongWaypoints } from './movement.js';
 import type {
   MountedWorldScene,
   MountWorldSceneOptions,
@@ -380,15 +381,10 @@ export async function mountWorldScene(options: MountWorldSceneOptions): Promise<
     }
 
     private drawAgents() {
-      const offsets = [
-        { x: 2.1, y: 0.6 },
-        { x: -1.4, y: 0.8 },
-        { x: -1.9, y: 1.4 },
-      ];
       model.agents.forEach((agent, index) => {
         const place = model.places.find((candidate) => candidate.id === agent.placeId);
         if (!place) return;
-        const offset = offsets[index % offsets.length] ?? { x: 0, y: 0 };
+        const offset = this.agentOffset(index);
         this.createAgentAnimations(agent);
         const state = agentSpriteStateForPublicState(agent.publicState);
         const x = place.position.x + offset.x;
@@ -412,6 +408,71 @@ export async function mountWorldScene(options: MountWorldSceneOptions): Promise<
         this.agentHighlights.set(agent.id, highlight);
         this.agentSprites.set(agent.id, sprite);
         this.agentTargets.set(agent.id, sprite);
+        this.updateAgentProjection(agent, true);
+      });
+    }
+
+    private agentOffset(index: number) {
+      const offsets = [
+        { x: 2.1, y: 0.6 },
+        { x: -1.4, y: 0.8 },
+        { x: -1.9, y: 1.4 },
+      ];
+      return offsets[index % offsets.length] ?? { x: 0, y: 0 };
+    }
+
+    private agentPosition(agent: SceneAgent) {
+      if (agent.movement) {
+        const route = model.routes.find((candidate) => candidate.id === agent.movement?.routeId);
+        const reversed = route && agent.movement.fromPlaceId === route.toPlaceId;
+        const waypoints = route && reversed ? [...route.waypoints].reverse() : route?.waypoints;
+        const point = waypoints
+          ? pointAlongWaypoints(waypoints, agent.movement.progress)
+          : undefined;
+        if (point) return point;
+      }
+      const place = model.places.find((candidate) => candidate.id === agent.placeId);
+      if (!place) return undefined;
+      const index = model.agents.findIndex((candidate) => candidate.id === agent.id);
+      const offset = this.agentOffset(Math.max(0, index));
+      return { x: place.position.x + offset.x, y: place.position.y + offset.y };
+    }
+
+    private updateAgentProjection(agent: SceneAgent, immediate = false) {
+      const sprite = this.agentSprites.get(agent.id);
+      const highlight = this.agentHighlights.get(agent.id);
+      const position = this.agentPosition(agent);
+      if (!sprite || !highlight || !position) return;
+      const state = agentSpriteStateForPublicState(agent.publicState);
+      this.setAgentAnimation(agent.id, state);
+      this.tweens.killTweensOf([sprite, highlight]);
+      const duration = immediate || this.reducedMotion ? 0 : 180;
+      if (duration === 0) {
+        sprite.setPosition(position.x, position.y);
+        highlight.setPosition(position.x, position.y - 0.9);
+      } else {
+        this.tweens.add({
+          targets: sprite,
+          x: position.x,
+          y: position.y,
+          duration,
+          ease: 'Linear',
+        });
+        this.tweens.add({
+          targets: highlight,
+          x: position.x,
+          y: position.y - 0.9,
+          duration,
+          ease: 'Linear',
+        });
+      }
+      options.bridge.emit({
+        type: 'agent.projection-rendered',
+        agentId: agent.id,
+        progress: agent.movement?.progress ?? null,
+        state,
+        x: Number(position.x.toFixed(3)),
+        y: Number(position.y.toFixed(3)),
       });
     }
 
@@ -525,6 +586,9 @@ export async function mountWorldScene(options: MountWorldSceneOptions): Promise<
           return;
         case 'agent.select':
           this.selectAgent(command.agentId);
+          return;
+        case 'agent.project':
+          this.updateAgentProjection(command.agent);
           return;
         case 'agent.set-animation':
           this.setAgentAnimation(command.agentId, command.state);

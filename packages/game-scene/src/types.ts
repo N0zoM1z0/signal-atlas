@@ -4,9 +4,12 @@ import type { AgentSpriteState } from './agent-sprites.js';
 
 export type ScenePlace = Pick<Place, 'archetype' | 'id' | 'name' | 'position' | 'visualState'>;
 
-export type SceneRoute = Pick<Route, 'id' | 'waypoints'>;
+export type SceneRoute = Pick<Route, 'fromPlaceId' | 'id' | 'toPlaceId' | 'waypoints'>;
 
-export type SceneAgent = Pick<Agent, 'displayName' | 'id' | 'placeId' | 'publicState' | 'role'>;
+export type SceneAgent = Pick<
+  Agent,
+  'displayName' | 'id' | 'movement' | 'placeId' | 'publicState' | 'role'
+>;
 
 export interface WorldSceneDefinition {
   agents: SceneAgent[];
@@ -25,6 +28,7 @@ export type WorldSceneCommand =
   | { type: 'camera.zoom'; delta: -1 | 1 }
   | { type: 'camera.follow-agent'; agentId: string }
   | { type: 'agent.select'; agentId: string }
+  | { type: 'agent.project'; agent: SceneAgent }
   | { type: 'agent.set-animation'; agentId: string; state: AgentSpriteState }
   | { type: 'place.center'; placeId: string }
   | { type: 'place.select'; placeId: string }
@@ -46,6 +50,14 @@ export type WorldSceneEvent =
   | { type: 'place.selected'; placeId: string; source: 'canvas' }
   | { type: 'agent.selected'; agentId: string; source: 'canvas' }
   | { type: 'agent.selection-rendered'; agentId: string }
+  | {
+      type: 'agent.projection-rendered';
+      agentId: string;
+      progress: number | null;
+      state: AgentSpriteState;
+      x: number;
+      y: number;
+    }
   | {
       type: 'camera.changed';
       centerX: number;
@@ -83,12 +95,13 @@ export function createWorldSceneDefinition(
   agents: readonly Agent[],
 ): WorldSceneDefinition {
   return {
-    agents: agents.map(({ displayName, id, placeId, publicState, role }) => ({
+    agents: agents.map(({ displayName, id, movement, placeId, publicState, role }) => ({
       displayName,
       id,
       placeId,
       publicState,
       role,
+      ...(movement ? { movement: structuredClone(movement) } : {}),
     })),
     ambientLayers: structuredClone(manifest.ambientLayers),
     defaultSpawnPlaceId: manifest.defaultSpawnPlaceId,
@@ -101,8 +114,10 @@ export function createWorldSceneDefinition(
       position: { ...position },
       ...(visualState ? { visualState: structuredClone(visualState) } : {}),
     })),
-    routes: manifest.routes.map(({ id, waypoints }) => ({
+    routes: manifest.routes.map(({ fromPlaceId, id, toPlaceId, waypoints }) => ({
+      fromPlaceId,
       id,
+      toPlaceId,
       waypoints: waypoints.map((point) => ({ ...point })),
     })),
     tileSize: manifest.tileSize,

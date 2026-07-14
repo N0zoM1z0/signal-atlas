@@ -91,6 +91,15 @@ export class ExpeditionRuntime {
     return structuredClone(this.#events.filter((event) => event.sequence > sequence));
   }
 
+  resetToFixture(): void {
+    const replay = replayFixture(this.#fixture);
+    this.#projection = replay.projection;
+    this.#events = structuredClone(this.#fixture.initialEvents);
+    this.#ledger = {};
+    this.#acceptedByKey.clear();
+    this.#travelByAgentId.clear();
+  }
+
   submit(input: unknown): SubmitCommandResult {
     const validation = validateWorldCommand(input, this.#projection, this.#ledger);
     if (!validation.accepted) return validation;
@@ -355,9 +364,12 @@ export class ExpeditionRuntime {
       }
       case 'agent.cancel_mission': {
         const mission = this.#projection.missionsById[command.payload.missionId];
+        const agent = mission ? this.#projection.agentsById[mission.assignedAgentId] : undefined;
         return {
           events: [event(1, 'agent.mission.canceled', command.payload)],
-          ...(mission ? { clearTravelForAgentId: mission.assignedAgentId } : {}),
+          ...(mission && agent?.activeMissionId === mission.id
+            ? { clearTravelForAgentId: mission.assignedAgentId }
+            : {}),
         };
       }
       case 'agent.reorder_missions':

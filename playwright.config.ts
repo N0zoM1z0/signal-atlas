@@ -5,6 +5,7 @@ export default defineConfig({
   outputDir: './test-results',
   snapshotPathTemplate: '{testDir}/../visual/{arg}{ext}',
   fullyParallel: false,
+  workers: 1,
   retries: 0,
   reporter: [['list'], ['html', { open: 'never' }]],
   use: {
@@ -22,7 +23,7 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: 'pnpm dev',
+    command: 'SIGNAL_ATLAS_E2E=1 pnpm dev',
     url: 'http://127.0.0.1:4173',
     reuseExistingServer: true,
     timeout: 120_000,
