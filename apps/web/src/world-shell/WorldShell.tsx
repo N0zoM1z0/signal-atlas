@@ -3,6 +3,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { AgentDock } from './AgentDock.js';
 import { CommandTray } from './CommandTray.js';
+import {
+  appendSignalId,
+  readEvidencePreferences,
+  toggleSignalId,
+  writeEvidencePreferences,
+  type EvidencePreferences,
+} from './evidence-preferences.js';
 import { MarketRibbon } from './MarketRibbon.js';
 import { createShellModel, shellModel } from './model.js';
 import {
@@ -16,6 +23,7 @@ import {
   type MissionDraft,
 } from './runtime-client.js';
 import { SignalRail } from './SignalRail.js';
+import { SourceInspector } from './SourceInspector.js';
 import { WorldStageHost } from './WorldStageHost.js';
 
 type RuntimeState = 'ready' | 'loading' | 'disconnected';
@@ -71,6 +79,9 @@ export function WorldShell() {
   const [commandError, setCommandError] = useState<string>();
   const [skipTravel, setSkipTravel] = useState(skipTravelPreference);
   const [fixtureScenario, setFixtureScenario] = useState<FixtureMissionScenario>('success');
+  const [evidencePreferences, setEvidencePreferences] =
+    useState<EvidencePreferences>(readEvidencePreferences);
+  const [inspectedSignalId, setInspectedSignalId] = useState<string>();
   const [followRequest, setFollowRequest] = useState<
     { agentId: string; requestId: number } | undefined
   >();
@@ -87,6 +98,56 @@ export function WorldShell() {
     () => model.agents.find((agent) => agent.id === selectedAgentId) ?? model.agents[0],
     [model.agents, selectedAgentId],
   );
+  const inspectedSignal = model.signals.find((signal) => signal.id === inspectedSignalId);
+
+  const saveEvidencePreferences = (
+    update: (current: EvidencePreferences) => EvidencePreferences,
+  ) => {
+    setEvidencePreferences((current) => {
+      const next = update(current);
+      writeEvidencePreferences(next);
+      return next;
+    });
+  };
+
+  const togglePinnedSignal = (signalId: string) => {
+    const wasPinned = evidencePreferences.pinnedSignalIds.includes(signalId);
+    saveEvidencePreferences((current) => ({
+      ...current,
+      pinnedSignalIds: toggleSignalId(current.pinnedSignalIds, signalId),
+    }));
+    setAnnouncement(
+      `${wasPinned ? 'Removed' : 'Pinned'} signal ${wasPinned ? 'from' : 'to'} the case file.`,
+    );
+  };
+
+  const inspectSignal = (signalId: string) => {
+    saveEvidencePreferences((current) => ({
+      ...current,
+      seenSignalIds: appendSignalId(current.seenSignalIds, signalId),
+    }));
+    setInspectedSignalId(signalId);
+    const signal = model.signals.find((candidate) => candidate.id === signalId);
+    setAnnouncement(
+      `Inspecting ${signal?.sourceCount ?? 0} source record${signal?.sourceCount === 1 ? '' : 's'}.`,
+    );
+  };
+
+  const toggleArchivedSignal = (signalId: string) => {
+    const wasArchived = evidencePreferences.archivedSignalIds.includes(signalId);
+    saveEvidencePreferences((current) => ({
+      ...current,
+      archivedSignalIds: toggleSignalId(current.archivedSignalIds, signalId),
+      seenSignalIds: wasArchived
+        ? current.seenSignalIds.filter((id) => id !== signalId)
+        : appendSignalId(current.seenSignalIds, signalId),
+    }));
+    setAnnouncement(
+      wasArchived
+        ? 'Signal restored to the New view.'
+        : 'Signal archived; it remains available under All.',
+    );
+  };
 
   const refreshProjection = useCallback(async () => {
     const nextProjection = await fetchExpeditionSnapshot();
@@ -592,10 +653,28 @@ export function WorldShell() {
       />
 
       <SignalRail
+        archivedSignalIds={evidencePreferences.archivedSignalIds}
         collapsed={signalRailCollapsed}
         mobileOpen={mobilePanel === 'signals'}
+        onInspect={inspectSignal}
+        onPin={togglePinnedSignal}
         onToggleCollapsed={() => setSignalRailCollapsed((current) => !current)}
+        pinnedSignalIds={evidencePreferences.pinnedSignalIds}
+        seenSignalIds={evidencePreferences.seenSignalIds}
         signals={model.signals}
+      />
+
+      <SourceInspector
+        archived={Boolean(
+          inspectedSignalId && evidencePreferences.archivedSignalIds.includes(inspectedSignalId),
+        )}
+        onArchive={toggleArchivedSignal}
+        onClose={() => setInspectedSignalId(undefined)}
+        onPin={togglePinnedSignal}
+        pinned={Boolean(
+          inspectedSignalId && evidencePreferences.pinnedSignalIds.includes(inspectedSignalId),
+        )}
+        signal={inspectedSignal}
       />
 
       <CommandTray

@@ -6,20 +6,32 @@ const tabs = ['new', 'pinned', 'disputed', 'all'] as const;
 type SignalTab = (typeof tabs)[number];
 
 export interface SignalRailProps {
+  archivedSignalIds: readonly string[];
   collapsed: boolean;
   mobileOpen: boolean;
+  pinnedSignalIds: readonly string[];
+  seenSignalIds: readonly string[];
   signals: readonly ShellSignal[];
+  onInspect: (signalId: string) => void;
+  onPin: (signalId: string) => void;
   onToggleCollapsed: () => void;
 }
 
-function tabLabel(tab: SignalTab, signalCount: number): string {
-  if (tab === 'new') return `New ${signalCount}`;
-  if (tab === 'pinned') return 'Pinned 0';
-  if (tab === 'disputed') return 'Disputed 0';
-  return `All ${signalCount}`;
+function tabLabel(tab: SignalTab, counts: Record<SignalTab, number>): string {
+  return `${tab.slice(0, 1).toUpperCase()}${tab.slice(1)} ${counts[tab]}`;
 }
 
-export function SignalRail({ collapsed, mobileOpen, onToggleCollapsed, signals }: SignalRailProps) {
+export function SignalRail({
+  archivedSignalIds,
+  collapsed,
+  mobileOpen,
+  onInspect,
+  onPin,
+  onToggleCollapsed,
+  pinnedSignalIds,
+  seenSignalIds,
+  signals,
+}: SignalRailProps) {
   const [selectedTab, setSelectedTab] = useState<SignalTab>('new');
   const tabsId = useId();
 
@@ -36,7 +48,19 @@ export function SignalRail({ collapsed, mobileOpen, onToggleCollapsed, signals }
       ?.focus();
   };
 
-  const visibleSignals = selectedTab === 'pinned' || selectedTab === 'disputed' ? [] : signals;
+  const signalSets: Record<SignalTab, readonly ShellSignal[]> = {
+    new: signals.filter(
+      (signal) => !seenSignalIds.includes(signal.id) && !archivedSignalIds.includes(signal.id),
+    ),
+    pinned: signals.filter((signal) => pinnedSignalIds.includes(signal.id)),
+    disputed: signals.filter((signal) => signal.status === 'disputed'),
+    all: signals,
+  };
+  const counts = Object.fromEntries(tabs.map((tab) => [tab, signalSets[tab].length])) as Record<
+    SignalTab,
+    number
+  >;
+  const visibleSignals = signalSets[selectedTab];
 
   return (
     <aside
@@ -74,7 +98,7 @@ export function SignalRail({ collapsed, mobileOpen, onToggleCollapsed, signals }
             tabIndex={tab === selectedTab ? 0 : -1}
             type="button"
           >
-            {tabLabel(tab, signals.length)}
+            {tabLabel(tab, counts)}
           </button>
         ))}
       </div>
@@ -93,43 +117,96 @@ export function SignalRail({ collapsed, mobileOpen, onToggleCollapsed, signals }
             <p>Evidence will remain source-linked when it arrives.</p>
           </div>
         ) : (
-          visibleSignals.map((signal) => (
-            <article className="atlas-signal-card" data-tone={signal.tone} key={signal.id}>
-              <header>
-                <span>{signal.direction}</span>
-                <small>{signal.freshness}</small>
-              </header>
-              <h3>{signal.headline}</h3>
-              <p>{signal.summary}</p>
-              <dl>
-                <div>
-                  <dt>Source</dt>
-                  <dd>{signal.sourceClass}</dd>
+          visibleSignals.map((signal) => {
+            const pinned = pinnedSignalIds.includes(signal.id);
+            const archived = archivedSignalIds.includes(signal.id);
+            return (
+              <article
+                className="atlas-signal-card"
+                data-archived={archived}
+                data-status={signal.status}
+                data-tone={signal.tone}
+                key={signal.id}
+              >
+                <header>
+                  <span>
+                    <b aria-hidden="true">
+                      {signal.tone === 'yes' ? '↗' : signal.tone === 'no' ? '↘' : '◆'}
+                    </b>{' '}
+                    {signal.direction}
+                  </span>
+                  <small>{signal.freshness}</small>
+                </header>
+                <h3>{signal.headline}</h3>
+                <p>{signal.summary}</p>
+                <div className="atlas-signal-state-labels">
+                  <span data-state={signal.status}>{signal.statusLabel}</span>
+                  {signal.correlations.length > 0 ? (
+                    <span data-state="correlated">Correlated</span>
+                  ) : signal.correlationGroupIds.length > 0 ? (
+                    <span data-state="unreviewed">Independence unreviewed</span>
+                  ) : null}
+                  {archived && <span data-state="archived">Archived</span>}
                 </div>
-                <div>
-                  <dt>Impact</dt>
-                  <dd>{signal.impact}</dd>
+                <dl>
+                  <div>
+                    <dt>Sources</dt>
+                    <dd>
+                      {signal.sourceCount} · {signal.sourceClass}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Impact</dt>
+                    <dd>
+                      {signal.impact} · {signal.impactRange}
+                    </dd>
+                  </div>
+                </dl>
+                <div className="atlas-knowledge-chips" aria-label="Known by">
+                  {signal.knownBy.map((agent) => (
+                    <span key={agent.id}>
+                      <i className="atlas-mini-portrait" aria-hidden="true" /> {agent.name}
+                    </span>
+                  ))}
                 </div>
-              </dl>
-              <footer>
-                <span>
-                  <i className="atlas-mini-portrait" aria-hidden="true" /> {signal.discovererName}
-                </span>
-                <span>{signal.reliability}</span>
-                <button aria-label={`Inspect ${signal.headline}`} type="button">
-                  →
-                </button>
-              </footer>
-            </article>
-          ))
+                <footer>
+                  <span>
+                    <i className="atlas-mini-portrait" aria-hidden="true" /> {signal.discovererName}
+                  </span>
+                  <span>{signal.reliability}</span>
+                  <span className="atlas-signal-actions">
+                    <button
+                      aria-label={`${pinned ? 'Unpin' : 'Pin'} ${signal.headline}`}
+                      aria-pressed={pinned}
+                      onClick={() => onPin(signal.id)}
+                      type="button"
+                    >
+                      {pinned ? '★' : '☆'}
+                    </button>
+                    <button
+                      aria-label={`Inspect sources for ${signal.headline}`}
+                      onClick={() => onInspect(signal.id)}
+                      type="button"
+                    >
+                      →
+                    </button>
+                  </span>
+                </footer>
+              </article>
+            );
+          })
         )}
       </div>
 
-      <button className="atlas-evidence-board" type="button">
+      <button
+        className="atlas-evidence-board"
+        onClick={() => setSelectedTab('pinned')}
+        type="button"
+      >
         <span aria-hidden="true">⌁</span>
         <span>
           <strong>Open evidence board</strong>
-          <small>0 pinned · team at 55%</small>
+          <small>{pinnedSignalIds.length} pinned · source-linked case file</small>
         </span>
         <b aria-hidden="true">→</b>
       </button>

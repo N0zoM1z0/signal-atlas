@@ -1,4 +1,5 @@
 import {
+  knowledgeKey,
   replayFixture,
   selectLatestForecast,
   type WorldProjection,
@@ -37,6 +38,13 @@ function sentenceCase(value: string): string {
     .split('_')
     .map((part) => `${part.slice(0, 1).toUpperCase()}${part.slice(1)}`)
     .join(' ');
+}
+
+function signedPercentagePoints(value: number): string {
+  const points = Math.round(value * 100);
+  if (points > 0) return `+${points}`;
+  if (points < 0) return `−${Math.abs(points)}`;
+  return '0';
 }
 
 export function createShellModel(projection: WorldProjection) {
@@ -155,10 +163,34 @@ export function createShellModel(projection: WorldProjection) {
       fixture.agents.map((agent) => agentById[agent.id] ?? agent),
     ),
     signals: Object.values(projection.signalsById).map((signal) => {
-      const source = projection.sourcesById[signal.sourceIds[0] ?? ''];
+      const sources = signal.sourceIds.flatMap((id) => {
+        const source = projection.sourcesById[id];
+        return source ? [source] : [];
+      });
+      const source = sources[0];
+      const claims = signal.claimIds.flatMap((id) => {
+        const claim = projection.claimsById[id];
+        return claim ? [claim] : [];
+      });
       const discoverer = signal.discoveredByAgentId
         ? agentById[signal.discoveredByAgentId]
         : undefined;
+      const knownBy = Object.values(agentById)
+        .filter(
+          (agent) =>
+            agent.knownSignalIds.includes(signal.id) ||
+            Boolean(projection.knowledgeByKey[knowledgeKey(agent.id, 'signal', signal.id)]),
+        )
+        .map((agent) => ({
+          id: agent.id,
+          name: agent.displayName,
+          acquisition:
+            projection.knowledgeByKey[knowledgeKey(agent.id, 'signal', signal.id)]?.acquisition
+              .kind ?? 'system',
+        }));
+      const correlations = Object.values(projection.correlationsById).filter((correlation) =>
+        correlation.signalIds.includes(signal.id),
+      );
       const direction =
         signal.direction === 'context'
           ? 'Context'
@@ -177,14 +209,31 @@ export function createShellModel(projection: WorldProjection) {
               ? ('yes' as const)
               : ('no' as const),
         impact: sentenceCase(signal.impact.label),
+        impactRange: signal.impact.probabilityPointRange
+          ? `${signedPercentagePoints(signal.impact.probabilityPointRange.low)} to ${signedPercentagePoints(signal.impact.probabilityPointRange.high)} pp`
+          : 'Range not estimated',
         reliability: sentenceCase(signal.reliability.label),
+        reliabilityReasons: [...signal.reliability.reasons],
         freshness: sentenceCase(signal.freshness.label),
+        freshnessReferenceTime: signal.freshness.referenceTime,
+        usefulUntil: signal.freshness.usefulUntil,
         sourceClass: source ? sentenceCase(source.sourceClass) : 'Unknown source',
         sourceLocation: source?.location?.placeId
           ? (placeById[source.location.placeId]?.name ?? source.location.label)
           : source?.location?.label,
         sourceCount: signal.sourceIds.length,
         discovererName: discoverer?.displayName ?? 'Team',
+        discovererId: discoverer?.id,
+        status: signal.status,
+        statusLabel: sentenceCase(signal.status),
+        correlationGroupIds: [...signal.correlationGroupIds],
+        correlations,
+        claims,
+        sources,
+        knownBy,
+        linkedBeliefUpdates: projection.beliefUpdates.filter((update) =>
+          update.evidenceSignalIds.includes(signal.id),
+        ),
       };
     }),
   };
