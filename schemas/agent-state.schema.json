@@ -1,0 +1,151 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://signal-atlas.local/schemas/agent-state.schema.json",
+  "title": "Signal Atlas Agent State",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "displayName",
+    "role",
+    "profileVersion",
+    "placeId",
+    "queuedMissionIds",
+    "knownSourceIds",
+    "knownSignalIds",
+    "belief",
+    "publicState"
+  ],
+  "properties": {
+    "id": {
+      "type": "string"
+    },
+    "displayName": {
+      "type": "string"
+    },
+    "role": {
+      "enum": [
+        "scout",
+        "archivist",
+        "analyst",
+        "skeptic",
+        "liaison"
+      ]
+    },
+    "profileVersion": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "placeId": {
+      "type": "string"
+    },
+    "movement": {
+      "type": "object"
+    },
+    "activeMissionId": {
+      "type": "string"
+    },
+    "queuedMissionIds": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "knownSourceIds": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true
+    },
+    "knownSignalIds": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true
+    },
+    "belief": {
+      "$ref": "#/$defs/belief"
+    },
+    "publicState": {
+      "enum": [
+        "idle",
+        "traveling",
+        "working",
+        "meeting",
+        "error"
+      ]
+    },
+    "codexSessionId": {
+      "type": "string"
+    },
+    "lastTurnAt": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "$defs": {
+    "belief": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "probabilities",
+        "updatedAt",
+        "rationale",
+        "evidenceSignalIds"
+      ],
+      "properties": {
+        "probabilities": {
+          "type": "object",
+          "minProperties": 2,
+          "additionalProperties": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          }
+        },
+        "uncertainty": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/range"
+          }
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "rationale": {
+          "type": "string"
+        },
+        "evidenceSignalIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true
+        }
+      }
+    },
+    "range": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "low",
+        "high"
+      ],
+      "properties": {
+        "low": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "high": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
+      }
+    }
+  }
+}

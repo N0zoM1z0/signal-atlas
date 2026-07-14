@@ -1,0 +1,200 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://signal-atlas.local/schemas/signal.schema.json",
+  "title": "Signal Atlas Signal",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "marketId",
+    "claimIds",
+    "sourceIds",
+    "headline",
+    "summary",
+    "direction",
+    "impact",
+    "reliability",
+    "freshness",
+    "correlationGroupIds",
+    "createdAt",
+    "status"
+  ],
+  "properties": {
+    "id": {
+      "type": "string"
+    },
+    "marketId": {
+      "type": "string"
+    },
+    "claimIds": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true
+    },
+    "sourceIds": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true
+    },
+    "headline": {
+      "type": "string"
+    },
+    "summary": {
+      "type": "string"
+    },
+    "direction": {
+      "enum": [
+        "supports_outcome",
+        "opposes_outcome",
+        "context"
+      ]
+    },
+    "targetOutcomeId": {
+      "type": "string"
+    },
+    "impact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "label"
+      ],
+      "properties": {
+        "label": {
+          "enum": [
+            "small",
+            "medium",
+            "large",
+            "unknown"
+          ]
+        },
+        "probabilityPointRange": {
+          "$ref": "#/$defs/range"
+        }
+      }
+    },
+    "reliability": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "label",
+        "reasons",
+        "assessedBy"
+      ],
+      "properties": {
+        "label": {
+          "enum": [
+            "verified_primary",
+            "primary_unconfirmed",
+            "corroborated_secondary",
+            "single_secondary",
+            "derived",
+            "unverified",
+            "disputed"
+          ]
+        },
+        "reasons": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "assessedBy": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind"
+          ],
+          "properties": {
+            "kind": {
+              "enum": [
+                "system",
+                "agent",
+                "player"
+              ]
+            },
+            "id": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "freshness": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "referenceTime",
+        "label"
+      ],
+      "properties": {
+        "referenceTime": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "usefulUntil": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "label": {
+          "enum": [
+            "fresh",
+            "aging",
+            "stale",
+            "timeless",
+            "unknown"
+          ]
+        },
+        "newerSourceId": {
+          "type": "string"
+        }
+      }
+    },
+    "correlationGroupIds": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true
+    },
+    "discoveredByAgentId": {
+      "type": "string"
+    },
+    "createdAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "status": {
+      "enum": [
+        "active",
+        "stale",
+        "disputed",
+        "superseded",
+        "irrelevant"
+      ]
+    }
+  },
+  "$defs": {
+    "range": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "low",
+        "high"
+      ],
+      "properties": {
+        "low": {
+          "type": "number"
+        },
+        "high": {
+          "type": "number"
+        }
+      }
+    }
+  }
+}

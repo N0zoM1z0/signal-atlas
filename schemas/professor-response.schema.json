@@ -1,0 +1,96 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://signal-atlas.local/schemas/professor-response.schema.json",
+  "title": "Signal Atlas Professor Response",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "queryId",
+    "mode",
+    "selectedSignalIds",
+    "answer",
+    "evidenceUsed",
+    "assumptions",
+    "limitations"
+  ],
+  "properties": {
+    "queryId": {
+      "type": "string"
+    },
+    "answer": {
+      "type": "string",
+      "minLength": 1
+    },
+    "evidenceUsed": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "type",
+          "id"
+        ],
+        "properties": {
+          "type": {
+            "enum": [
+              "source",
+              "signal"
+            ]
+          },
+          "id": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "assumptions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "limitations": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "suggestedNextQuestion": {
+      "type": "string"
+    },
+    "suggestedMission": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "verb",
+        "objective"
+      ],
+      "properties": {
+        "verb": {
+          "type": "string"
+        },
+        "objective": {
+          "type": "string"
+        },
+        "destinationPlaceId": {
+          "type": "string"
+        }
+      }
+    },
+    "mode": {
+      "enum": [
+        "explain",
+        "challenge",
+        "compare",
+        "correlation_check"
+      ]
+    },
+    "selectedSignalIds": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true
+    }
+  }
+}

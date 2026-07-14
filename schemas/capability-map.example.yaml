@@ -1,0 +1,36 @@
+# Example only. Replace primitive names after discovering the actual Pref MCP.
+server: pref
+transport: stdio
+policy:
+  readOnly: true
+  denyUnknown: true
+  timeoutMs: 20000
+  maxResponseBytes: 1000000
+  maxCallsPerMission: 4
+capabilities:
+  search_sources:
+    primitive: tool
+    primitiveName: pref.search
+    inputMap:
+      query: $.query
+      location: $.location
+      since: $.since
+      limit: $.limit
+    outputMap:
+      items: $.results
+  read_source:
+    primitive: tool
+    primitiveName: pref.read
+    inputMap:
+      id: $.externalId
+      uri: $.uri
+    outputMap:
+      item: $.result
+  local_conditions:
+    primitive: tool
+    primitiveName: pref.weather
+    inputMap:
+      place: $.location.label
+      at: $.at
+    outputMap:
+      item: $.observation

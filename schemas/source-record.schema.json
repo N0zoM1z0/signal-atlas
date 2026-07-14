@@ -1,0 +1,171 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://signal-atlas.local/schemas/source-record.schema.json",
+  "title": "Signal Atlas Source Record",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "version",
+    "title",
+    "sourceClass",
+    "retrievedAt",
+    "contentHash",
+    "provenance",
+    "tags"
+  ],
+  "properties": {
+    "id": {
+      "type": "string"
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "externalUri": {
+      "type": "string"
+    },
+    "title": {
+      "type": "string"
+    },
+    "publisher": {
+      "type": "string"
+    },
+    "author": {
+      "type": "string"
+    },
+    "sourceClass": {
+      "enum": [
+        "official_primary",
+        "primary",
+        "secondary",
+        "commentary",
+        "sensor",
+        "market",
+        "archive",
+        "user_supplied"
+      ]
+    },
+    "publishedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "observedAt": {
+      "anyOf": [
+        {
+          "type": "string",
+          "format": "date-time"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "retrievedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "location": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "placeId": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "latitude": {
+          "type": "number"
+        },
+        "longitude": {
+          "type": "number"
+        }
+      }
+    },
+    "mediaType": {
+      "type": "string"
+    },
+    "excerpt": {
+      "type": "string"
+    },
+    "structuredData": {},
+    "contentHash": {
+      "type": "string",
+      "minLength": 8
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "serverName",
+        "transport",
+        "primitive",
+        "primitiveName",
+        "responseHash"
+      ],
+      "properties": {
+        "serverName": {
+          "type": "string"
+        },
+        "transport": {
+          "enum": [
+            "stdio",
+            "streamable_http",
+            "fixture"
+          ]
+        },
+        "primitive": {
+          "enum": [
+            "tool",
+            "resource",
+            "prompt",
+            "fixture"
+          ]
+        },
+        "primitiveName": {
+          "type": "string"
+        },
+        "argumentsHash": {
+          "type": "string"
+        },
+        "responseHash": {
+          "type": "string"
+        },
+        "callId": {
+          "type": "string"
+        }
+      }
+    },
+    "rights": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "display": {
+          "enum": [
+            "full",
+            "excerpt",
+            "metadata_only",
+            "link_only"
+          ]
+        },
+        "license": {
+          "type": "string"
+        },
+        "notes": {
+          "type": "string"
+        }
+      }
+    },
+    "supersedesSourceId": {
+      "type": "string"
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true
+    }
+  }
+}

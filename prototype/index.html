@@ -1,0 +1,451 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#101524" />
+  <title>Signal Atlas - Interactive Concept</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app-shell" id="appShell">
+    <header class="market-ribbon" aria-label="Market overview">
+      <div class="brand-block">
+        <div class="brand-mark" aria-hidden="true"><span></span><i></i></div>
+        <div>
+          <div class="brand-name">SIGNAL ATLAS</div>
+          <div class="expedition-name">Helios-3 Expedition</div>
+        </div>
+      </div>
+
+      <div class="market-question-block">
+        <div class="eyebrow"><span class="live-dot"></span> FICTIONAL SANDBOX MARKET</div>
+        <h1>Will the Helios-3 mission launch before September 30?</h1>
+      </div>
+
+      <div class="probability-cluster" aria-label="Market and team probabilities">
+        <div class="probability-cell public">
+          <span>PUBLIC</span>
+          <strong>61%</strong>
+        </div>
+        <div class="worldline" aria-hidden="true">
+          <div class="worldline-track"><span style="left:61%"></span><i style="left:55%"></i></div>
+          <div class="worldline-labels"><b>NO</b><b>YES</b></div>
+        </div>
+        <div class="probability-cell team">
+          <span>TEAM</span>
+          <strong id="teamProbability">55%</strong>
+        </div>
+      </div>
+
+      <div class="ribbon-actions">
+        <div class="deadline"><span>RESOLVES IN</span><strong>4d 05h</strong></div>
+        <button class="icon-button" id="pauseButton" aria-label="Pause simulation" title="Pause"><span class="pause-icon">Ⅱ</span></button>
+        <button class="speed-button" id="speedButton" aria-label="Simulation speed">1×</button>
+        <button class="mode-button"><span class="mode-lamp"></span> DIRECTOR</button>
+      </div>
+    </header>
+
+    <aside class="agent-dock panel" aria-label="Agents">
+      <div class="panel-heading">
+        <div><span class="eyebrow">FIELD TEAM</span><h2>Agents</h2></div>
+        <button class="tiny-button" aria-label="Agent settings">•••</button>
+      </div>
+
+      <div class="agent-list" role="list">
+        <button class="agent-card selected" data-agent="mira" role="listitem" aria-pressed="true">
+          <span class="portrait portrait-mira" aria-hidden="true"><i></i></span>
+          <span class="agent-copy">
+            <span class="agent-name-row"><strong>Mira</strong><em>56%</em></span>
+            <span class="agent-role">FIELD SCOUT</span>
+            <span class="agent-status"><i class="status-dot ready"></i><span id="miraStatus">Ready at Observatory</span></span>
+          </span>
+          <span class="knowledge-count" title="New signals">1</span>
+        </button>
+
+        <button class="agent-card" data-agent="orin" role="listitem" aria-pressed="false">
+          <span class="portrait portrait-orin" aria-hidden="true"><i></i></span>
+          <span class="agent-copy">
+            <span class="agent-name-row"><strong>Orin</strong><em>52%</em></span>
+            <span class="agent-role">ARCHIVIST</span>
+            <span class="agent-status"><i class="status-dot archive-dot"></i><span id="orinStatus">Waiting at Lantern Square</span></span>
+          </span>
+          <span class="knowledge-count muted">0</span>
+        </button>
+
+        <button class="agent-card" data-agent="kestrel" role="listitem" aria-pressed="false">
+          <span class="portrait portrait-kestrel" aria-hidden="true"><i></i></span>
+          <span class="agent-copy">
+            <span class="agent-name-row"><strong>Kestrel</strong><em>55%</em></span>
+            <span class="agent-role">SKEPTICAL ANALYST</span>
+            <span class="agent-status"><i class="status-dot thinking"></i><span id="kestrelStatus">Comparing reports</span></span>
+          </span>
+          <span class="knowledge-count">2</span>
+        </button>
+      </div>
+
+      <div class="mission-board">
+        <div class="mission-board-heading"><span>MISSION BOARD</span><button aria-label="Add mission">＋</button></div>
+        <button class="mission-card" data-action="dispatch-weather">
+          <span class="mission-icon weather">↗</span>
+          <span><strong>Check latest weather</strong><small>Galehaven Weather Tower</small></span>
+          <kbd>M</kbd>
+        </button>
+        <button class="mission-card" data-action="dispatch-archive">
+          <span class="mission-icon archive-icon">▤</span>
+          <span><strong>Search historical delays</strong><small>Archive Quarter</small></span>
+          <kbd>O</kbd>
+        </button>
+      </div>
+
+      <div class="connection-card">
+        <div class="connection-row"><span><i class="connection-light fixture"></i> Pref Gateway</span><b>FIXTURE</b></div>
+        <div class="connection-row"><span><i class="connection-light local"></i> Codex Runtime</span><b>LOCAL</b></div>
+      </div>
+    </aside>
+
+    <main class="world-panel" aria-label="Signal Atlas world">
+      <div class="world-toolbar">
+        <div class="location-crumb"><span>THE ATLAS</span><strong>Meridian Coast</strong></div>
+        <div class="world-tools">
+          <button class="tool-chip active">World</button>
+          <button class="tool-chip" id="openArchiveTop">Archive</button>
+          <button class="tool-chip" id="openProfessorTop">Professor</button>
+          <button class="tool-icon" aria-label="Center map" id="centerMap">◎</button>
+          <button class="tool-icon" aria-label="Zoom out">−</button>
+          <button class="tool-icon" aria-label="Zoom in">＋</button>
+        </div>
+      </div>
+
+      <section class="world-map" id="worldMap" aria-label="Interactive pixel world">
+        <div class="sky-glow"></div>
+        <div class="stars" aria-hidden="true"></div>
+        <div class="cloud cloud-a" aria-hidden="true"></div>
+        <div class="cloud cloud-b" aria-hidden="true"></div>
+        <div class="cloud cloud-c" aria-hidden="true"></div>
+        <div class="moon" aria-hidden="true"></div>
+        <div class="horizon" aria-hidden="true"><span class="launch-tower"></span><i class="launch-rocket"></i></div>
+        <div class="terrain terrain-main" aria-hidden="true"></div>
+        <div class="terrain terrain-hill" aria-hidden="true"></div>
+        <div class="water" aria-hidden="true"></div>
+        <div class="water-shine" aria-hidden="true"></div>
+
+        <svg class="route-map" viewBox="0 0 1000 650" preserveAspectRatio="none" aria-hidden="true">
+          <defs>
+            <filter id="routeGlow" x="-20%" y="-20%" width="140%" height="140%">
+              <feGaussianBlur stdDeviation="3" result="blur"/>
+              <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+            </filter>
+          </defs>
+          <path d="M285 330 C360 350, 430 385, 515 408" />
+          <path d="M515 408 C605 342, 690 240, 790 170" />
+          <path d="M515 408 C630 430, 735 470, 830 490" />
+          <path d="M515 408 C405 455, 290 510, 168 520" />
+          <path d="M515 408 C540 310, 590 170, 650 95" />
+          <path d="M285 330 C235 390, 200 455, 168 520" />
+          <path class="route-active" id="activeRoute" d="M285 330 C360 350, 430 385, 515 408 C605 342, 690 240, 790 170" />
+        </svg>
+
+        <button class="place place-observatory active-place" data-place="observatory" style="--x:28.5%;--y:50.5%" aria-label="Meridian Observatory">
+          <span class="building observatory-building" aria-hidden="true">
+            <i class="obs-base"></i><i class="obs-dome"></i><i class="obs-slit"></i><i class="obs-telescope"></i><i class="window w1"></i><i class="window w2"></i>
+          </span>
+          <span class="place-label"><small>HOME BASE</small><strong>Meridian Observatory</strong></span>
+        </button>
+
+        <button class="place place-weather" data-place="weather-tower" style="--x:79%;--y:24.5%" aria-label="Galehaven Weather Tower">
+          <span class="weather-badge">18 km/h <i>↗</i></span>
+          <span class="building weather-building" aria-hidden="true"><i class="tower-leg l1"></i><i class="tower-leg l2"></i><i class="tower-body"></i><i class="tower-top"></i><i class="anemometer"></i><i class="weather-light"></i></span>
+          <span class="place-label"><small>WIND ADVISORY</small><strong>Galehaven Weather Tower</strong></span>
+        </button>
+
+        <button class="place place-newsroom" data-place="newsroom" style="--x:82.5%;--y:73%" aria-label="Ledger Bay Newsroom">
+          <span class="building newsroom-building" aria-hidden="true"><i class="news-main"></i><i class="news-roof"></i><i class="news-antenna"></i><i class="ticker">HEL-3</i><i class="window w1"></i><i class="window w2"></i><i class="window w3"></i></span>
+          <span class="place-label"><small>2 NEW REPORTS</small><strong>Ledger Bay Newsroom</strong></span>
+        </button>
+
+        <button class="place place-archive" data-place="archive" style="--x:16.8%;--y:78%" aria-label="Archive Quarter">
+          <span class="building archive-building" aria-hidden="true"><i class="archive-main"></i><i class="archive-roof"></i><i class="archive-door"></i><i class="column c1"></i><i class="column c2"></i><i class="column c3"></i><i class="archive-lamp"></i></span>
+          <span class="place-label"><small>1 CASE FILE FOUND</small><strong>Archive Quarter</strong></span>
+        </button>
+
+        <button class="place place-professor" data-place="professor" style="--x:65%;--y:13.5%" aria-label="Scholar's Hill">
+          <span class="building professor-building" aria-hidden="true"><i class="prof-main"></i><i class="prof-roof"></i><i class="prof-window"></i><i class="chimney"></i><i class="tree"></i></span>
+          <span class="place-label"><small>PROF. VALE AVAILABLE</small><strong>Scholar's Hill</strong></span>
+        </button>
+
+        <button class="place place-square" data-place="square" style="--x:51.5%;--y:63%" aria-label="Lantern Square">
+          <span class="building square-building" aria-hidden="true"><i class="square-ground"></i><i class="lantern-post"></i><i class="lantern-light"></i><i class="bench b1"></i><i class="bench b2"></i></span>
+          <span class="place-label"><small>MEETING POINT</small><strong>Lantern Square</strong></span>
+        </button>
+
+        <button class="map-agent agent-mira" id="sprite-mira" data-agent-sprite="mira" style="left:29%;top:53%" aria-label="Mira at Meridian Observatory">
+          <span class="sprite-shadow"></span><span class="sprite-head"></span><span class="sprite-hair"></span><span class="sprite-body"></span><span class="sprite-coat"></span><span class="sprite-pack"></span>
+          <span class="agent-label">MIRA</span>
+        </button>
+        <button class="map-agent agent-orin" id="sprite-orin" data-agent-sprite="orin" style="left:49%;top:64%" aria-label="Orin at Lantern Square">
+          <span class="sprite-shadow"></span><span class="sprite-head"></span><span class="sprite-hair"></span><span class="sprite-body"></span><span class="sprite-coat"></span><span class="sprite-pack"></span>
+          <span class="agent-label">ORIN</span>
+        </button>
+        <button class="map-agent agent-kestrel" id="sprite-kestrel" data-agent-sprite="kestrel" style="left:32%;top:57%" aria-label="Kestrel at Meridian Observatory">
+          <span class="sprite-shadow"></span><span class="sprite-head"></span><span class="sprite-hair"></span><span class="sprite-body"></span><span class="sprite-coat"></span><span class="sprite-pack"></span>
+          <span class="agent-label">KESTREL</span>
+        </button>
+
+        <div class="location-popover" id="locationPopover" hidden>
+          <div class="popover-eyebrow">LOCATION</div>
+          <strong id="popoverTitle">Galehaven Weather Tower</strong>
+          <p id="popoverDescription">Fresh local observations and launch-window conditions.</p>
+          <div class="popover-actions">
+            <button id="dispatchButton">Send Mira</button>
+            <button id="inspectLocationButton">Inspect</button>
+          </div>
+        </div>
+
+        <div class="world-toast" id="worldToast" role="status" aria-live="polite">
+          <span class="toast-icon">✦</span>
+          <span><strong>New source ingested</strong><small>Galehaven advisory · 2 min ago</small></span>
+        </div>
+      </section>
+
+      <div class="world-footer">
+        <div class="event-ticker"><span class="ticker-lamp"></span><strong>18:32</strong><span id="eventTickerText">Kestrel is comparing the weather advisory with the operations notice.</span></div>
+        <button class="follow-button" id="meetingButton"><span>●</span> Convene at Lantern Square</button>
+      </div>
+    </main>
+
+    <aside class="signal-rail panel" aria-label="Signal feed">
+      <div class="panel-heading rail-heading">
+        <div><span class="eyebrow">EVIDENCE STREAM</span><h2>Signals</h2></div>
+        <button class="tiny-button" id="openArchiveRail" aria-label="Open archive">▤</button>
+      </div>
+      <div class="signal-tabs" role="tablist">
+        <button class="active" role="tab" aria-selected="true">New <span>3</span></button>
+        <button role="tab">Pinned <span>2</span></button>
+        <button role="tab">Disputed <span>1</span></button>
+        <button role="tab">All</button>
+      </div>
+
+      <div class="signal-stack">
+        <article class="signal-card signal-no expanded" data-signal="weather">
+          <div class="signal-topline"><span class="signal-direction">↓ NO SUPPORT</span><time>2m</time></div>
+          <h3>Crosswind advisory overlaps launch window</h3>
+          <p>Fresh official guidance raises delay risk for the opening part of the next window.</p>
+          <div class="signal-meta"><span class="source-stamp official">OFFICIAL</span><span>Galehaven</span><span class="impact medium">MEDIUM</span></div>
+          <div class="signal-footer">
+            <span class="mini-portrait mira-mini"></span>
+            <span class="reliability"><i></i> Verified primary</span>
+            <button class="pin-button" aria-label="Pin signal">◆</button>
+          </div>
+          <div class="provenance-line"><span></span><small>1 primary source · retrieved 18:30</small></div>
+        </article>
+
+        <article class="signal-card signal-yes" data-signal="operations">
+          <div class="signal-topline"><span class="signal-direction">↑ YES SUPPORT</span><time>7m</time></div>
+          <h3>Countdown operations remain scheduled</h3>
+          <p>Official notice supports readiness, but weather remains an open constraint.</p>
+          <div class="signal-meta"><span class="source-stamp official">OFFICIAL</span><span>Ledger Bay</span><span class="impact small">SMALL</span></div>
+          <div class="signal-footer"><span class="mini-portrait kestrel-mini"></span><span class="reliability"><i></i> Verified primary</span><button class="pin-button" aria-label="Pin signal">◇</button></div>
+        </article>
+
+        <article class="signal-card signal-context" data-signal="history">
+          <div class="signal-topline"><span class="signal-direction">◇ CONTEXT</span><time>12m</time></div>
+          <h3>Comparable windows often slipped</h3>
+          <p>Eight of twenty archived cases were delayed under overlapping crosswind advisories.</p>
+          <div class="signal-meta"><span class="source-stamp archive">ARCHIVE</span><span>Case File 08</span><span class="impact small">SMALL</span></div>
+          <div class="signal-footer"><span class="mini-portrait orin-mini"></span><span class="reliability derived"><i></i> Derived sample</span><button class="pin-button" aria-label="Pin signal">◆</button></div>
+        </article>
+      </div>
+
+      <button class="evidence-board-button" id="forecastButton">
+        <span class="board-icon">⌁</span>
+        <span><strong>Open evidence board</strong><small>2 pinned · team at 55%</small></span>
+        <span>→</span>
+      </button>
+    </aside>
+
+    <footer class="command-tray" aria-label="Agent command desk">
+      <div class="dispatch-label">
+        <span class="selected-agent-pip portrait-mira"></span>
+        <span><small>COMMANDING</small><strong id="commandingAgent">Mira</strong></span>
+      </div>
+      <form class="command-form" id="commandForm">
+        <label class="sr-only" for="commandInput">Command an agent</label>
+        <span class="command-prompt">›</span>
+        <input id="commandInput" autocomplete="off" value="Check whether the weather advisory is newer than the launch notice" />
+        <button type="submit" class="send-command">DISPATCH <kbd>↵</kbd></button>
+      </form>
+      <div class="suggested-actions">
+        <button data-suggestion="weather">Check weather</button>
+        <button data-suggestion="archive">Search base rate</button>
+        <button data-suggestion="professor">Ask Professor</button>
+        <button data-suggestion="meeting">Call meeting</button>
+      </div>
+      <div class="tray-status"><span class="pulse-ring"></span><small>WORLD LIVE</small><strong id="worldClock">18:32:14</strong></div>
+    </footer>
+  </div>
+
+  <div class="overlay" id="sourceOverlay" hidden>
+    <div class="overlay-backdrop" data-close-overlay></div>
+    <section class="source-dialog modal-card" role="dialog" aria-modal="true" aria-labelledby="sourceTitle">
+      <button class="close-button" data-close-overlay aria-label="Close">×</button>
+      <div class="modal-eyebrow">SOURCE RECORD · PREF FIXTURE</div>
+      <h2 id="sourceTitle">Galehaven Crosswind Advisory 18:10Z</h2>
+      <div class="source-summary-grid">
+        <div><span>CLASS</span><strong>Official primary</strong></div>
+        <div><span>PUBLISHED</span><strong>18:10 UTC</strong></div>
+        <div><span>RETRIEVED</span><strong>18:30 UTC</strong></div>
+        <div><span>LOCATION</span><strong>Galehaven</strong></div>
+      </div>
+      <blockquote>Sustained crosswinds at the Helios launch corridor are forecast to exceed the mission's preferred threshold for part of the next launch window. Conditions may improve after 21:00Z.</blockquote>
+      <div class="source-callout"><strong>Agent interpretation</strong><p>This raises delay risk, but it does not cover the entire window and should not be counted twice with derivative reporting.</p></div>
+      <div class="provenance-table">
+        <div><span>MCP server</span><code>pref-fixture</code></div>
+        <div><span>Primitive</span><code>fixture.weather.advisory</code></div>
+        <div><span>Source ID</span><code>src-weather-bulletin-1</code></div>
+        <div><span>Content hash</span><code>91af…d31c</code></div>
+      </div>
+      <div class="modal-actions"><button class="secondary" data-close-overlay>Back to world</button><button class="primary" id="pinFromSource">Pin to case file</button></div>
+    </section>
+  </div>
+
+  <div class="overlay archive-overlay" id="archiveOverlay" hidden>
+    <div class="overlay-backdrop" data-close-overlay></div>
+    <section class="archive-scene" role="dialog" aria-modal="true" aria-labelledby="archiveTitle">
+      <header class="scene-header">
+        <div><span class="modal-eyebrow">ARCHIVE QUARTER</span><h2 id="archiveTitle">Case Files and Sources</h2></div>
+        <div class="archive-search"><span>⌕</span><input value="crosswind launch delays" aria-label="Search archive" /><kbd>⌘ K</kbd></div>
+        <button class="close-button scene-close" data-close-overlay aria-label="Close">×</button>
+      </header>
+      <div class="archive-room">
+        <aside class="archive-shelves">
+          <div class="shelf-lamp"></div>
+          <h3>SHELF INDEX</h3>
+          <button class="active"><span>▤</span> Current expedition <b>12</b></button>
+          <button><span>◫</span> Weather <b>5</b></button>
+          <button><span>⌛</span> Historical cases <b>18</b></button>
+          <button><span>⌁</span> Agent memos <b>7</b></button>
+          <button><span>◇</span> Forecast commits <b>3</b></button>
+          <div class="shelf-visual" aria-hidden="true">
+            <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+          </div>
+          <div class="archive-orin" aria-hidden="true"><span class="archive-head"></span><span class="archive-body"></span><span class="archive-book"></span></div>
+        </aside>
+        <main class="archive-results">
+          <div class="archive-filter-row"><button class="active">All records</button><button>Sources</button><button>Signals</button><button>Memos</button><span>Sorted by relevance</span></div>
+          <div class="case-file-grid">
+            <button class="case-file selected" data-archive-item="crosswind">
+              <span class="file-tab">CASE 08</span><span class="file-stamp">ARCHIVE</span><h3>Twenty Comparable Coastal Launch Windows</h3><p>Eight of twenty attempts were delayed when crosswind advisories overlapped the opening half of the window.</p><footer><span>Aug 1</span><span>Orin read</span></footer>
+            </button>
+            <button class="case-file" data-archive-item="ops">
+              <span class="file-tab">NOTICE</span><span class="file-stamp official">OFFICIAL</span><h3>Countdown Operations Remain Scheduled</h3><p>Readiness poll remains planned, with weather still open.</p><footer><span>17:45</span><span>Kestrel read</span></footer>
+            </button>
+            <button class="case-file correlated" data-archive-item="model">
+              <span class="file-tab">REPORT</span><span class="file-stamp">SECONDARY</span><h3>Regional Model Highlights Crosswind Risk</h3><p>Derivative report citing the same Galehaven advisory.</p><footer><span>18:22</span><span>Correlated</span></footer>
+            </button>
+            <button class="case-file" data-archive-item="checklist">
+              <span class="file-tab">CHECKLIST</span><span class="file-stamp official">OFFICIAL</span><h3>Helios-3 Readiness Snapshot</h3><p>Non-weather gates are green. Weather remains open.</p><footer><span>16:30</span><span>Unread</span></footer>
+            </button>
+          </div>
+        </main>
+        <aside class="archive-inspector">
+          <span class="modal-eyebrow">SELECTED CASE FILE</span>
+          <h3>Twenty Comparable Coastal Launch Windows</h3>
+          <div class="inspector-badge-row"><span class="source-stamp archive">ARCHIVE</span><span class="reliability derived"><i></i> Derived sample</span></div>
+          <p class="inspector-lead">The historical file is relevant as a conditional base rate, but the sample mixes vehicle classes and cannot be treated as an independent present-day observation.</p>
+          <div class="archive-stat"><strong>8 / 20</strong><span>Comparable launches delayed</span></div>
+          <div class="inspector-section"><h4>QUALIFIERS</h4><ul><li>Small mixed sample</li><li>Historical association</li><li>Not direct causation</li></ul></div>
+          <div class="inspector-section"><h4>KNOWN BY</h4><div class="known-by"><span class="mini-portrait orin-mini"></span><span>Orin</span></div></div>
+          <button class="primary full-width" id="askProfessorFromArchive">Ask Professor Vale</button>
+        </aside>
+      </div>
+    </section>
+  </div>
+
+  <div class="overlay professor-overlay" id="professorOverlay" hidden>
+    <div class="overlay-backdrop" data-close-overlay></div>
+    <section class="professor-scene" role="dialog" aria-modal="true" aria-labelledby="professorTitle">
+      <header class="scene-header professor-header">
+        <div><span class="modal-eyebrow">SCHOLAR'S HILL</span><h2 id="professorTitle">Professor Vale's Study</h2></div>
+        <div class="consult-status"><span class="mode-lamp"></span> EVIDENCE-BOUND CONSULTATION</div>
+        <button class="close-button scene-close" data-close-overlay aria-label="Close">×</button>
+      </header>
+      <div class="study-room">
+        <div class="study-background" aria-hidden="true">
+          <div class="study-window"><i></i></div><div class="bookcase left-books"></div><div class="bookcase right-books"></div><div class="study-lamp"></div>
+          <div class="professor-character"><span class="prof-head"></span><span class="prof-hair"></span><span class="prof-body"></span><span class="prof-arm"></span><span class="chalk"></span></div>
+        </div>
+        <div class="chalkboard">
+          <div class="chalk-title">ARE THESE SIGNALS INDEPENDENT?</div>
+          <div class="chalk-diagram"><span class="chalk-node weather-node">CURRENT<br/>WEATHER</span><i class="chalk-arrow">→</i><span class="chalk-node result-node">LAUNCH<br/>DELAY</span><span class="chalk-node archive-node">HISTORICAL<br/>BASE RATE</span><i class="chalk-arrow second">↗</i></div>
+          <div class="chalk-note">Related evidence, not duplicates.</div>
+        </div>
+        <div class="evidence-table">
+          <div class="selected-evidence-card no-card"><span>↓ SIGNAL</span><strong>Crosswind advisory</strong><small>Official · fresh</small></div>
+          <div class="selected-evidence-card context-card"><span>◇ CASE FILE</span><strong>8 of 20 comparable delays</strong><small>Archive · mixed sample</small></div>
+        </div>
+        <aside class="professor-panel">
+          <div class="professor-modes"><button>Explain</button><button>Challenge</button><button>Compare</button><button class="active">Correlation check</button></div>
+          <div class="professor-answer">
+            <div class="vale-name"><span class="vale-seal">V</span><div><small>PROFESSOR VALE</small><strong>These signals are related, but not duplicates.</strong></div></div>
+            <p>The weather advisory describes today's condition. The archive card estimates how similar conditions affected prior launches. Use the archive as a conditional base rate, not as a second confirmation that today's launch will slip.</p>
+            <div class="answer-section"><h4>ASSUMPTIONS</h4><p>The current vehicle responds to crosswinds broadly like the archived sample.</p></div>
+            <div class="answer-section warning"><h4>LIMITATION</h4><p>The archive sample is small, and the present advisory may improve before the readiness poll.</p></div>
+            <div class="next-question"><span>NEXT BEST QUESTION</span><strong>How much of the launch window remains after 21:00Z?</strong></div>
+          </div>
+          <div class="professor-input"><input value="Are these two signals independent?" aria-label="Question for Professor Vale"/><button>ASK</button></div>
+        </aside>
+      </div>
+    </section>
+  </div>
+
+  <div class="overlay meeting-overlay" id="meetingOverlay" hidden>
+    <div class="overlay-backdrop" data-close-overlay></div>
+    <section class="meeting-scene modal-card" role="dialog" aria-modal="true" aria-labelledby="meetingTitle">
+      <button class="close-button" data-close-overlay aria-label="Close">×</button>
+      <div class="modal-eyebrow">LANTERN SQUARE · TEAM MEETING</div>
+      <h2 id="meetingTitle">The team compares evidence</h2>
+      <div class="meeting-table">
+        <div class="meeting-agent mira-seat"><span class="portrait portrait-mira"></span><strong>Mira</strong><em>49%</em><p>Fresh winds lower the odds, but part of the window may remain.</p></div>
+        <div class="meeting-agent orin-seat"><span class="portrait portrait-orin"></span><strong>Orin</strong><em>47%</em><p>The archive suggests caution, though the historical sample is mixed.</p></div>
+        <div class="meeting-agent kestrel-seat"><span class="portrait portrait-kestrel"></span><strong>Kestrel</strong><em>52%</em><p>Operations are still scheduled. Do not double-count derivative weather reports.</p></div>
+        <div class="meeting-center">
+          <div class="shared-card no-card"><span>↓</span><strong>Crosswind advisory</strong></div>
+          <div class="shared-card context-card"><span>◇</span><strong>Historical delay rate</strong></div>
+          <div class="shared-card yes-card"><span>↑</span><strong>Operations scheduled</strong></div>
+        </div>
+      </div>
+      <div class="disagreement-strip"><span>DISAGREEMENT TYPE</span><strong>Model + prior</strong><p>The agents agree on the sources but estimate different impact.</p></div>
+      <div class="modal-actions"><button class="secondary" data-close-overlay>Keep investigating</button><button class="primary" id="meetingForecast">Reassess forecast</button></div>
+    </section>
+  </div>
+
+  <div class="overlay forecast-overlay" id="forecastOverlay" hidden>
+    <div class="overlay-backdrop" data-close-overlay></div>
+    <section class="forecast-dialog modal-card" role="dialog" aria-modal="true" aria-labelledby="forecastTitle">
+      <button class="close-button" data-close-overlay aria-label="Close">×</button>
+      <div class="modal-eyebrow">FORECAST COMMIT</div>
+      <h2 id="forecastTitle">Price the future with your current evidence</h2>
+      <div class="forecast-comparison">
+        <div><span>PUBLIC</span><strong>61%</strong></div><div><span>TEAM</span><strong id="forecastTeamValue">55%</strong></div><div class="active"><span>YOUR FORECAST</span><strong id="forecastValue">51%</strong></div>
+      </div>
+      <div class="forecast-slider-wrap">
+        <div class="slider-labels"><span>NO</span><span>UNCERTAIN</span><span>YES</span></div>
+        <input type="range" id="forecastSlider" min="1" max="99" value="51" aria-label="Forecast probability" />
+        <div class="uncertainty-band" style="left:46%;width:12%"></div>
+      </div>
+      <div class="commit-evidence">
+        <h3>Evidence linked to this update</h3>
+        <div class="commit-chip no-chip"><span>↓</span><strong>Crosswind advisory</strong><button aria-label="Remove">×</button></div>
+        <div class="commit-chip context-chip"><span>◇</span><strong>Historical delay rate</strong><button aria-label="Remove">×</button></div>
+        <div class="commit-chip yes-chip"><span>↑</span><strong>Operations remain scheduled</strong><button aria-label="Remove">×</button></div>
+      </div>
+      <label class="rationale-field"><span>PUBLIC RATIONALE</span><textarea id="forecastRationale">Fresh crosswind risk lowers the near-term launch probability, but the warning may clear during the remaining window and operations are still scheduled.</textarea><small>163 / 280</small></label>
+      <div class="commit-note"><span>◇</span><p>This updates the simulated expedition forecast only. No trade or external market action will occur.</p></div>
+      <div class="modal-actions"><button class="secondary" data-close-overlay>Cancel</button><button class="primary commit-button" id="commitForecastButton">Commit 51%</button></div>
+    </section>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

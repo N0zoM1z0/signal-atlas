@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://signal-atlas.local/schemas/world-event.schema.json",
+  "title": "Signal Atlas World Event Envelope",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "expeditionId",
+    "sequence",
+    "type",
+    "occurredAt",
+    "recordedAt",
+    "actor",
+    "schemaVersion",
+    "payload"
+  ],
+  "properties": {
+    "id": {
+      "type": "string"
+    },
+    "expeditionId": {
+      "type": "string"
+    },
+    "sequence": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "type": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*(\\.[a-z0-9_]+)+$"
+    },
+    "occurredAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "recordedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "actor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind"
+      ],
+      "properties": {
+        "kind": {
+          "enum": [
+            "player",
+            "agent",
+            "system",
+            "pref",
+            "market"
+          ]
+        },
+        "id": {
+          "type": "string"
+        }
+      }
+    },
+    "causationId": {
+      "type": "string"
+    },
+    "correlationId": {
+      "type": "string"
+    },
+    "schemaVersion": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "payload": {
+      "type": "object"
+    }
+  }
+}

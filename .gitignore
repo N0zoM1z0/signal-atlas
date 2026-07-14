@@ -1,0 +1,39 @@
+# Dependencies and build output
+node_modules/
+.pnpm-store/
+dist/
+build/
+coverage/
+.vite/
+*.tsbuildinfo
+
+# Test and browser artifacts
+playwright-report/
+test-results/
+blob-report/
+screenshots/actual/
+
+# Local runtime state
+data/
+runtime/
+*.db
+*.db-*
+*.sqlite
+*.sqlite-*
+*.log
+
+# Secrets and local authentication
+.env
+.env.*
+!.env.example
+.codex/
+auth.json
+
+# Editor and operating-system files
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Original delivery workspace; canonical references are copied into the repo.
+preparation/

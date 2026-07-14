@@ -1,0 +1,1104 @@
+{
+  "fixtureVersion": 1,
+  "seed": "helios3-cozy-intelligence-v1",
+  "expedition": {
+    "id": "exp-helios3-demo",
+    "marketId": "market-helios3-2027",
+    "worldManifestId": "world-helios3-v1",
+    "title": "Helios-3 Launch Window",
+    "mode": "director",
+    "status": "active",
+    "simulationSpeed": 1,
+    "currentSequence": 2,
+    "startedAt": "2027-09-26T18:00:00Z",
+    "settings": {
+      "fixtureMode": true,
+      "reducedMotion": false,
+      "autoCamera": true,
+      "autonomy": "suggest"
+    }
+  },
+  "market": {
+    "id": "market-helios3-2027",
+    "provider": "signal-atlas-fixture",
+    "question": "Will the Helios-3 mission launch before September 30?",
+    "description": "A fictional binary market used to demonstrate Signal Atlas. The outcome is YES if the Helios-3 vehicle begins its launch before 23:59:59 UTC on September 30, 2027.",
+    "outcomes": [
+      {
+        "id": "yes",
+        "label": "Launches before the deadline",
+        "shortLabel": "YES"
+      },
+      {
+        "id": "no",
+        "label": "Does not launch before the deadline",
+        "shortLabel": "NO"
+      }
+    ],
+    "resolutionRules": "Resolve YES if official fictional mission-control records show liftoff before 2027-09-30T23:59:59Z. Otherwise resolve NO. This fixture is entirely fictional.",
+    "resolutionSource": "fixture://helios3/resolution",
+    "opensAt": "2027-09-20T00:00:00Z",
+    "closesAt": "2027-09-30T23:30:00Z",
+    "resolvesAt": "2027-09-30T23:59:59Z",
+    "status": "open",
+    "currentPublicProbabilities": {
+      "yes": 0.61,
+      "no": 0.39
+    },
+    "tags": [
+      "fictional",
+      "space",
+      "weather",
+      "launch"
+    ],
+    "createdAt": "2027-09-20T00:00:00Z",
+    "updatedAt": "2027-09-26T18:00:00Z"
+  },
+  "worldManifest": {
+    "id": "world-helios3-v1",
+    "version": 1,
+    "template": "science-space-launch",
+    "logicalWidth": 48,
+    "logicalHeight": 30,
+    "tileSize": 16,
+    "places": [
+      {
+        "id": "observatory",
+        "name": "Meridian Observatory",
+        "archetype": "observatory",
+        "position": {
+          "x": 14,
+          "y": 13
+        },
+        "entranceNodeId": "n-observatory",
+        "description": "Home base for the expedition, market overview, and forecast commits.",
+        "missionVerbs": [
+          "reassess_forecast"
+        ],
+        "capabilityBindings": [],
+        "tags": [
+          "home",
+          "forecast"
+        ],
+        "visualState": {
+          "windowGlow": "warm",
+          "domeAngle": 18
+        }
+      },
+      {
+        "id": "weather-tower",
+        "name": "Galehaven Weather Tower",
+        "archetype": "weather_tower",
+        "position": {
+          "x": 37,
+          "y": 7
+        },
+        "entranceNodeId": "n-weather",
+        "description": "Local observations, warnings, and launch-window weather models.",
+        "missionVerbs": [
+          "investigate",
+          "verify",
+          "observe_conditions"
+        ],
+        "capabilityBindings": [
+          {
+            "canonicalCapability": "local_conditions"
+          },
+          {
+            "canonicalCapability": "search_sources"
+          }
+        ],
+        "tags": [
+          "weather",
+          "fresh"
+        ],
+        "visualState": {
+          "weather": "windy",
+          "anemometerSpeed": 0.75
+        }
+      },
+      {
+        "id": "newsroom",
+        "name": "Ledger Bay Newsroom",
+        "archetype": "newsroom",
+        "position": {
+          "x": 39,
+          "y": 22
+        },
+        "entranceNodeId": "n-newsroom",
+        "description": "Recent operational notices, public statements, and reporting.",
+        "missionVerbs": [
+          "investigate",
+          "verify",
+          "find_contradiction"
+        ],
+        "capabilityBindings": [
+          {
+            "canonicalCapability": "search_sources"
+          },
+          {
+            "canonicalCapability": "read_source"
+          }
+        ],
+        "tags": [
+          "news",
+          "operations"
+        ],
+        "visualState": {
+          "ticker": "HEL-3 WINDOW REVIEW"
+        }
+      },
+      {
+        "id": "archive",
+        "name": "Archive Quarter",
+        "archetype": "archive",
+        "position": {
+          "x": 7,
+          "y": 24
+        },
+        "entranceNodeId": "n-archive",
+        "description": "Historical case files, prior launch delays, and source versions.",
+        "missionVerbs": [
+          "search_history",
+          "compare_sources"
+        ],
+        "capabilityBindings": [
+          {
+            "canonicalCapability": "search_sources"
+          },
+          {
+            "canonicalCapability": "read_source"
+          }
+        ],
+        "tags": [
+          "history",
+          "base-rate"
+        ],
+        "visualState": {
+          "lamps": 4
+        }
+      },
+      {
+        "id": "professor",
+        "name": "Scholar's Hill",
+        "archetype": "professor",
+        "position": {
+          "x": 30,
+          "y": 3
+        },
+        "entranceNodeId": "n-professor",
+        "description": "Professor Vale's study for explanation, challenge, base rates, and correlation checks.",
+        "missionVerbs": [
+          "consult_professor"
+        ],
+        "capabilityBindings": [],
+        "tags": [
+          "synthesis",
+          "professor"
+        ],
+        "visualState": {
+          "chalkboard": "correlation"
+        }
+      },
+      {
+        "id": "square",
+        "name": "Lantern Square",
+        "archetype": "town_square",
+        "position": {
+          "x": 25,
+          "y": 18
+        },
+        "entranceNodeId": "n-square",
+        "description": "A social hub where agents exchange signals and debate forecasts.",
+        "missionVerbs": [
+          "meet_agent",
+          "deliver_signal"
+        ],
+        "capabilityBindings": [],
+        "tags": [
+          "meeting",
+          "social"
+        ],
+        "visualState": {
+          "lanterns": 8
+        }
+      }
+    ],
+    "routes": [
+      {
+        "id": "r-observatory-square",
+        "fromPlaceId": "observatory",
+        "toPlaceId": "square",
+        "waypoints": [
+          {
+            "x": 14,
+            "y": 13
+          },
+          {
+            "x": 18,
+            "y": 14
+          },
+          {
+            "x": 21,
+            "y": 16
+          },
+          {
+            "x": 25,
+            "y": 18
+          }
+        ],
+        "baseDurationMs": 5000,
+        "bidirectional": true,
+        "transitType": "walk",
+        "cameraHint": "follow"
+      },
+      {
+        "id": "r-square-weather",
+        "fromPlaceId": "square",
+        "toPlaceId": "weather-tower",
+        "waypoints": [
+          {
+            "x": 25,
+            "y": 18
+          },
+          {
+            "x": 29,
+            "y": 15
+          },
+          {
+            "x": 33,
+            "y": 11
+          },
+          {
+            "x": 37,
+            "y": 7
+          }
+        ],
+        "baseDurationMs": 7500,
+        "bidirectional": true,
+        "transitType": "walk",
+        "cameraHint": "follow"
+      },
+      {
+        "id": "r-square-newsroom",
+        "fromPlaceId": "square",
+        "toPlaceId": "newsroom",
+        "waypoints": [
+          {
+            "x": 25,
+            "y": 18
+          },
+          {
+            "x": 30,
+            "y": 19
+          },
+          {
+            "x": 35,
+            "y": 21
+          },
+          {
+            "x": 39,
+            "y": 22
+          }
+        ],
+        "baseDurationMs": 6500,
+        "bidirectional": true,
+        "transitType": "walk",
+        "cameraHint": "follow"
+      },
+      {
+        "id": "r-square-archive",
+        "fromPlaceId": "square",
+        "toPlaceId": "archive",
+        "waypoints": [
+          {
+            "x": 25,
+            "y": 18
+          },
+          {
+            "x": 20,
+            "y": 20
+          },
+          {
+            "x": 14,
+            "y": 22
+          },
+          {
+            "x": 7,
+            "y": 24
+          }
+        ],
+        "baseDurationMs": 7500,
+        "bidirectional": true,
+        "transitType": "walk",
+        "cameraHint": "follow"
+      },
+      {
+        "id": "r-square-professor",
+        "fromPlaceId": "square",
+        "toPlaceId": "professor",
+        "waypoints": [
+          {
+            "x": 25,
+            "y": 18
+          },
+          {
+            "x": 26,
+            "y": 13
+          },
+          {
+            "x": 28,
+            "y": 8
+          },
+          {
+            "x": 30,
+            "y": 3
+          }
+        ],
+        "baseDurationMs": 7000,
+        "bidirectional": true,
+        "transitType": "walk",
+        "cameraHint": "follow"
+      },
+      {
+        "id": "r-observatory-archive",
+        "fromPlaceId": "observatory",
+        "toPlaceId": "archive",
+        "waypoints": [
+          {
+            "x": 14,
+            "y": 13
+          },
+          {
+            "x": 11,
+            "y": 16
+          },
+          {
+            "x": 9,
+            "y": 20
+          },
+          {
+            "x": 7,
+            "y": 24
+          }
+        ],
+        "baseDurationMs": 6500,
+        "bidirectional": true,
+        "transitType": "walk",
+        "cameraHint": "follow"
+      },
+      {
+        "id": "r-weather-professor",
+        "fromPlaceId": "weather-tower",
+        "toPlaceId": "professor",
+        "waypoints": [
+          {
+            "x": 37,
+            "y": 7
+          },
+          {
+            "x": 34,
+            "y": 6
+          },
+          {
+            "x": 32,
+            "y": 4
+          },
+          {
+            "x": 30,
+            "y": 3
+          }
+        ],
+        "baseDurationMs": 4500,
+        "bidirectional": true,
+        "transitType": "walk",
+        "cameraHint": "follow"
+      },
+      {
+        "id": "r-newsroom-weather",
+        "fromPlaceId": "newsroom",
+        "toPlaceId": "weather-tower",
+        "waypoints": [
+          {
+            "x": 39,
+            "y": 22
+          },
+          {
+            "x": 41,
+            "y": 17
+          },
+          {
+            "x": 40,
+            "y": 12
+          },
+          {
+            "x": 37,
+            "y": 7
+          }
+        ],
+        "baseDurationMs": 8000,
+        "bidirectional": true,
+        "transitType": "walk",
+        "cameraHint": "follow"
+      }
+    ],
+    "ambientLayers": [
+      {
+        "id": "sky",
+        "type": "gradient",
+        "state": "night"
+      },
+      {
+        "id": "clouds",
+        "type": "particles",
+        "state": "windy"
+      },
+      {
+        "id": "horizon-launchpad",
+        "type": "landmark",
+        "state": "standby"
+      }
+    ],
+    "cameraZones": [],
+    "defaultSpawnPlaceId": "observatory",
+    "assetPack": "helios3-placeholder-v1"
+  },
+  "agents": [
+    {
+      "id": "mira",
+      "displayName": "Mira",
+      "role": "scout",
+      "profileVersion": 1,
+      "placeId": "observatory",
+      "queuedMissionIds": [],
+      "knownSourceIds": [],
+      "knownSignalIds": [],
+      "belief": {
+        "probabilities": {
+          "yes": 0.56,
+          "no": 0.44
+        },
+        "uncertainty": {
+          "yes": {
+            "low": 0.48,
+            "high": 0.64
+          },
+          "no": {
+            "low": 0.36,
+            "high": 0.52
+          }
+        },
+        "updatedAt": "2027-09-26T18:00:00Z",
+        "rationale": "The launch remains plausible, but fresh local conditions have not been checked.",
+        "evidenceSignalIds": []
+      },
+      "publicState": "idle"
+    },
+    {
+      "id": "orin",
+      "displayName": "Orin",
+      "role": "archivist",
+      "profileVersion": 1,
+      "placeId": "square",
+      "queuedMissionIds": [],
+      "knownSourceIds": [],
+      "knownSignalIds": [],
+      "belief": {
+        "probabilities": {
+          "yes": 0.52,
+          "no": 0.48
+        },
+        "uncertainty": {
+          "yes": {
+            "low": 0.43,
+            "high": 0.61
+          },
+          "no": {
+            "low": 0.39,
+            "high": 0.57
+          }
+        },
+        "updatedAt": "2027-09-26T18:00:00Z",
+        "rationale": "Historical delay rates may be more important than the current public price suggests.",
+        "evidenceSignalIds": []
+      },
+      "publicState": "idle"
+    },
+    {
+      "id": "kestrel",
+      "displayName": "Kestrel",
+      "role": "skeptic",
+      "profileVersion": 1,
+      "placeId": "observatory",
+      "queuedMissionIds": [],
+      "knownSourceIds": [],
+      "knownSignalIds": [],
+      "belief": {
+        "probabilities": {
+          "yes": 0.55,
+          "no": 0.45
+        },
+        "uncertainty": {
+          "yes": {
+            "low": 0.47,
+            "high": 0.62
+          },
+          "no": {
+            "low": 0.38,
+            "high": 0.53
+          }
+        },
+        "updatedAt": "2027-09-26T18:00:00Z",
+        "rationale": "The public price may be overconfident because several reports could share one upstream source.",
+        "evidenceSignalIds": []
+      },
+      "publicState": "idle"
+    }
+  ],
+  "sources": [
+    {
+      "id": "src-weather-bulletin-1",
+      "version": 1,
+      "externalUri": "fixture://helios3/src-weather-bulletin-1",
+      "title": "Galehaven Crosswind Advisory 18:10Z",
+      "publisher": "Galehaven Weather Service",
+      "sourceClass": "official_primary",
+      "publishedAt": "2027-09-26T18:10:00Z",
+      "observedAt": "2027-09-26T18:10:00Z",
+      "retrievedAt": "2027-09-26T18:30:00Z",
+      "location": {
+        "placeId": "weather-tower",
+        "label": "Helios-3 Expedition"
+      },
+      "mediaType": "text/plain",
+      "excerpt": "Sustained crosswinds at the Helios launch corridor are forecast to exceed the fictional mission's preferred threshold for part of the next launch window. Conditions may improve after 21:00Z.",
+      "contentHash": "825d7071e41fd584c7c457d56371f89a665569d81d62db4ef78f118fd6c5ac8d",
+      "provenance": {
+        "serverName": "pref-fixture",
+        "transport": "fixture",
+        "primitive": "fixture",
+        "primitiveName": "fixture.weather.advisory",
+        "argumentsHash": "1376c6995818f771c3885a778d64685b9b924d7eab4fb3b72455938fbf9da4d3",
+        "responseHash": "0cdcb99df2b94e24056cb6ac53b23f5f24b2a1920b9f9fb88aa5bff51d7e902c",
+        "callId": "call-src-weather-bulletin-1"
+      },
+      "rights": {
+        "display": "full",
+        "license": "Original fictional fixture",
+        "notes": "Created for Signal Atlas development."
+      },
+      "tags": [
+        "weather",
+        "crosswind",
+        "launch-window"
+      ]
+    },
+    {
+      "id": "src-archive-crosswind-1",
+      "version": 1,
+      "externalUri": "fixture://helios3/src-archive-crosswind-1",
+      "title": "Case File: Twenty Comparable Coastal Launch Windows",
+      "publisher": "Meridian Mission Archive",
+      "sourceClass": "archive",
+      "publishedAt": "2027-08-01T12:00:00Z",
+      "observedAt": null,
+      "retrievedAt": "2027-09-26T18:30:00Z",
+      "location": {
+        "placeId": "weather-tower",
+        "label": "Helios-3 Expedition"
+      },
+      "mediaType": "text/plain",
+      "excerpt": "In the fictional sample, eight of twenty comparable launch attempts were delayed when crosswind advisories overlapped the opening half of the window. The sample mixes vehicle classes and is not a direct causal estimate.",
+      "contentHash": "ae4551dde69458add17d7da9a8b449c3654bdec48cc3ea1e81ca1487b0980fc2",
+      "provenance": {
+        "serverName": "pref-fixture",
+        "transport": "fixture",
+        "primitive": "fixture",
+        "primitiveName": "fixture.archive.search",
+        "argumentsHash": "dcdd8f0200dfbc7f86dcaea92e949f35bcaed4edc42288a711badb5d6e6b2252",
+        "responseHash": "c1586700d934595131243997a41113f229611cb0e4a54accdacd63fba0df2c89",
+        "callId": "call-src-archive-crosswind-1"
+      },
+      "rights": {
+        "display": "full",
+        "license": "Original fictional fixture",
+        "notes": "Created for Signal Atlas development."
+      },
+      "tags": [
+        "history",
+        "base-rate",
+        "crosswind"
+      ]
+    },
+    {
+      "id": "src-ops-notice-1",
+      "version": 1,
+      "externalUri": "fixture://helios3/src-ops-notice-1",
+      "title": "Helios-3 Countdown Operations Remain Scheduled",
+      "publisher": "Helios Mission Directorate",
+      "sourceClass": "official_primary",
+      "publishedAt": "2027-09-26T17:45:00Z",
+      "observedAt": null,
+      "retrievedAt": "2027-09-26T18:30:00Z",
+      "location": {
+        "placeId": "newsroom",
+        "label": "Helios-3 Expedition"
+      },
+      "mediaType": "text/plain",
+      "excerpt": "Countdown operations remain scheduled. The launch director will review weather constraints at the next readiness poll. This notice does not guarantee liftoff.",
+      "contentHash": "6c4b7b93f9212b6cfc50f441604095ec0b164df05410dbd772cf9487fb386b78",
+      "provenance": {
+        "serverName": "pref-fixture",
+        "transport": "fixture",
+        "primitive": "fixture",
+        "primitiveName": "fixture.news.operations",
+        "argumentsHash": "6fbebc2bf4a3f9f37129c4775b3e52b782a9493df461357bf90269ad6374ae85",
+        "responseHash": "d995b16b9f99985f55b44ea959e69450f0e2ee28219d0f9f97148924c3e249c0",
+        "callId": "call-src-ops-notice-1"
+      },
+      "rights": {
+        "display": "full",
+        "license": "Original fictional fixture",
+        "notes": "Created for Signal Atlas development."
+      },
+      "tags": [
+        "operations",
+        "schedule",
+        "official"
+      ]
+    },
+    {
+      "id": "src-weather-model-derivative-1",
+      "version": 1,
+      "externalUri": "fixture://helios3/src-weather-model-derivative-1",
+      "title": "Regional Model Highlights Crosswind Risk",
+      "publisher": "Ledger Bay Science Desk",
+      "sourceClass": "secondary",
+      "publishedAt": "2027-09-26T18:22:00Z",
+      "observedAt": null,
+      "retrievedAt": "2027-09-26T18:30:00Z",
+      "location": {
+        "placeId": "weather-tower",
+        "label": "Helios-3 Expedition"
+      },
+      "mediaType": "text/plain",
+      "excerpt": "A regional model summary points to the same crosswind interval described by the Galehaven advisory. The report cites the advisory as its primary source.",
+      "contentHash": "cf03562eac133894d2b329a843a65a230e1f9001102e299039a7a43cbf515137",
+      "provenance": {
+        "serverName": "pref-fixture",
+        "transport": "fixture",
+        "primitive": "fixture",
+        "primitiveName": "fixture.news.search",
+        "argumentsHash": "f5c4ebc735fc3e06d30bd31030a84d1adf6fb04903fc9ffcd21d54b4b8d111f8",
+        "responseHash": "87b71730b9f9e7bfe51ad6e13e970f812ddee49a0d8533a5b8cef2d2b2b5fe5f",
+        "callId": "call-src-weather-model-derivative-1"
+      },
+      "rights": {
+        "display": "full",
+        "license": "Original fictional fixture",
+        "notes": "Created for Signal Atlas development."
+      },
+      "tags": [
+        "weather",
+        "derivative",
+        "correlated"
+      ]
+    },
+    {
+      "id": "src-readiness-checklist-1",
+      "version": 1,
+      "externalUri": "fixture://helios3/src-readiness-checklist-1",
+      "title": "Helios-3 Readiness Checklist Snapshot",
+      "publisher": "Helios Mission Directorate",
+      "sourceClass": "official_primary",
+      "publishedAt": "2027-09-26T16:30:00Z",
+      "observedAt": null,
+      "retrievedAt": "2027-09-26T18:30:00Z",
+      "location": {
+        "placeId": "newsroom",
+        "label": "Helios-3 Expedition"
+      },
+      "mediaType": "text/plain",
+      "excerpt": "All fictional non-weather readiness gates are marked green in the current snapshot. Weather remains an open constraint.",
+      "contentHash": "2a059b51634bfec73326c1b74f3a95a4708c8701957363663348c508496acbfa",
+      "provenance": {
+        "serverName": "pref-fixture",
+        "transport": "fixture",
+        "primitive": "fixture",
+        "primitiveName": "fixture.operations.read",
+        "argumentsHash": "436e27405ecedc16e11cf45a8f295a0c333c99f52e4aa64b8ed60b73225793cc",
+        "responseHash": "25a235aa229df8965058afb0825f2aaa72d8e6b3a4e2c047635283042b8b8101",
+        "callId": "call-src-readiness-checklist-1"
+      },
+      "rights": {
+        "display": "full",
+        "license": "Original fictional fixture",
+        "notes": "Created for Signal Atlas development."
+      },
+      "tags": [
+        "readiness",
+        "official",
+        "weather-open"
+      ]
+    },
+    {
+      "id": "src-contractor-comment-1",
+      "version": 1,
+      "externalUri": "fixture://helios3/src-contractor-comment-1",
+      "title": "Contractor Expects Window Review, Not Cancellation",
+      "publisher": "Aster Works Press Office",
+      "sourceClass": "primary",
+      "publishedAt": "2027-09-26T18:05:00Z",
+      "observedAt": null,
+      "retrievedAt": "2027-09-26T18:30:00Z",
+      "location": {
+        "placeId": "newsroom",
+        "label": "Helios-3 Expedition"
+      },
+      "mediaType": "text/plain",
+      "excerpt": "A contractor spokesperson expects a routine window review and says teams remain prepared. The statement is not an official launch decision.",
+      "contentHash": "ddd9c5269d50f580cf232844a8006a04df186aa951492e15029eb5238d5acde2",
+      "provenance": {
+        "serverName": "pref-fixture",
+        "transport": "fixture",
+        "primitive": "fixture",
+        "primitiveName": "fixture.news.search",
+        "argumentsHash": "30f33c0fc645869c0de4685a97b8d5451563222efbfca8ee6b15cb9fec11504f",
+        "responseHash": "838a971883de91c3c4fb341b2cc3b44cd5f88b971682fbd9edb699f0a1053bee",
+        "callId": "call-src-contractor-comment-1"
+      },
+      "rights": {
+        "display": "full",
+        "license": "Original fictional fixture",
+        "notes": "Created for Signal Atlas development."
+      },
+      "tags": [
+        "contractor",
+        "statement",
+        "operations"
+      ]
+    }
+  ],
+  "claims": [
+    {
+      "id": "claim-crosswind",
+      "text": "Crosswinds are forecast to exceed the mission's preferred threshold during part of the next launch window.",
+      "sourceIds": [
+        "src-weather-bulletin-1"
+      ],
+      "extractor": {
+        "kind": "agent",
+        "id": "mira"
+      },
+      "qualifiers": [
+        "forecast",
+        "part of window",
+        "conditions may improve"
+      ],
+      "temporalScope": {
+        "startsAt": "2027-09-26T18:10:00Z",
+        "endsAt": "2027-09-26T21:00:00Z"
+      },
+      "status": "active",
+      "createdAt": "2027-09-26T18:31:00Z"
+    },
+    {
+      "id": "claim-base-rate",
+      "text": "Eight of twenty comparable fictional launches in the archive were delayed when crosswind advisories overlapped the opening half of the window.",
+      "sourceIds": [
+        "src-archive-crosswind-1"
+      ],
+      "extractor": {
+        "kind": "agent",
+        "id": "orin"
+      },
+      "qualifiers": [
+        "small mixed sample",
+        "historical association",
+        "not direct causation"
+      ],
+      "status": "active",
+      "createdAt": "2027-09-26T18:34:00Z"
+    },
+    {
+      "id": "claim-ops-scheduled",
+      "text": "Countdown operations remain scheduled, with weather review still pending.",
+      "sourceIds": [
+        "src-ops-notice-1"
+      ],
+      "extractor": {
+        "kind": "agent",
+        "id": "kestrel"
+      },
+      "qualifiers": [
+        "not a launch guarantee"
+      ],
+      "status": "active",
+      "createdAt": "2027-09-26T18:36:00Z"
+    }
+  ],
+  "signals": [
+    {
+      "id": "sig-crosswind",
+      "marketId": "market-helios3-2027",
+      "claimIds": [
+        "claim-crosswind"
+      ],
+      "sourceIds": [
+        "src-weather-bulletin-1"
+      ],
+      "headline": "Crosswind advisory overlaps launch window",
+      "summary": "Fresh official local guidance raises delay risk for the opening part of the next window.",
+      "direction": "opposes_outcome",
+      "targetOutcomeId": "yes",
+      "impact": {
+        "label": "medium",
+        "probabilityPointRange": {
+          "low": -0.09,
+          "high": -0.04
+        }
+      },
+      "reliability": {
+        "label": "verified_primary",
+        "reasons": [
+          "Official fictional weather service",
+          "Direct local advisory",
+          "Time-stamped observation/forecast"
+        ],
+        "assessedBy": {
+          "kind": "system"
+        }
+      },
+      "freshness": {
+        "referenceTime": "2027-09-26T18:10:00Z",
+        "usefulUntil": "2027-09-26T21:30:00Z",
+        "label": "fresh"
+      },
+      "correlationGroupIds": [
+        "corr-weather-2027-09-26"
+      ],
+      "discoveredByAgentId": "mira",
+      "createdAt": "2027-09-26T18:31:00Z",
+      "status": "active"
+    },
+    {
+      "id": "sig-base-rate",
+      "marketId": "market-helios3-2027",
+      "claimIds": [
+        "claim-base-rate"
+      ],
+      "sourceIds": [
+        "src-archive-crosswind-1"
+      ],
+      "headline": "Comparable windows often slipped under crosswind advisories",
+      "summary": "The archive suggests a meaningful but uncertain historical delay association.",
+      "direction": "opposes_outcome",
+      "targetOutcomeId": "yes",
+      "impact": {
+        "label": "small",
+        "probabilityPointRange": {
+          "low": -0.05,
+          "high": -0.01
+        }
+      },
+      "reliability": {
+        "label": "derived",
+        "reasons": [
+          "Archived case-file sample",
+          "Small and heterogeneous comparison set"
+        ],
+        "assessedBy": {
+          "kind": "agent",
+          "id": "orin"
+        }
+      },
+      "freshness": {
+        "referenceTime": "2027-08-01T12:00:00Z",
+        "label": "timeless"
+      },
+      "correlationGroupIds": [
+        "corr-crosswind-concept"
+      ],
+      "discoveredByAgentId": "orin",
+      "createdAt": "2027-09-26T18:34:00Z",
+      "status": "active"
+    },
+    {
+      "id": "sig-operations",
+      "marketId": "market-helios3-2027",
+      "claimIds": [
+        "claim-ops-scheduled"
+      ],
+      "sourceIds": [
+        "src-ops-notice-1"
+      ],
+      "headline": "Countdown operations remain scheduled",
+      "summary": "The official operations notice supports launch readiness but keeps weather as an open constraint.",
+      "direction": "supports_outcome",
+      "targetOutcomeId": "yes",
+      "impact": {
+        "label": "small",
+        "probabilityPointRange": {
+          "low": 0.01,
+          "high": 0.04
+        }
+      },
+      "reliability": {
+        "label": "verified_primary",
+        "reasons": [
+          "Official fictional mission directorate notice",
+          "Explicit limitation stated"
+        ],
+        "assessedBy": {
+          "kind": "system"
+        }
+      },
+      "freshness": {
+        "referenceTime": "2027-09-26T17:45:00Z",
+        "usefulUntil": "2027-09-27T06:00:00Z",
+        "label": "fresh"
+      },
+      "correlationGroupIds": [
+        "corr-operations-status"
+      ],
+      "discoveredByAgentId": "kestrel",
+      "createdAt": "2027-09-26T18:36:00Z",
+      "status": "active"
+    }
+  ],
+  "initialEvents": [
+    {
+      "id": "evt-0001",
+      "expeditionId": "exp-helios3-demo",
+      "sequence": 1,
+      "type": "expedition.created",
+      "occurredAt": "2027-09-26T18:00:00Z",
+      "recordedAt": "2027-09-26T18:00:00Z",
+      "actor": {
+        "kind": "system"
+      },
+      "schemaVersion": 1,
+      "payload": {
+        "marketId": "market-helios3-2027",
+        "worldManifestId": "world-helios3-v1",
+        "mode": "director"
+      }
+    },
+    {
+      "id": "evt-0002",
+      "expeditionId": "exp-helios3-demo",
+      "sequence": 2,
+      "type": "forecast.committed",
+      "occurredAt": "2027-09-26T18:00:01Z",
+      "recordedAt": "2027-09-26T18:00:01Z",
+      "actor": {
+        "kind": "system"
+      },
+      "schemaVersion": 1,
+      "payload": {
+        "actor": {
+          "kind": "team"
+        },
+        "previousProbabilities": {
+          "yes": 0.5,
+          "no": 0.5
+        },
+        "newProbabilities": {
+          "yes": 0.55,
+          "no": 0.45
+        },
+        "rationale": "Initial team prior before field research.",
+        "evidenceSignalIds": []
+      }
+    }
+  ],
+  "scriptedMissionResults": {
+    "mira:observe_conditions:weather-tower": {
+      "latencyMs": 2400,
+      "sourceIds": [
+        "src-weather-bulletin-1"
+      ],
+      "claimIds": [
+        "claim-crosswind"
+      ],
+      "signalIds": [
+        "sig-crosswind"
+      ],
+      "dialogue": "The tower issued a fresh crosswind advisory. I would lower launch odds a little, but the warning covers only part of the window.",
+      "suggestedFollowUp": {
+        "verb": "verify",
+        "objective": "Check whether newer operational guidance changes the weather interpretation.",
+        "destinationPlaceId": "newsroom"
+      }
+    },
+    "orin:search_history:archive": {
+      "latencyMs": 2800,
+      "sourceIds": [
+        "src-archive-crosswind-1"
+      ],
+      "claimIds": [
+        "claim-base-rate"
+      ],
+      "signalIds": [
+        "sig-base-rate"
+      ],
+      "dialogue": "The archive found eight delays in twenty comparable windows. It is a useful base rate, but the cases are mixed.",
+      "suggestedFollowUp": {
+        "verb": "compare_sources",
+        "objective": "Compare the historical cases with the current vehicle and window.",
+        "destinationPlaceId": "archive"
+      }
+    },
+    "kestrel:verify:newsroom": {
+      "latencyMs": 2200,
+      "sourceIds": [
+        "src-ops-notice-1"
+      ],
+      "claimIds": [
+        "claim-ops-scheduled"
+      ],
+      "signalIds": [
+        "sig-operations"
+      ],
+      "dialogue": "Operations remain scheduled, but the notice leaves weather unresolved. This is modest support, not a launch guarantee."
+    }
+  },
+  "professorFixture": {
+    "queryId": "prof-correlation-1",
+    "mode": "correlation_check",
+    "selectedSignalIds": [
+      "sig-crosswind",
+      "sig-base-rate"
+    ],
+    "answer": "The signals are related but not duplicates. The weather advisory describes the present condition; the archive card estimates how similar conditions affected prior launches. Treat the historical card as a conditional base rate, not independent confirmation that today's launch will slip.",
+    "evidenceUsed": [
+      {
+        "type": "signal",
+        "id": "sig-crosswind"
+      },
+      {
+        "type": "signal",
+        "id": "sig-base-rate"
+      }
+    ],
+    "assumptions": [
+      "The current vehicle responds to crosswinds broadly like the archived sample.",
+      "The forecasted wind interval overlaps a meaningful portion of the actual launch window."
+    ],
+    "limitations": [
+      "The archive sample is small and mixes vehicle classes.",
+      "The present advisory may improve before the readiness poll."
+    ],
+    "suggestedNextQuestion": "How much of the launch window remains after the forecasted improvement time?",
+    "suggestedMission": {
+      "verb": "verify",
+      "objective": "Check the exact launch window and latest weather review.",
+      "destinationPlaceId": "newsroom"
+    }
+  },
+  "resolutionFixture": {
+    "resolvedOutcomeId": "no",
+    "resolvedAt": "2027-09-30T23:59:59Z",
+    "resolutionNote": "In the fictional fixture, Helios-3 did not launch before the deadline after repeated weather reviews."
+  }
+}
