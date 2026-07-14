@@ -2,7 +2,7 @@ import type { AgentTurnInput, AgentTurnOutput } from '@signal-atlas/contracts';
 
 export type MaybePromise<T> = T | Promise<T>;
 
-export type CodexDriverKind = 'scripted' | 'local_exec';
+export type CodexDriverKind = 'scripted' | 'local_exec' | 'pref_proxy';
 
 export interface CodexRuntimeEvent {
   id: string;

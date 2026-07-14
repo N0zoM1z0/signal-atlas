@@ -1,7 +1,11 @@
 import {
+  LivePrefGateway,
   PrefMcpConnectionDiagnosticsSchema,
   StreamableHttpPrefConnection,
   loadPrefCapabilityMapSync,
+  type PrefCapabilityMap,
+  type PrefGateway,
+  type PrefGatewayConfig,
   type PrefMcpConnection,
   type PrefMcpConnectionDiagnostics,
   type PrefMcpConnectionErrorCode,
@@ -9,6 +13,7 @@ import {
 
 export interface PrefRuntime {
   diagnostics(): PrefMcpConnectionDiagnostics;
+  gateway(): PrefGateway | undefined;
   testConnection(): Promise<PrefMcpConnectionDiagnostics>;
   disconnect(): Promise<PrefMcpConnectionDiagnostics>;
 }
@@ -17,16 +22,22 @@ export interface CreatePrefRuntimeOptions {
   environment?: Readonly<Record<string, string | undefined>>;
   connection?: PrefMcpConnection;
   now?: () => Date;
+  freshCacheMs?: number;
 }
 
 export function createConfiguredPrefRuntime(options: CreatePrefRuntimeOptions = {}): PrefRuntime {
-  if (options.connection) return new LivePrefRuntime(options.connection);
+  const capabilityMap = loadPrefCapabilityMapSync();
+  if (options.connection) {
+    return new LivePrefRuntime(
+      options.connection,
+      createLiveGateway(options.connection, capabilityMap, options),
+    );
+  }
   const environment = options.environment ?? process.env;
   if (environment['SIGNAL_ATLAS_PREF_MODE'] !== 'live') {
     return new FixturePrefRuntime(options.now);
   }
 
-  const capabilityMap = loadPrefCapabilityMapSync();
   const token = environment[capabilityMap.server.credentialEnvKey];
   try {
     const connection = new StreamableHttpPrefConnection({
@@ -39,7 +50,7 @@ export function createConfiguredPrefRuntime(options: CreatePrefRuntimeOptions = 
         token: () => environment[capabilityMap.server.credentialEnvKey],
       },
     });
-    return new LivePrefRuntime(connection);
+    return new LivePrefRuntime(connection, createLiveGateway(connection, capabilityMap, options));
   } catch {
     return new UnavailablePrefRuntime(
       'pref_server_denied',
@@ -49,21 +60,53 @@ export function createConfiguredPrefRuntime(options: CreatePrefRuntimeOptions = 
   }
 }
 
+function createLiveGateway(
+  connection: PrefMcpConnection,
+  capabilityMap: PrefCapabilityMap,
+  options: Pick<CreatePrefRuntimeOptions, 'now' | 'freshCacheMs'>,
+): PrefGateway {
+  const config: PrefGatewayConfig = {
+    serverName: capabilityMap.server.name,
+    transport: capabilityMap.server.transport,
+    readOnly: true,
+    allowCapabilities: capabilityMap.mappings
+      .filter((mapping) => mapping.enabled)
+      .map((mapping) => mapping.canonicalName),
+    timeoutMs: 10_000,
+    maxResponseBytes: 1_000_000,
+    maxCallsPerMission: 3,
+    cacheMode: 'full_when_permitted',
+  };
+  return new LivePrefGateway({
+    config,
+    capabilityMap,
+    connection,
+    ...(options.now ? { now: options.now } : {}),
+    ...(options.freshCacheMs === undefined ? {} : { freshCacheMs: options.freshCacheMs }),
+  });
+}
+
 class LivePrefRuntime implements PrefRuntime {
   readonly #connection: PrefMcpConnection;
+  readonly #gateway: PrefGateway;
 
-  constructor(connection: PrefMcpConnection) {
+  constructor(connection: PrefMcpConnection, gateway: PrefGateway) {
     this.#connection = connection;
+    this.#gateway = gateway;
   }
 
   diagnostics(): PrefMcpConnectionDiagnostics {
     return this.#connection.diagnostics();
   }
 
+  gateway(): PrefGateway {
+    return this.#gateway;
+  }
+
   async testConnection(): Promise<PrefMcpConnectionDiagnostics> {
     try {
-      await this.#connection.disconnect();
-      await this.#connection.connect();
+      await this.#gateway.disconnect();
+      await this.#gateway.connect();
     } catch {
       // The connection owns the fixed safe diagnostic projection.
     }
@@ -71,7 +114,7 @@ class LivePrefRuntime implements PrefRuntime {
   }
 
   async disconnect(): Promise<PrefMcpConnectionDiagnostics> {
-    await this.#connection.disconnect();
+    await this.#gateway.disconnect();
     return this.#connection.diagnostics();
   }
 }
@@ -122,6 +165,10 @@ class FixturePrefRuntime implements PrefRuntime {
     });
   }
 
+  gateway(): undefined {
+    return undefined;
+  }
+
   async testConnection(): Promise<PrefMcpConnectionDiagnostics> {
     this.#state = 'connected';
     this.#lastTransitionAt = this.#now().toISOString();
@@ -165,6 +212,10 @@ class UnavailablePrefRuntime implements PrefRuntime {
 
   diagnostics(): PrefMcpConnectionDiagnostics {
     return structuredClone(this.#diagnostics);
+  }
+
+  gateway(): undefined {
+    return undefined;
   }
 
   async testConnection(): Promise<PrefMcpConnectionDiagnostics> {

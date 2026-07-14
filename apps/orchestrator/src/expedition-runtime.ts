@@ -650,7 +650,25 @@ export class ExpeditionRuntime {
 
     for (const source of turn.sources) {
       if (!this.#projection.sourcesById[source.id]) {
-        emit(`source-${source.id}`, 'source.recorded', { source });
+        const previousSourceId = source.supersedesSourceId;
+        if (previousSourceId && this.#projection.sourcesById[previousSourceId]) {
+          emit(`source-${source.id}`, 'source.superseded', { previousSourceId, source });
+          for (const previousSignal of Object.values(this.#projection.signalsById)) {
+            if (
+              previousSignal.status === 'stale' ||
+              !previousSignal.sourceIds.includes(previousSourceId)
+            ) {
+              continue;
+            }
+            emit(`stale-${previousSignal.id}`, 'signal.marked_stale', {
+              signalId: previousSignal.id,
+              reason: 'A newer version of a linked Pref source was recorded.',
+              newerSourceId: source.id,
+            });
+          }
+        } else {
+          emit(`source-${source.id}`, 'source.recorded', { source });
+        }
       }
     }
     emit('pref-completed', 'pref.call.completed', {
@@ -664,13 +682,37 @@ export class ExpeditionRuntime {
       }
     }
     for (const signal of turn.signals) {
-      if (!this.#projection.signalsById[signal.id]) {
+      if (signal.status === 'stale') {
+        for (const previousSignal of Object.values(this.#projection.signalsById)) {
+          if (
+            previousSignal.id === signal.id ||
+            previousSignal.status === 'stale' ||
+            !previousSignal.sourceIds.some((sourceId) => signal.sourceIds.includes(sourceId))
+          ) {
+            continue;
+          }
+          emit(`cache-stale-${previousSignal.id}`, 'signal.marked_stale', {
+            signalId: previousSignal.id,
+            reason: 'The live provider was unavailable and only a stale cached result remained.',
+          });
+        }
+      }
+      const existing = this.#projection.signalsById[signal.id];
+      if (!existing) {
         emit(`signal-${signal.id}`, 'signal.created', { signal });
+      } else if (signal.status === 'stale' && existing.status !== 'stale') {
+        emit(`stale-${signal.id}`, 'signal.marked_stale', {
+          signalId: signal.id,
+          reason: 'The live provider was unavailable and only a stale cached result remained.',
+        });
       }
     }
 
     const shouldUpdateBelief = turn.signals.some(
-      (signal) => !this.#projection.knowledgeByKey[knowledgeKey(task.agentId, 'signal', signal.id)],
+      (signal) =>
+        signal.direction !== 'context' &&
+        signal.impact.probabilityPointRange !== undefined &&
+        !this.#projection.knowledgeByKey[knowledgeKey(task.agentId, 'signal', signal.id)],
     );
     for (const [objectType, values] of [
       ['source', turn.sources],
@@ -729,7 +771,10 @@ export class ExpeditionRuntime {
     const previousProbabilities = structuredClone(agent.belief.probabilities);
     const newProbabilities = { ...previousProbabilities };
 
-    for (const signal of task.turn.signals) {
+    const directionalSignals = task.turn.signals.filter(
+      (signal) => signal.direction !== 'context' && signal.impact.probabilityPointRange,
+    );
+    for (const signal of directionalSignals) {
       const targetOutcomeId = signal.targetOutcomeId;
       const range = signal.impact.probabilityPointRange;
       if (!targetOutcomeId || !range || newProbabilities[targetOutcomeId] === undefined) continue;
@@ -755,7 +800,7 @@ export class ExpeditionRuntime {
       previousProbabilities,
       newProbabilities,
       rationale: task.output?.rationale ?? 'Updated from validated mission evidence.',
-      evidenceSignalIds: task.turn.signals.map((signal) => signal.id),
+      evidenceSignalIds: directionalSignals.map((signal) => signal.id),
       assumptions: task.output?.assumptions ?? [],
       createdAt: occurredAt,
     };
@@ -823,7 +868,7 @@ export class ExpeditionRuntime {
   }
 
   #createTurnScheduler(): CodexTurnScheduler<AgentTurnInput, ScriptedFixtureTurn> | undefined {
-    return this.#missionDriver.kind === 'local_exec'
+    return this.#missionDriver.kind !== 'scripted'
       ? new CodexTurnScheduler({
           driver: this.#missionDriver,
           maxConcurrency: this.#maxConcurrentTurns,

@@ -17,6 +17,7 @@ describe('configured Pref runtime', () => {
       credentialState: 'not_required',
       mappings: [{ canonicalName: 'local_conditions', status: 'valid' }],
     });
+    expect(runtime.gateway()).toBeUndefined();
 
     await runtime.disconnect();
     expect(runtime.diagnostics()).toMatchObject({ state: 'disconnected', connected: false });
@@ -36,6 +37,7 @@ describe('configured Pref runtime', () => {
       credentialState: 'missing',
       endpointHost: 'pref.trade',
     });
+    expect(runtime.gateway()).toBeDefined();
 
     const tested = await runtime.testConnection();
     expect(tested).toMatchObject({
@@ -63,6 +65,7 @@ describe('configured Pref runtime', () => {
       credentialState: 'configured',
       lastError: { code: 'pref_server_denied' },
     });
+    expect(runtime.gateway()).toBeUndefined();
     const serialized = JSON.stringify(diagnostics);
     expect(serialized).not.toContain(secret);
     expect(serialized).not.toContain('attacker.example');

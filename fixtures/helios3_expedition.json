@@ -102,7 +102,12 @@
         ],
         "capabilityBindings": [
           {
-            "canonicalCapability": "local_conditions"
+            "canonicalCapability": "local_conditions",
+            "configuration": {
+              "providerLocation": "Cape Canaveral, Florida",
+              "displayLabel": "Cape Canaveral live proxy",
+              "marketRelevance": "context_only"
+            }
           },
           {
             "canonicalCapability": "search_sources"

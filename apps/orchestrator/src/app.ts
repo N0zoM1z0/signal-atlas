@@ -10,6 +10,7 @@ import {
   defaultCodexRuntimeRoot,
   type CodexMissionMode,
 } from './local-fixture-codex-driver.js';
+import { createPrefAgentProxyDriver } from './pref-agent-proxy-driver.js';
 import { createConfiguredPrefRuntime, type PrefRuntime } from './pref-runtime.js';
 
 export interface HealthResponse {
@@ -51,6 +52,7 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
     logger:
       process.env['NODE_ENV'] === 'test' ? false : { level: process.env['LOG_LEVEL'] ?? 'warn' },
   });
+  const prefRuntime = options.prefRuntime ?? createConfiguredPrefRuntime();
   const runtime =
     options.runtime ??
     (() => {
@@ -58,8 +60,8 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
       const mode: CodexMissionMode =
         process.env['SIGNAL_ATLAS_CODEX_MODE'] === 'local' ? 'local' : 'scripted';
       return new ExpeditionRuntime(fixture, {
-        missionDriverFactory: (scenario) =>
-          createConfiguredMissionDriver(fixture, scenario, {
+        missionDriverFactory: (scenario) => {
+          const fallback = createConfiguredMissionDriver(fixture, scenario, {
             mode,
             ...(process.env['SIGNAL_ATLAS_CODEX_EXECUTABLE']
               ? { executable: process.env['SIGNAL_ATLAS_CODEX_EXECUTABLE'] }
@@ -69,11 +71,13 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
               : {}),
             runtimeRoot:
               process.env['SIGNAL_ATLAS_CODEX_RUNTIME_ROOT'] ?? defaultCodexRuntimeRoot(),
-          }),
+          });
+          const gateway = prefRuntime.gateway();
+          return gateway ? createPrefAgentProxyDriver({ fixture, gateway, fallback }) : fallback;
+        },
       });
     })();
   const runScheduler = options.runScheduler ?? process.env['NODE_ENV'] !== 'test';
-  const prefRuntime = options.prefRuntime ?? createConfiguredPrefRuntime();
   let scheduler: ReturnType<typeof setInterval> | undefined;
   if (runScheduler) {
     let previousTick = Date.now();
