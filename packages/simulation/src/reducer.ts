@@ -1047,6 +1047,12 @@ export function reduceWorldEvent(state: WorldProjection, event: WorldEvent): Wor
     }
     case 'forecast.committed': {
       const payload = event.payload;
+      if (
+        payload.commitId &&
+        state.forecasts.some((forecast) => forecast.commitId === payload.commitId)
+      ) {
+        throw new IllegalTransitionError(`Forecast commit ${payload.commitId} already exists.`);
+      }
       const outcomeIds = state.market.outcomes.map((outcome) => outcome.id);
       if (
         !hasExactlyKeys(payload.previousProbabilities, outcomeIds) ||
@@ -1056,6 +1062,23 @@ export function reduceWorldEvent(state: WorldProjection, event: WorldEvent): Wor
       }
       if (payload.uncertainty && !hasExactlyKeys(payload.uncertainty, outcomeIds)) {
         throw new IllegalTransitionError('Forecast uncertainty keys must match market outcomes.');
+      }
+      if (
+        payload.uncertainty &&
+        outcomeIds.some((outcomeId) => {
+          const range = payload.uncertainty?.[outcomeId];
+          const probability = payload.newProbabilities[outcomeId];
+          return (
+            !range ||
+            probability === undefined ||
+            probability < range.low ||
+            probability > range.high
+          );
+        })
+      ) {
+        throw new IllegalTransitionError(
+          'Forecast uncertainty must contain each committed outcome probability.',
+        );
       }
       const latestForecast = state.forecasts.at(-1);
       if (
@@ -1072,9 +1095,31 @@ export function reduceWorldEvent(state: WorldProjection, event: WorldEvent): Wor
         }
         requireEntity(state.agentsById, payload.actor.id, 'Agent');
       }
+      if (
+        (event.actor.kind === 'agent' || event.actor.kind === 'player') &&
+        (payload.actor.kind !== event.actor.kind || payload.actor.id !== event.actor.id)
+      ) {
+        throw new IllegalTransitionError(
+          'Forecast commit actor must match the player or agent that caused the event.',
+        );
+      }
+      if (new Set(payload.evidenceSignalIds).size !== payload.evidenceSignalIds.length) {
+        throw new IllegalTransitionError('Forecast evidence signal IDs must be unique.');
+      }
+      const unchanged = sameProbabilities(payload.previousProbabilities, payload.newProbabilities);
+      if (payload.commitType === 'hold' && !unchanged) {
+        throw new IllegalTransitionError('A hold commit cannot change outcome probabilities.');
+      }
+      if (payload.commitType === 'revision' && unchanged) {
+        throw new IllegalTransitionError('A revision commit must change outcome probabilities.');
+      }
+      if (payload.commitType === 'revision' && payload.evidenceSignalIds.length === 0) {
+        throw new IllegalTransitionError('A forecast revision requires linked evidence.');
+      }
       requireKnownIds(state.signalsById, payload.evidenceSignalIds, 'Signal');
       const forecast: ForecastProjection = {
         id: event.id,
+        ...(payload.commitId ? { commitId: payload.commitId } : {}),
         eventId: event.id,
         sequence: event.sequence,
         actor: structuredClone(payload.actor),

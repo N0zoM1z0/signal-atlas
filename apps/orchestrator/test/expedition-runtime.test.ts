@@ -96,6 +96,39 @@ function runtimeWithRequiredEvidence() {
   return runtime;
 }
 
+function forecastCommitCommand() {
+  return {
+    id: 'cmd-forecast-player-1',
+    idempotencyKey: 'forecast:player:revision:1',
+    expeditionId: 'exp-helios3-demo',
+    issuedAt: '2027-09-26T18:42:00Z',
+    actor: { kind: 'player' },
+    schemaVersion: 1,
+    type: 'forecast.commit',
+    payload: {
+      commit: {
+        id: 'forecast-player-1',
+        expeditionId: 'exp-helios3-demo',
+        actor: { kind: 'player' },
+        previousProbabilities: { yes: 0.55, no: 0.45 },
+        newProbabilities: { yes: 0.48, no: 0.52 },
+        uncertainty: {
+          yes: { low: 0.44, high: 0.52 },
+          no: { low: 0.48, high: 0.56 },
+        },
+        rationale: 'Crosswind evidence moves the launch estimate below the team prior.',
+        evidenceSignalIds: ['sig-crosswind', 'sig-base-rate'],
+        assumptions: ['The current vehicle is broadly comparable to the archive sample.'],
+        createdAt: '2027-09-26T18:42:00Z',
+        commitType: 'revision',
+        publicNote: 'Weather and the conditional base rate lower my launch estimate to 48%.',
+        privateMemo: 'Revisit after the final weather review.',
+        scoringEligible: true,
+      },
+    },
+  };
+}
+
 describe('fixture mission interpretation', () => {
   it('resolves a selected agent and an unambiguous weather destination', () => {
     const runtime = new ExpeditionRuntime(createHelios3ExpeditionFixture());
@@ -559,6 +592,47 @@ describe('ExpeditionRuntime commands', () => {
         { type: 'signal', id: 'sig-crosswind' },
         { type: 'signal', id: 'sig-base-rate' },
       ],
+    });
+  });
+
+  it('commits an evidence-linked player forecast through the event boundary', () => {
+    const runtime = runtimeWithRequiredEvidence();
+    const result = runtime.submit(forecastCommitCommand());
+
+    expect(result).toMatchObject({
+      accepted: true,
+      duplicate: false,
+      events: [{ type: 'forecast.committed' }],
+    });
+    if (!result.accepted) throw new Error('Expected forecast commit acceptance.');
+    expect(result.events[0]).toMatchObject({
+      actor: { kind: 'player' },
+      payload: {
+        commitId: 'forecast-player-1',
+        previousProbabilities: { yes: 0.55, no: 0.45 },
+        newProbabilities: { yes: 0.48, no: 0.52 },
+        evidenceSignalIds: ['sig-crosswind', 'sig-base-rate'],
+      },
+    });
+    expect(runtime.snapshot().forecasts.at(-1)).toMatchObject({
+      commitId: 'forecast-player-1',
+      newProbabilities: { yes: 0.48, no: 0.52 },
+      publicNote: 'Weather and the conditional base rate lower my launch estimate to 48%.',
+    });
+
+    const stale = structuredClone(forecastCommitCommand());
+    stale.id = 'cmd-forecast-player-stale';
+    stale.idempotencyKey = 'forecast:player:stale:1';
+    stale.payload.commit.id = 'forecast-player-stale';
+    const rejected = runtime.submit(stale);
+    expect(rejected).toMatchObject({
+      accepted: false,
+      issues: expect.arrayContaining([
+        expect.objectContaining({
+          code: 'invalid_state',
+          message: expect.stringContaining('previous probabilities must match'),
+        }),
+      ]),
     });
   });
 

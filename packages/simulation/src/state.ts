@@ -31,6 +31,7 @@ export interface KnowledgeEdgeProjection extends AgentKnowledge {
 
 export interface ForecastProjection {
   id: string;
+  commitId?: string;
   eventId: string;
   sequence: number;
   actor: BeliefUpdate['actor'];

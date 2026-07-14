@@ -65,4 +65,30 @@ describe('signal presentation model', () => {
 
     expect(createShellModel(projection).signals).toHaveLength(5);
   });
+
+  it('keeps the team forecast distinct from the latest player commit', () => {
+    const { projection } = evidenceProjection();
+    projection.forecasts.push({
+      id: 'evt-player-forecast',
+      commitId: 'player-forecast',
+      eventId: 'evt-player-forecast',
+      sequence: projection.sequence + 1,
+      actor: { kind: 'player' },
+      previousProbabilities: { yes: 0.55, no: 0.45 },
+      newProbabilities: { yes: 0.48, no: 0.52 },
+      rationale: 'Player revision with discovered evidence.',
+      evidenceSignalIds: ['sig-crosswind'],
+      assumptions: [],
+      commitType: 'revision',
+      publicNote: 'Crosswinds lower my estimate.',
+      scoringEligible: true,
+      committedAt: '2027-09-26T18:42:00Z',
+    });
+
+    expect(createShellModel(projection).market).toMatchObject({
+      publicProbability: 61,
+      teamProbability: 55,
+      playerProbability: 48,
+    });
+  });
 });

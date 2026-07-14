@@ -3350,6 +3350,9 @@
               },
               "type": "array"
             },
+            "commitId": {
+              "$ref": "#/$defs/__schema2"
+            },
             "commitType": {
               "enum": [
                 "initial",

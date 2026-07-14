@@ -4,5 +4,6 @@ export * from './hash.js';
 export * from './reducer.js';
 export * from './replay.js';
 export * from './routing.js';
+export * from './scoring.js';
 export * from './selectors.js';
 export * from './state.js';

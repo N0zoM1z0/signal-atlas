@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   createInitialWorldStateFromFixture,
   recordAcceptedCommand,
+  replayFixture,
   validateWorldCommand,
 } from '../src/index.js';
 import { fixture } from './helpers.js';
@@ -188,6 +189,60 @@ describe('pure command validation', () => {
       issues: expect.arrayContaining([
         expect.objectContaining({ code: 'missing_reference' }),
         expect.objectContaining({ code: 'invalid_state' }),
+      ]),
+    });
+  });
+
+  it('allows an evidence-free hold but rejects an evidence-free revision', () => {
+    const state = replayFixture(fixture).projection;
+    const hold = {
+      ...baseCommand,
+      id: 'cmd-forecast-hold-1',
+      idempotencyKey: 'forecast:hold:0001',
+      type: 'forecast.commit',
+      payload: {
+        commit: {
+          id: 'forecast-hold-1',
+          expeditionId: fixture.expedition.id,
+          actor: { kind: 'player' },
+          previousProbabilities: { yes: 0.55, no: 0.45 },
+          newProbabilities: { yes: 0.55, no: 0.45 },
+          rationale: 'No new evidence changes the current estimate.',
+          evidenceSignalIds: [],
+          assumptions: [],
+          createdAt: baseCommand.issuedAt,
+          commitType: 'hold',
+          publicNote: 'Holding at 55% while the team gathers more evidence.',
+          scoringEligible: true,
+        },
+      },
+    };
+
+    expect(validateWorldCommand(hold, state)).toMatchObject({ accepted: true });
+    expect(
+      validateWorldCommand(
+        {
+          ...hold,
+          id: 'cmd-forecast-revision-1',
+          idempotencyKey: 'forecast:revision:0001',
+          payload: {
+            commit: {
+              ...hold.payload.commit,
+              id: 'forecast-revision-1',
+              newProbabilities: { yes: 0.48, no: 0.52 },
+              commitType: 'revision',
+            },
+          },
+        },
+        state,
+      ),
+    ).toMatchObject({
+      accepted: false,
+      issues: expect.arrayContaining([
+        expect.objectContaining({
+          code: 'invalid_reference',
+          message: 'A forecast revision requires at least one linked signal.',
+        }),
       ]),
     });
   });

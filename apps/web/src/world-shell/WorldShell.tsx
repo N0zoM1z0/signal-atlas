@@ -19,6 +19,7 @@ import {
 } from './evidence-preferences.js';
 import { MarketRibbon } from './MarketRibbon.js';
 import { MeetingWorkspace } from './MeetingWorkspace.js';
+import { ForecastWorkspace, type ForecastCommitInput } from './ForecastWorkspace.js';
 import { createShellModel, shellModel } from './model.js';
 import { ProfessorWorkspace, type ProfessorQuestionInput } from './ProfessorWorkspace.js';
 import {
@@ -71,6 +72,16 @@ function skipTravelPreference(): boolean {
   return window.localStorage.getItem('signal-atlas:skip-travel') === 'true';
 }
 
+function nextRecordedTimestamp(events: readonly { occurredAt: string }[]): string {
+  const latestRecorded = events.reduce(
+    (latest, event) => Math.max(latest, Date.parse(event.occurredAt)),
+    Number.NEGATIVE_INFINITY,
+  );
+  return new Date(
+    Number.isFinite(latestRecorded) ? Math.max(Date.now(), latestRecorded + 1_000) : Date.now(),
+  ).toISOString();
+}
+
 export function WorldShell() {
   const [projection, setProjection] = useState(shellModel.projection);
   const model = useMemo(() => createShellModel(projection), [projection]);
@@ -91,6 +102,7 @@ export function WorldShell() {
   const [skipTravel, setSkipTravel] = useState(skipTravelPreference);
   const [fixtureScenario, setFixtureScenario] = useState<FixtureMissionScenario>('success');
   const [workspace, setWorkspace] = useState<Workspace>('world');
+  const [forecastOpen, setForecastOpen] = useState(false);
   const [archiveEvents, setArchiveEvents] = useState<WorldEvent[]>([]);
   const [archiveLoading, setArchiveLoading] = useState(false);
   const [activeMeetingId, setActiveMeetingId] = useState<string>();
@@ -341,6 +353,68 @@ export function WorldShell() {
     }
   }, [refreshProjection]);
 
+  const openForecastWorkspace = useCallback(async () => {
+    setForecastOpen(true);
+    setInspectedSignalId(undefined);
+    setTrayExpanded(false);
+    setMobilePanel(null);
+    try {
+      await refreshProjection();
+      setAnnouncement('Meridian Observatory forecast desk opened.');
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Forecast desk failed to load.';
+      setCommandError(message);
+      setAnnouncement(`Forecast desk failed to load: ${message}`);
+    }
+  }, [refreshProjection]);
+
+  const commitForecast = useCallback(
+    async (input: ForecastCommitInput) => {
+      const createdAt = nextRecordedTimestamp(projection.appliedEvents);
+      const commitId = createClientId('forecast');
+      const commandId = createClientId('cmd-forecast');
+      const previousProbabilities = projection.forecasts.at(-1)?.newProbabilities ?? {
+        yes: 0.5,
+        no: 0.5,
+      };
+      const newProbabilities = {
+        yes: input.yesProbability,
+        no: 1 - input.yesProbability,
+      };
+      const unchanged =
+        previousProbabilities['yes'] === newProbabilities.yes &&
+        previousProbabilities['no'] === newProbabilities.no;
+      const worldCommand = {
+        ...commandEnvelope(commandId, `forecast:${commitId}`, createdAt),
+        type: 'forecast.commit',
+        payload: {
+          commit: {
+            id: commitId,
+            expeditionId: projection.expedition.id,
+            actor: { kind: 'player' },
+            previousProbabilities: structuredClone(previousProbabilities),
+            newProbabilities,
+            ...(input.uncertainty ? { uncertainty: input.uncertainty } : {}),
+            rationale: input.publicNote,
+            evidenceSignalIds: input.evidenceSignalIds,
+            assumptions: [],
+            createdAt,
+            commitType: unchanged ? 'hold' : 'revision',
+            publicNote: input.publicNote,
+            ...(input.privateMemo ? { privateMemo: input.privateMemo } : {}),
+            scoringEligible: true,
+          },
+        },
+      } satisfies WorldCommand;
+      await submitWorldCommand(worldCommand);
+      await refreshProjection();
+      setAnnouncement(
+        `${unchanged ? 'Forecast hold' : 'Forecast revision'} committed at ${Math.round(input.yesProbability * 100)} percent.`,
+      );
+    },
+    [projection.appliedEvents, projection.expedition.id, projection.forecasts, refreshProjection],
+  );
+
   const askProfessor = useCallback(
     async (input: ProfessorQuestionInput): Promise<ProfessorResponse> => {
       const createdAt = new Date().toISOString();
@@ -372,7 +446,7 @@ export function WorldShell() {
   );
 
   const openPanel = useCallback(
-    (panel: 'agents' | 'signals' | 'archive' | 'professor') => {
+    (panel: 'agents' | 'signals' | 'archive' | 'professor' | 'forecast') => {
       if (panel === 'agents' || panel === 'signals') {
         setMobilePanel((current) => (current === panel ? null : panel));
         return;
@@ -381,9 +455,13 @@ export function WorldShell() {
         void openArchiveWorkspace();
         return;
       }
+      if (panel === 'forecast') {
+        void openForecastWorkspace();
+        return;
+      }
       void openProfessorWorkspace();
     },
-    [openArchiveWorkspace, openProfessorWorkspace],
+    [openArchiveWorkspace, openForecastWorkspace, openProfessorWorkspace],
   );
 
   const changePauseState = useCallback(async () => {
@@ -543,6 +621,11 @@ export function WorldShell() {
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
+        if (forecastOpen) {
+          setForecastOpen(false);
+          setAnnouncement('Forecast desk closed without changing the projection.');
+          return;
+        }
         if (workspace !== 'world') {
           setWorkspace('world');
           setAnnouncement('Returned to the world atlas.');
@@ -573,6 +656,12 @@ export function WorldShell() {
         return;
       }
 
+      if (event.key.toLocaleLowerCase('en-US') === 'c') {
+        event.preventDefault();
+        void openForecastWorkspace();
+        return;
+      }
+
       const agentIndex = Number(event.key) - 1;
       const shortcutAgent = model.agents[agentIndex];
       if (shortcutAgent) {
@@ -595,7 +684,16 @@ export function WorldShell() {
 
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [changePauseState, changeSpeed, model.agents, openArchiveWorkspace, openPanel, workspace]);
+  }, [
+    changePauseState,
+    changeSpeed,
+    forecastOpen,
+    model.agents,
+    openArchiveWorkspace,
+    openForecastWorkspace,
+    openPanel,
+    workspace,
+  ]);
 
   if (!selectedAgent) {
     return <main role="alert">The fixture does not define an expedition team.</main>;
@@ -835,10 +933,13 @@ export function WorldShell() {
           setMode((current) => (current === 'director' ? 'observatory' : 'director'))
         }
         onPauseChange={() => void changePauseState()}
+        onOpenForecast={() => void openForecastWorkspace()}
         onSpeedChange={() => void changeSpeed()}
         paused={paused}
+        publicProbability={model.market.publicProbability}
         runtimeState={runtimeState}
         speed={speed}
+        teamProbability={model.market.teamProbability}
       />
 
       <AgentDock
@@ -965,6 +1066,24 @@ export function WorldShell() {
         )}
         signal={inspectedSignal}
       />
+
+      {forecastOpen && (
+        <ForecastWorkspace
+          onClose={() => {
+            setForecastOpen(false);
+            setAnnouncement('Forecast desk closed.');
+          }}
+          onCommit={commitForecast}
+          open
+          preferredSignalIds={[
+            ...evidencePreferences.pinnedSignalIds,
+            ...evidencePreferences.caseFileEntryIds
+              .filter((id) => id.startsWith('signal:'))
+              .map((id) => id.slice('signal:'.length)),
+          ]}
+          projection={projection}
+        />
+      )}
 
       <CommandTray
         agents={model.agents}

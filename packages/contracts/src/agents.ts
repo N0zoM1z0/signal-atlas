@@ -157,7 +157,7 @@ export const BeliefUpdateSchema = z
 
 export const ForecastCommitSchema = BeliefUpdateSchema.safeExtend({
   commitType: z.enum(['initial', 'revision', 'hold', 'final']),
-  publicNote: z.string().max(280),
+  publicNote: z.string().trim().min(1).max(280),
   privateMemo: z.string().min(1).optional(),
   scoringEligible: z.boolean(),
 }).meta({

@@ -49,6 +49,12 @@ function signedPercentagePoints(value: number): string {
 
 export function createShellModel(projection: WorldProjection) {
   const latestForecast = selectLatestForecast(projection);
+  const latestTeamForecast = [...projection.forecasts]
+    .reverse()
+    .find((forecast) => forecast.actor.kind === 'team');
+  const latestPlayerForecast = [...projection.forecasts]
+    .reverse()
+    .find((forecast) => forecast.actor.kind === 'player');
   const placeById = Object.fromEntries(
     projection.worldManifest.places.map((place) => [place.id, place]),
   );
@@ -78,7 +84,12 @@ export function createShellModel(projection: WorldProjection) {
       expeditionName: fixture.expedition.title,
       question: projection.market.question,
       publicProbability: percentage(projection.market.currentPublicProbabilities?.['yes']),
-      teamProbability: percentage(latestForecast?.newProbabilities['yes']),
+      teamProbability: percentage(
+        latestTeamForecast?.newProbabilities['yes'] ?? latestForecast?.newProbabilities['yes'],
+      ),
+      playerProbability: latestPlayerForecast
+        ? percentage(latestPlayerForecast.newProbabilities['yes'])
+        : undefined,
       closesAt: projection.market.resolvesAt ?? projection.market.closesAt,
     },
     agents: fixture.agents.map((fixtureAgent) => {

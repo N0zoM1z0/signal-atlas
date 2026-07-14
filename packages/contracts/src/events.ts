@@ -281,6 +281,7 @@ const beliefUpdated = eventVariant(
   z.strictObject({ update: BeliefUpdateSchema }),
 );
 const forecastCommitPayload = z.strictObject({
+  commitId: EntityIdSchema.optional(),
   actor: z.strictObject({
     kind: z.enum(['agent', 'player', 'team']),
     id: EntityIdSchema.optional(),

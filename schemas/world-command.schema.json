@@ -582,6 +582,7 @@
     },
     "__schema38": {
       "maxLength": 280,
+      "minLength": 1,
       "type": "string"
     },
     "__schema39": {

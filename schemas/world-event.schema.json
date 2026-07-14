@@ -1563,6 +1563,9 @@
               },
               "type": "array"
             },
+            "commitId": {
+              "$ref": "#/$defs/__schema1"
+            },
             "commitType": {
               "enum": [
                 "initial",

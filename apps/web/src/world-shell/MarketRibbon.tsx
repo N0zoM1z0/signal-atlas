@@ -1,4 +1,5 @@
 import { Badge } from '@signal-atlas/ui';
+import type { CSSProperties } from 'react';
 
 type RuntimeState = 'ready' | 'loading' | 'disconnected';
 
@@ -7,7 +8,10 @@ export interface MarketRibbonProps {
   paused: boolean;
   runtimeState: RuntimeState;
   speed: 1 | 2 | 4;
+  publicProbability: number;
+  teamProbability: number;
   onModeChange: () => void;
+  onOpenForecast: () => void;
   onPauseChange: () => void;
   onSpeedChange: () => void;
 }
@@ -15,12 +19,20 @@ export interface MarketRibbonProps {
 export function MarketRibbon({
   mode,
   onModeChange,
+  onOpenForecast,
   onPauseChange,
   onSpeedChange,
   paused,
+  publicProbability,
   runtimeState,
   speed,
+  teamProbability,
 }: MarketRibbonProps) {
+  const probabilityStyle = {
+    '--atlas-public-probability': `${publicProbability}%`,
+    '--atlas-team-probability': `${teamProbability}%`,
+  } as CSSProperties;
+
   return (
     <header className="atlas-market-ribbon" aria-label="Market overview">
       <div className="atlas-brand">
@@ -40,10 +52,14 @@ export function MarketRibbon({
         <h1>Will the Helios-3 mission launch before September 30?</h1>
       </div>
 
-      <div className="atlas-probability" aria-label="Public 61 percent; team 55 percent">
+      <div
+        className="atlas-probability"
+        aria-label={`Public ${publicProbability} percent; team ${teamProbability} percent`}
+        style={probabilityStyle}
+      >
         <span className="atlas-probability__value atlas-probability__value--public">
           <small>Public</small>
-          <strong>61%</strong>
+          <strong>{publicProbability}%</strong>
         </span>
         <span className="atlas-worldline" aria-hidden="true">
           <i className="atlas-worldline__track">
@@ -57,11 +73,14 @@ export function MarketRibbon({
         </span>
         <span className="atlas-probability__value atlas-probability__value--team">
           <small>Team</small>
-          <strong>55%</strong>
+          <strong>{teamProbability}%</strong>
         </span>
       </div>
 
       <div className="atlas-ribbon-actions">
+        <button className="atlas-forecast-open" onClick={onOpenForecast} type="button">
+          <span aria-hidden="true">◒</span> Commit Forecast
+        </button>
         <Badge
           className="atlas-runtime-badge"
           tone={runtimeState === 'disconnected' ? 'disputed' : 'context'}

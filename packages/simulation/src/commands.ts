@@ -44,6 +44,16 @@ function sameMembers(left: readonly string[], right: readonly string[]): boolean
   );
 }
 
+function sameProbabilities(
+  left: Readonly<Record<string, number>>,
+  right: Readonly<Record<string, number>>,
+): boolean {
+  return (
+    hasExactlyKeys(left, Object.keys(right)) &&
+    Object.entries(left).every(([outcomeId, probability]) => right[outcomeId] === probability)
+  );
+}
+
 function unknownCommand(command: never): never {
   throw new Error(`Unhandled command type: ${(command as { type: string }).type}.`);
 }
@@ -342,6 +352,20 @@ export function validateWorldCommand(
     }
     case 'forecast.commit': {
       const commit = command.payload.commit;
+      if (state.market.status !== 'open') {
+        addIssue(
+          'invalid_state',
+          ['payload', 'commit'],
+          `Cannot commit a forecast while the market is ${state.market.status}.`,
+        );
+      }
+      if (state.forecasts.some((forecast) => forecast.commitId === commit.id)) {
+        addIssue(
+          'invalid_reference',
+          ['payload', 'commit', 'id'],
+          `Forecast commit ${commit.id} already exists.`,
+        );
+      }
       if (commit.expeditionId !== state.expedition.id) {
         addIssue(
           'wrong_expedition',
@@ -360,6 +384,43 @@ export function validateWorldCommand(
           'Forecast probability keys must exactly match market outcome IDs.',
         );
       }
+      const latestForecast = state.forecasts.at(-1);
+      if (
+        latestForecast &&
+        !sameProbabilities(commit.previousProbabilities, latestForecast.newProbabilities)
+      ) {
+        addIssue(
+          'invalid_state',
+          ['payload', 'commit', 'previousProbabilities'],
+          `Forecast previous probabilities must match commit ${latestForecast.commitId ?? latestForecast.id}.`,
+        );
+      }
+      if (
+        commit.uncertainty &&
+        outcomeIds.some((outcomeId) => {
+          const range = commit.uncertainty?.[outcomeId];
+          const probability = commit.newProbabilities[outcomeId];
+          return (
+            !range ||
+            probability === undefined ||
+            probability < range.low ||
+            probability > range.high
+          );
+        })
+      ) {
+        addIssue(
+          'invalid_reference',
+          ['payload', 'commit', 'uncertainty'],
+          'Forecast uncertainty must contain each committed outcome probability.',
+        );
+      }
+      if (new Set(commit.evidenceSignalIds).size !== commit.evidenceSignalIds.length) {
+        addIssue(
+          'invalid_reference',
+          ['payload', 'commit', 'evidenceSignalIds'],
+          'Forecast evidence signal IDs must be unique.',
+        );
+      }
       commit.evidenceSignalIds.forEach((id, index) => {
         if (!state.signalsById[id]) {
           addIssue(
@@ -369,6 +430,38 @@ export function validateWorldCommand(
           );
         }
       });
+      const unchanged = sameProbabilities(commit.previousProbabilities, commit.newProbabilities);
+      if (commit.commitType === 'hold' && !unchanged) {
+        addIssue(
+          'invalid_reference',
+          ['payload', 'commit', 'commitType'],
+          'A hold commit cannot change outcome probabilities.',
+        );
+      }
+      if (commit.commitType === 'revision' && unchanged) {
+        addIssue(
+          'invalid_reference',
+          ['payload', 'commit', 'commitType'],
+          'A revision commit must change outcome probabilities.',
+        );
+      }
+      if (commit.commitType === 'revision' && commit.evidenceSignalIds.length === 0) {
+        addIssue(
+          'invalid_reference',
+          ['payload', 'commit', 'evidenceSignalIds'],
+          'A forecast revision requires at least one linked signal.',
+        );
+      }
+      if (
+        (command.actor.kind === 'agent' || command.actor.kind === 'player') &&
+        (commit.actor.kind !== command.actor.kind || commit.actor.id !== command.actor.id)
+      ) {
+        addIssue(
+          'invalid_reference',
+          ['payload', 'commit', 'actor'],
+          'Forecast commit actor must match the submitting player or agent.',
+        );
+      }
       if (commit.actor.kind === 'agent') {
         if (!commit.actor.id) {
           addIssue(

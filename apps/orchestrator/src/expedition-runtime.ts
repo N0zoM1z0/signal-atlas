@@ -1035,8 +1035,27 @@ export class ExpeditionRuntime {
         events.push(event(events.length + 1, 'professor.response.created', { response }));
         return { events };
       }
-      case 'forecast.commit':
-        return undefined;
+      case 'forecast.commit': {
+        const commit = command.payload.commit;
+        return {
+          events: [
+            event(1, 'forecast.committed', {
+              commitId: commit.id,
+              actor: commit.actor,
+              previousProbabilities: commit.previousProbabilities,
+              newProbabilities: commit.newProbabilities,
+              ...(commit.uncertainty ? { uncertainty: commit.uncertainty } : {}),
+              rationale: commit.rationale,
+              evidenceSignalIds: commit.evidenceSignalIds,
+              assumptions: commit.assumptions,
+              commitType: commit.commitType,
+              publicNote: commit.publicNote,
+              ...(commit.privateMemo ? { privateMemo: commit.privateMemo } : {}),
+              scoringEligible: commit.scoringEligible,
+            }),
+          ],
+        };
+      }
       case 'runtime.retry_turn': {
         const failedTurn = this.#projection.agentTurnsById[command.payload.failedTurnId];
         const mission = this.#projection.missionsById[command.payload.missionId];

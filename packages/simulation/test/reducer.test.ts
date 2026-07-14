@@ -111,6 +111,86 @@ describe('information and explicit knowledge projection', () => {
   });
 });
 
+describe('forecast history projection', () => {
+  function stateWithForecastEvidence() {
+    const source = fixture.sources[0];
+    const claim = fixture.claims[0];
+    const signal = fixture.signals[0];
+    if (!source || !claim || !signal) {
+      throw new Error('Fixture must contain source, claim, and signal records.');
+    }
+    const state = replayWorldEvents(createInitialWorldStateFromFixture(fixture), [
+      ...fixture.initialEvents,
+      makeEvent(3, { type: 'source.recorded', payload: { source } }),
+      makeEvent(4, { type: 'claim.created', payload: { claim } }),
+      makeEvent(5, { type: 'signal.created', payload: { signal } }),
+    ]);
+    return { signal, state };
+  }
+
+  it('records commit identity, evidence, previous/new values, and uncertainty', () => {
+    const { signal, state } = stateWithForecastEvidence();
+    const committed = reduceWorldEvent(state, {
+      ...makeEvent(6, {
+        type: 'forecast.committed',
+        payload: {
+          commitId: 'forecast-player-1',
+          actor: { kind: 'player' },
+          previousProbabilities: { yes: 0.55, no: 0.45 },
+          newProbabilities: { yes: 0.48, no: 0.52 },
+          uncertainty: {
+            yes: { low: 0.44, high: 0.52 },
+            no: { low: 0.48, high: 0.56 },
+          },
+          rationale: 'Crosswinds move the estimate below the team prior.',
+          evidenceSignalIds: [signal.id],
+          assumptions: ['The advisory overlaps the launch window.'],
+          commitType: 'revision',
+          publicNote: 'Fresh crosswind evidence lowers my launch estimate.',
+          privateMemo: 'Revisit after the final weather review.',
+          scoringEligible: true,
+        },
+      }),
+      actor: { kind: 'player' as const },
+    });
+
+    expect(committed.forecasts).toHaveLength(2);
+    expect(committed.forecasts.at(-1)).toMatchObject({
+      commitId: 'forecast-player-1',
+      actor: { kind: 'player' },
+      previousProbabilities: { yes: 0.55, no: 0.45 },
+      newProbabilities: { yes: 0.48, no: 0.52 },
+      evidenceSignalIds: [signal.id],
+      publicNote: 'Fresh crosswind evidence lowers my launch estimate.',
+    });
+  });
+
+  it('fails closed when a hold changes probability', () => {
+    const { signal, state } = stateWithForecastEvidence();
+    const invalid = {
+      ...makeEvent(6, {
+        type: 'forecast.committed',
+        payload: {
+          commitId: 'forecast-invalid-hold',
+          actor: { kind: 'player' },
+          previousProbabilities: { yes: 0.55, no: 0.45 },
+          newProbabilities: { yes: 0.48, no: 0.52 },
+          rationale: 'This event claims to hold while changing the estimate.',
+          evidenceSignalIds: [signal.id],
+          commitType: 'hold',
+          publicNote: 'Malformed hold.',
+          scoringEligible: true,
+        },
+      }),
+      actor: { kind: 'player' as const },
+    };
+
+    expect(() => reduceWorldEvent(state, invalid)).toThrowError(
+      new IllegalTransitionError('A hold commit cannot change outcome probabilities.'),
+    );
+  });
+});
+
 describe('bounded Professor projection', () => {
   it('rejects response evidence outside the originating query selection', () => {
     const source = fixture.sources[0];
