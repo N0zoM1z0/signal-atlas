@@ -1,6 +1,7 @@
 import {
   SCHEMA_VERSION,
   type MissionVerb,
+  type ProfessorResponse,
   type WorldCommand,
   type WorldEvent,
 } from '@signal-atlas/contracts';
@@ -19,6 +20,7 @@ import {
 import { MarketRibbon } from './MarketRibbon.js';
 import { MeetingWorkspace } from './MeetingWorkspace.js';
 import { createShellModel, shellModel } from './model.js';
+import { ProfessorWorkspace, type ProfessorQuestionInput } from './ProfessorWorkspace.js';
 import {
   createClientId,
   fetchExpeditionEvents,
@@ -36,7 +38,7 @@ import { WorldStageHost } from './WorldStageHost.js';
 
 type RuntimeState = 'ready' | 'loading' | 'disconnected';
 type MobilePanel = 'agents' | 'signals' | null;
-type Workspace = 'world' | 'archive' | 'meeting';
+type Workspace = 'world' | 'archive' | 'meeting' | 'professor';
 
 function runtimeStateFromLocation(): RuntimeState {
   if (typeof window === 'undefined') return 'ready';
@@ -118,6 +120,29 @@ export function WorldShell() {
     [model.agents, selectedAgentId],
   );
   const inspectedSignal = model.signals.find((signal) => signal.id === inspectedSignalId);
+
+  const useProfessorMission = (mission: NonNullable<ProfessorResponse['suggestedMission']>) => {
+    const assignedAgentId = projection.agentsById['kestrel'] ? 'kestrel' : selectedAgentId;
+    const missing: MissionDraft['missing'] = mission.destinationPlaceId ? [] : ['destination'];
+    setSelectedAgentId(assignedAgentId);
+    setCommand(mission.objective);
+    setMissionDraft({
+      status: missing.length === 0 ? 'ready' : 'ambiguous',
+      objective: mission.objective,
+      assignedAgentId,
+      destinationPlaceId: mission.destinationPlaceId,
+      verb: mission.verb,
+      candidateAgentIds: [assignedAgentId],
+      candidatePlaceIds: mission.destinationPlaceId ? [mission.destinationPlaceId] : [],
+      missing,
+      explanation: 'Prepared from Professor Vale’s explicit suggested mission.',
+      submissionId: createClientId('professor-handoff'),
+      createdAt: new Date().toISOString(),
+    });
+    setWorkspace('world');
+    setTrayExpanded(true);
+    setAnnouncement('Professor Vale’s suggested mission is ready for confirmation.');
+  };
 
   const saveEvidencePreferences = (
     update: (current: EvidencePreferences) => EvidencePreferences,
@@ -302,6 +327,50 @@ export function WorldShell() {
     }
   }, [activeMeetingId]);
 
+  const openProfessorWorkspace = useCallback(async () => {
+    setWorkspace('professor');
+    setTrayExpanded(false);
+    setMobilePanel(null);
+    try {
+      await refreshProjection();
+      setAnnouncement("Professor Vale's evidence-bound study opened.");
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Professor study failed to load.';
+      setCommandError(message);
+      setAnnouncement(`Professor study failed to load: ${message}`);
+    }
+  }, [refreshProjection]);
+
+  const askProfessor = useCallback(
+    async (input: ProfessorQuestionInput): Promise<ProfessorResponse> => {
+      const createdAt = new Date().toISOString();
+      const queryId = createClientId('professor-query');
+      const commandId = createClientId('cmd-professor');
+      const worldCommand = {
+        ...commandEnvelope(commandId, `professor:${queryId}`, createdAt),
+        type: 'professor.query',
+        payload: {
+          query: {
+            id: queryId,
+            expeditionId: shellModel.projection.expedition.id,
+            mode: input.mode,
+            question: input.question,
+            selectedSourceIds: input.selectedSourceIds,
+            selectedSignalIds: input.selectedSignalIds,
+            createdAt,
+          },
+        },
+      } satisfies WorldCommand;
+      await submitWorldCommand(worldCommand);
+      const nextProjection = await refreshProjection();
+      const response = nextProjection.professorResponsesByQueryId[queryId];
+      if (!response) throw new Error('Professor response was not recorded in the projection.');
+      setAnnouncement('Professor Vale recorded an evidence-bound response.');
+      return response;
+    },
+    [refreshProjection],
+  );
+
   const openPanel = useCallback(
     (panel: 'agents' | 'signals' | 'archive' | 'professor') => {
       if (panel === 'agents' || panel === 'signals') {
@@ -312,9 +381,9 @@ export function WorldShell() {
         void openArchiveWorkspace();
         return;
       }
-      setAnnouncement('Professor Vale arrives in the collaboration journey.');
+      void openProfessorWorkspace();
     },
-    [openArchiveWorkspace],
+    [openArchiveWorkspace, openProfessorWorkspace],
   );
 
   const changePauseState = useCallback(async () => {
@@ -822,6 +891,17 @@ export function WorldShell() {
             setAnnouncement('Returned to the world atlas.');
           }}
           onSkipArrivals={() => void skipMeetingArrivals()}
+          projection={projection}
+        />
+      ) : workspace === 'professor' ? (
+        <ProfessorWorkspace
+          caseFileEntryIds={evidencePreferences.caseFileEntryIds}
+          onAsk={askProfessor}
+          onClose={() => {
+            setWorkspace('world');
+            setAnnouncement('Returned to the world atlas.');
+          }}
+          onUseSuggestedMission={useProfessorMission}
           projection={projection}
         />
       ) : (

@@ -294,6 +294,13 @@ export function validateWorldCommand(
     }
     case 'professor.query': {
       const query = command.payload.query;
+      if (state.professorQueriesById[query.id]) {
+        addIssue(
+          'invalid_reference',
+          ['payload', 'query', 'id'],
+          `Professor query ${query.id} already exists.`,
+        );
+      }
       if (query.expeditionId !== state.expedition.id) {
         addIssue(
           'wrong_expedition',
@@ -319,6 +326,18 @@ export function validateWorldCommand(
           );
         }
       });
+      for (const [field, ids] of [
+        ['selectedSourceIds', query.selectedSourceIds],
+        ['selectedSignalIds', query.selectedSignalIds],
+      ] as const) {
+        if (new Set(ids).size !== ids.length) {
+          addIssue(
+            'invalid_reference',
+            ['payload', 'query', field],
+            'Professor evidence selections must not contain duplicate IDs.',
+          );
+        }
+      }
       break;
     }
     case 'forecast.commit': {

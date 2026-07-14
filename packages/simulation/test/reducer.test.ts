@@ -111,6 +111,51 @@ describe('information and explicit knowledge projection', () => {
   });
 });
 
+describe('bounded Professor projection', () => {
+  it('rejects response evidence outside the originating query selection', () => {
+    const source = fixture.sources[0];
+    const signal = fixture.signals[0];
+    if (!source || !signal) throw new Error('Fixture must contain Professor evidence.');
+    const initial = createInitialWorldStateFromFixture(fixture);
+    initial.sourcesById = { [source.id]: structuredClone(source) };
+    initial.signalsById = { [signal.id]: structuredClone(signal) };
+    const queried = reduceWorldEvent(
+      initial,
+      makeEvent(1, {
+        type: 'professor.query.started',
+        payload: {
+          query: {
+            id: 'query-bounded-1',
+            expeditionId: fixture.expedition.id,
+            mode: 'explain',
+            question: 'Explain the selected signal.',
+            selectedSourceIds: [],
+            selectedSignalIds: [signal.id],
+            createdAt: '2027-09-26T18:10:00Z',
+          },
+        },
+      }),
+    );
+    const response = {
+      queryId: 'query-bounded-1',
+      mode: 'explain' as const,
+      selectedSignalIds: [signal.id],
+      answer: 'A bounded explanation.',
+      evidenceUsed: [{ type: 'source' as const, id: source.id }],
+      assumptions: ['The record scope is accurate.'],
+      limitations: ['The source was not selected.'],
+    };
+
+    expect(() =>
+      reduceWorldEvent(
+        queried,
+        makeEvent(2, { type: 'professor.response.created', payload: { response } }),
+      ),
+    ).toThrow('cites unselected source');
+    expect(queried.professorResponsesByQueryId).toEqual({});
+  });
+});
+
 describe('mission and travel projection', () => {
   const mission: Mission = {
     id: 'mission-meet-orin',

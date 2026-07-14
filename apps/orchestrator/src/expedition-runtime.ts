@@ -24,6 +24,7 @@ import {
   type FixtureMissionScenario,
   type ScriptedFixtureTurn,
 } from './fixture-mission-driver.js';
+import { createScriptedProfessorResponse } from './fixture-professor-driver.js';
 
 export interface AcceptedCommandResult {
   accepted: true;
@@ -1002,7 +1003,38 @@ export class ExpeditionRuntime {
           },
         };
       }
-      case 'professor.query':
+      case 'professor.query': {
+        const query = command.payload.query;
+        const response = createScriptedProfessorResponse(this.#fixture, this.#projection, query);
+        const events: WorldEvent[] = [event(1, 'professor.query.started', { query })];
+        const selectedSignalIds = [...new Set(query.selectedSignalIds)].sort();
+        const hasEnoughEvidence =
+          query.mode === 'correlation_check' &&
+          selectedSignalIds.length >= 2 &&
+          !response.answer.startsWith('Insufficient evidence:');
+        const alreadyAssessed = Object.values(this.#projection.correlationsById).some(
+          (correlation) =>
+            [...correlation.signalIds].sort().join('|') === selectedSignalIds.join('|'),
+        );
+        if (hasEnoughEvidence && !alreadyAssessed) {
+          events.push(
+            event(events.length + 1, 'correlation.detected', {
+              correlation: {
+                id: `correlation-${query.id}`,
+                signalIds: selectedSignalIds,
+                relationship: 'possibly_correlated',
+                reasons: [
+                  'The selected records describe different evidence layers but may share a crosswind-delay mechanism.',
+                  'Distinct sources and signal IDs do not establish statistical independence.',
+                ],
+                assessedAt: command.issuedAt,
+              },
+            }),
+          );
+        }
+        events.push(event(events.length + 1, 'professor.response.created', { response }));
+        return { events };
+      }
       case 'forecast.commit':
         return undefined;
       case 'runtime.retry_turn': {

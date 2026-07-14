@@ -2973,6 +2973,719 @@ kbd {
   color: var(--sa-color-alert-coral);
 }
 
+/* Professor Vale's Study */
+
+.atlas-professor-workspace {
+  position: relative;
+  z-index: var(--sa-z-index-world);
+  display: grid;
+  min-width: 0;
+  min-height: 0;
+  grid-area: world;
+  grid-template-rows: auto minmax(0, 1fr);
+  overflow: hidden;
+  background:
+    radial-gradient(
+      circle at 34% 20%,
+      color-mix(in srgb, var(--sa-color-scholar-violet) 28%, transparent),
+      transparent 34%
+    ),
+    linear-gradient(180deg, var(--sa-color-deep-ink), var(--sa-color-atlas-night));
+}
+
+.atlas-professor-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sa-spacing-4);
+  padding: var(--sa-spacing-3) var(--sa-spacing-4);
+  border-bottom: var(--sa-border-hairline) solid var(--sa-color-harbor-blue);
+  background: color-mix(in srgb, var(--sa-color-deep-ink) 95%, transparent);
+}
+
+.atlas-professor-header > div:last-child {
+  display: flex;
+  align-items: center;
+  gap: var(--sa-spacing-3);
+}
+
+.atlas-professor-header h2,
+.atlas-professor-header p,
+.atlas-professor-selection h3,
+.atlas-professor-selection h4,
+.atlas-professor-chalkboard h3,
+.atlas-professor-chalkboard p,
+.atlas-professor-response h3,
+.atlas-professor-response h4,
+.atlas-professor-response p,
+.atlas-professor-mission p {
+  margin: 0;
+}
+
+.atlas-professor-header h2 {
+  margin-top: 2px;
+  font-family: var(--sa-typography-display-family);
+  font-size: var(--sa-typography-size-xl);
+}
+
+.atlas-professor-header p {
+  color: var(--sa-color-muted-steel);
+  font-size: 9px;
+}
+
+.atlas-professor-boundary {
+  display: flex;
+  align-items: center;
+  gap: var(--sa-spacing-1);
+  color: var(--sa-color-muted-steel);
+  font-family: var(--sa-typography-mono-family);
+  font-size: 8px;
+  text-transform: uppercase;
+}
+
+.atlas-professor-boundary i {
+  width: 6px;
+  height: 6px;
+  border-radius: var(--sa-radius-pill);
+  background: var(--sa-color-moss-signal);
+  box-shadow: 0 0 var(--sa-spacing-2) var(--sa-color-moss-signal);
+}
+
+.atlas-professor-header button,
+.atlas-professor-selection button,
+.atlas-professor-question button,
+.atlas-professor-mission button {
+  min-height: var(--sa-spacing-8);
+  padding: 0 var(--sa-spacing-3);
+  border: var(--sa-border-hairline) solid var(--sa-color-harbor-blue);
+  color: var(--sa-color-paper-light);
+  background: var(--sa-color-atlas-night);
+  font-size: 9px;
+}
+
+.atlas-professor-header kbd {
+  color: var(--sa-color-muted-steel);
+  font-family: var(--sa-typography-mono-family);
+}
+
+.atlas-professor-scene {
+  display: grid;
+  min-width: 0;
+  min-height: 0;
+  grid-template-columns: minmax(30rem, 1.15fr) minmax(20rem, 0.85fr);
+  overflow: hidden;
+}
+
+.atlas-professor-study {
+  display: grid;
+  min-width: 0;
+  min-height: 0;
+  grid-template-rows: minmax(15rem, 0.8fr) minmax(15rem, 1fr);
+  overflow: hidden;
+  border-right: var(--sa-border-hairline) solid var(--sa-color-harbor-blue);
+}
+
+.atlas-professor-room,
+.atlas-professor-chalkboard {
+  grid-area: 1 / 1;
+}
+
+.atlas-professor-room {
+  position: relative;
+  overflow: hidden;
+  background:
+    linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--sa-color-scholar-violet) 28%, transparent),
+      transparent 24% 76%,
+      color-mix(in srgb, var(--sa-color-scholar-violet) 28%, transparent)
+    ),
+    repeating-linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--sa-color-harbor-blue) 16%, transparent) 0 2px,
+      transparent 2px 34px
+    ),
+    var(--sa-color-atlas-night);
+}
+
+.atlas-professor-room::before {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 25%;
+  content: '';
+  background: repeating-linear-gradient(
+    90deg,
+    var(--sa-color-deep-ink) 0 34px,
+    color-mix(in srgb, var(--sa-color-window-gold) 18%, var(--sa-color-deep-ink)) 34px 36px
+  );
+  transform: perspective(260px) rotateX(50deg);
+  transform-origin: bottom;
+}
+
+.atlas-professor-window {
+  position: absolute;
+  top: var(--sa-spacing-4);
+  right: var(--sa-spacing-4);
+  width: 72px;
+  height: 86px;
+  border: var(--sa-border-pixel) solid var(--sa-color-harbor-blue);
+  background:
+    radial-gradient(circle at 65% 24%, var(--sa-color-parchment) 0 6px, transparent 7px),
+    linear-gradient(180deg, var(--sa-color-atlas-night), var(--sa-color-scholar-violet));
+  box-shadow:
+    inset 0 0 0 var(--sa-spacing-2) var(--sa-color-deep-ink),
+    var(--sa-shadow-window-glow);
+}
+
+.atlas-professor-window::before,
+.atlas-professor-window::after {
+  position: absolute;
+  content: '';
+  background: var(--sa-color-harbor-blue);
+}
+
+.atlas-professor-window::before {
+  top: 50%;
+  right: 0;
+  left: 0;
+  height: 2px;
+}
+
+.atlas-professor-window::after {
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 2px;
+}
+
+.atlas-professor-books {
+  position: absolute;
+  top: var(--sa-spacing-4);
+  bottom: var(--sa-spacing-5);
+  width: 56px;
+  border: var(--sa-border-pixel) solid var(--sa-color-deep-ink);
+  background:
+    repeating-linear-gradient(
+      90deg,
+      var(--sa-color-scholar-violet) 0 5px,
+      var(--sa-color-window-gold) 5px 8px,
+      var(--sa-color-harbor-blue) 8px 13px,
+      var(--sa-color-alert-coral) 13px 16px
+    ),
+    var(--sa-color-deep-ink);
+  background-size: 100% 22px;
+  box-shadow: inset 0 0 0 var(--sa-spacing-2) var(--sa-color-deep-ink);
+}
+
+.atlas-professor-books--left {
+  left: var(--sa-spacing-3);
+}
+
+.atlas-professor-books--right {
+  right: 96px;
+}
+
+.atlas-professor-character {
+  position: absolute;
+  z-index: 3;
+  bottom: var(--sa-spacing-3);
+  left: 14%;
+  width: 52px;
+  height: 94px;
+}
+
+.atlas-professor-character > i {
+  position: absolute;
+  z-index: 2;
+  top: 0;
+  left: 13px;
+  width: 28px;
+  height: 30px;
+  border: var(--sa-border-pixel) solid var(--sa-color-deep-ink);
+  background: var(--sa-color-parchment);
+  box-shadow:
+    -5px -4px 0 var(--sa-color-muted-steel),
+    5px -4px 0 var(--sa-color-muted-steel);
+}
+
+.atlas-professor-character > b {
+  position: absolute;
+  bottom: 0;
+  left: 4px;
+  width: 46px;
+  height: 68px;
+  border: var(--sa-border-pixel) solid var(--sa-color-deep-ink);
+  background: var(--sa-color-scholar-violet);
+  clip-path: polygon(18% 0, 82% 0, 100% 100%, 0 100%);
+}
+
+.atlas-professor-character > span {
+  position: absolute;
+  z-index: 4;
+  right: 0;
+  bottom: var(--sa-spacing-4);
+  display: grid;
+  width: var(--sa-spacing-6);
+  height: var(--sa-spacing-6);
+  place-items: center;
+  border: var(--sa-border-pixel) solid var(--sa-color-window-gold);
+  border-radius: var(--sa-radius-pill);
+  color: var(--sa-color-window-gold);
+  background: var(--sa-color-deep-ink);
+  font-family: var(--sa-typography-display-family);
+  font-size: 10px;
+}
+
+.atlas-professor-chalkboard {
+  z-index: 2;
+  align-self: center;
+  width: min(64%, 23rem);
+  min-height: 11rem;
+  justify-self: center;
+  padding: var(--sa-spacing-4);
+  border: var(--sa-border-pixel) solid var(--sa-color-window-gold);
+  background:
+    repeating-linear-gradient(
+      0deg,
+      transparent 0 23px,
+      color-mix(in srgb, var(--sa-color-paper-light) 5%, transparent) 24px
+    ),
+    color-mix(in srgb, var(--sa-color-moss-signal) 22%, var(--sa-color-deep-ink));
+  box-shadow:
+    0 var(--sa-spacing-2) 0 var(--sa-color-deep-ink),
+    var(--sa-shadow-panel);
+  rotate: -0.4deg;
+}
+
+.atlas-professor-chalkboard > span,
+.atlas-professor-chalkboard > p {
+  color: color-mix(in srgb, var(--sa-color-paper-light) 72%, transparent);
+  font-family: var(--sa-typography-mono-family);
+  font-size: 8px;
+  text-transform: uppercase;
+}
+
+.atlas-professor-chalkboard h3 {
+  min-height: 2.8rem;
+  margin: var(--sa-spacing-2) 0;
+  font-family: var(--sa-typography-display-family);
+  font-size: var(--sa-typography-size-md);
+  line-height: var(--sa-typography-line-height-tight);
+}
+
+.atlas-professor-chalkboard > div {
+  display: grid;
+  align-items: center;
+  grid-template-columns: 1fr auto 1fr auto 1fr;
+  gap: var(--sa-spacing-1);
+  padding: var(--sa-spacing-2) 0;
+  color: var(--sa-color-paper-light);
+  font-family: var(--sa-typography-mono-family);
+  font-size: 7px;
+  text-align: center;
+}
+
+.atlas-professor-chalkboard > div b,
+.atlas-professor-chalkboard > div strong {
+  padding: var(--sa-spacing-1);
+  border: var(--sa-border-hairline) solid currentColor;
+  font-weight: normal;
+}
+
+.atlas-professor-selection {
+  display: grid;
+  min-width: 0;
+  min-height: 0;
+  align-content: start;
+  gap: var(--sa-spacing-3);
+  padding: var(--sa-spacing-3);
+  overflow: auto;
+  border-top: var(--sa-border-hairline) solid var(--sa-color-harbor-blue);
+  background: color-mix(in srgb, var(--sa-color-deep-ink) 90%, transparent);
+  scrollbar-color: var(--sa-color-harbor-blue) transparent;
+  scrollbar-width: thin;
+}
+
+.atlas-professor-selection > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sa-spacing-3);
+}
+
+.atlas-professor-selection h3 {
+  font-family: var(--sa-typography-display-family);
+  font-size: var(--sa-typography-size-md);
+}
+
+.atlas-professor-selection > div:last-child {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sa-spacing-3);
+}
+
+.atlas-professor-selection h4 {
+  margin-bottom: var(--sa-spacing-2);
+  color: var(--sa-color-muted-steel);
+  font-family: var(--sa-typography-mono-family);
+  font-size: 8px;
+  text-transform: uppercase;
+}
+
+.atlas-professor-selection ul {
+  display: grid;
+  gap: var(--sa-spacing-2);
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.atlas-professor-selection label {
+  display: grid;
+  min-width: 0;
+  align-items: start;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--sa-spacing-2);
+  padding: var(--sa-spacing-2);
+  border: var(--sa-border-hairline) solid var(--sa-color-slate-cloud);
+  border-radius: var(--sa-radius-small);
+  background: var(--sa-color-atlas-night);
+  cursor: pointer;
+}
+
+.atlas-professor-selection label:has(input:checked) {
+  border-color: var(--sa-color-window-gold);
+  box-shadow: inset var(--sa-border-pixel) 0 var(--sa-color-window-gold);
+}
+
+.atlas-professor-selection input {
+  margin: 2px 0 0;
+  accent-color: var(--sa-color-window-gold);
+}
+
+.atlas-professor-selection label > span {
+  display: grid;
+  min-width: 0;
+}
+
+.atlas-professor-selection label strong {
+  display: -webkit-box;
+  overflow: hidden;
+  font-size: 8px;
+  line-height: 1.25;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.atlas-professor-selection label small,
+.atlas-professor-selection > div p {
+  color: var(--sa-color-muted-steel);
+  font-family: var(--sa-typography-mono-family);
+  font-size: 7px;
+}
+
+.atlas-professor-console {
+  display: grid;
+  min-width: 0;
+  min-height: 0;
+  align-content: start;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  overflow: auto;
+  background: color-mix(in srgb, var(--sa-color-atlas-night) 90%, transparent);
+  scrollbar-color: var(--sa-color-harbor-blue) transparent;
+  scrollbar-width: thin;
+}
+
+.atlas-professor-modes {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1px;
+  padding: var(--sa-spacing-3);
+  border-bottom: var(--sa-border-hairline) solid var(--sa-color-slate-cloud);
+  background: var(--sa-color-slate-cloud);
+}
+
+.atlas-professor-modes button {
+  min-height: var(--sa-spacing-8);
+  border: 0;
+  border-bottom: var(--sa-border-pixel) solid transparent;
+  border-radius: 0;
+  color: var(--sa-color-muted-steel);
+  background: var(--sa-color-deep-ink);
+  font-family: var(--sa-typography-mono-family);
+  font-size: 8px;
+  text-align: left;
+}
+
+.atlas-professor-modes button[aria-selected='true'] {
+  border-bottom-color: var(--sa-color-window-gold);
+  color: var(--sa-color-paper-light);
+  background: color-mix(in srgb, var(--sa-color-scholar-violet) 22%, var(--sa-color-deep-ink));
+}
+
+.atlas-professor-question {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: var(--sa-spacing-2);
+  padding: var(--sa-spacing-3);
+  border-bottom: var(--sa-border-hairline) solid var(--sa-color-slate-cloud);
+  background: var(--sa-color-deep-ink);
+}
+
+.atlas-professor-question label {
+  display: grid;
+  gap: var(--sa-spacing-1);
+  color: var(--sa-color-muted-steel);
+  font-family: var(--sa-typography-mono-family);
+  font-size: 8px;
+  text-transform: uppercase;
+}
+
+.atlas-professor-question textarea {
+  width: 100%;
+  min-height: 3.2rem;
+  resize: vertical;
+  padding: var(--sa-spacing-2);
+  border: var(--sa-border-hairline) solid var(--sa-color-harbor-blue);
+  border-radius: var(--sa-radius-small);
+  color: var(--sa-color-paper-light);
+  background: var(--sa-color-atlas-night);
+  font-family: var(--sa-typography-ui-family);
+  font-size: 10px;
+  line-height: 1.35;
+  text-transform: none;
+}
+
+.atlas-professor-question button {
+  border-color: var(--sa-color-window-gold);
+  background: var(--sa-color-scholar-violet);
+}
+
+.atlas-professor-error {
+  margin: var(--sa-spacing-3);
+  padding: var(--sa-spacing-3);
+  border: var(--sa-border-hairline) solid var(--sa-color-alert-coral);
+  color: var(--sa-color-alert-coral);
+  font-size: 9px;
+}
+
+.atlas-professor-response {
+  display: grid;
+  align-content: start;
+  gap: var(--sa-spacing-3);
+  padding: var(--sa-spacing-4);
+}
+
+.atlas-professor-response > header {
+  display: grid;
+  align-items: center;
+  grid-template-columns: var(--sa-spacing-10) minmax(0, 1fr);
+  gap: var(--sa-spacing-3);
+}
+
+.atlas-professor-seal {
+  display: grid;
+  width: var(--sa-spacing-10);
+  height: var(--sa-spacing-10);
+  place-items: center;
+  border: var(--sa-border-pixel) solid var(--sa-color-window-gold);
+  border-radius: var(--sa-radius-pill);
+  color: var(--sa-color-window-gold);
+  background: var(--sa-color-deep-ink);
+  font-family: var(--sa-typography-display-family);
+  font-size: var(--sa-typography-size-md);
+}
+
+.atlas-professor-response > header small,
+.atlas-professor-response h4,
+.atlas-professor-mission > span {
+  color: var(--sa-color-weather-cyan);
+  font-family: var(--sa-typography-mono-family);
+  font-size: 8px;
+  text-transform: uppercase;
+}
+
+.atlas-professor-response h3 {
+  margin-top: 2px;
+  font-family: var(--sa-typography-display-family);
+  font-size: var(--sa-typography-size-md);
+}
+
+.atlas-professor-response > p {
+  padding: var(--sa-spacing-3);
+  border-left: var(--sa-border-pixel) solid var(--sa-color-window-gold);
+  color: var(--sa-color-paper-light);
+  background: var(--sa-color-deep-ink);
+  font-size: 10px;
+  line-height: var(--sa-typography-line-height-normal);
+}
+
+.atlas-professor-response > section,
+.atlas-professor-response-grid > section,
+.atlas-professor-mission {
+  display: grid;
+  gap: var(--sa-spacing-2);
+  padding: var(--sa-spacing-3);
+  border: var(--sa-border-hairline) solid var(--sa-color-slate-cloud);
+  border-radius: var(--sa-radius-small);
+  background: var(--sa-color-deep-ink);
+}
+
+.atlas-professor-evidence-used {
+  display: grid;
+  gap: var(--sa-spacing-1);
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.atlas-professor-evidence-used li {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--sa-spacing-2);
+  font-size: 9px;
+}
+
+.atlas-professor-evidence-used li span {
+  color: var(--sa-color-muted-steel);
+  font-family: var(--sa-typography-mono-family);
+  font-size: 7px;
+  text-transform: uppercase;
+}
+
+.atlas-professor-evidence-used li strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.atlas-professor-response-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sa-spacing-2);
+}
+
+.atlas-professor-response-grid > section[data-warning] {
+  border-color: var(--sa-color-alert-coral);
+}
+
+.atlas-professor-response-grid ul {
+  display: grid;
+  gap: var(--sa-spacing-1);
+  padding-left: var(--sa-spacing-4);
+  margin: 0;
+}
+
+.atlas-professor-response-grid li,
+.atlas-professor-response > section > p,
+.atlas-professor-mission p {
+  color: var(--sa-color-muted-steel);
+  font-size: 8px;
+  line-height: 1.35;
+}
+
+.atlas-professor-next-question {
+  display: grid;
+  width: 100%;
+  gap: 2px;
+  padding: var(--sa-spacing-3);
+  border: var(--sa-border-hairline) solid var(--sa-color-weather-cyan);
+  color: var(--sa-color-paper-light);
+  background: color-mix(in srgb, var(--sa-color-weather-cyan) 6%, var(--sa-color-deep-ink));
+  text-align: left;
+}
+
+.atlas-professor-next-question span {
+  color: var(--sa-color-weather-cyan);
+  font-family: var(--sa-typography-mono-family);
+  font-size: 7px;
+  text-transform: uppercase;
+}
+
+.atlas-professor-next-question strong {
+  font-size: 9px;
+}
+
+.atlas-professor-mission {
+  border-color: var(--sa-color-window-gold);
+}
+
+.atlas-professor-mission button {
+  justify-self: start;
+  border-color: var(--sa-color-window-gold);
+}
+
+.atlas-professor-empty-response {
+  display: grid;
+  min-height: 14rem;
+  place-content: center;
+  padding: var(--sa-spacing-5);
+  color: var(--sa-color-muted-steel);
+  text-align: center;
+}
+
+.atlas-professor-empty-response > span {
+  color: var(--sa-color-window-gold);
+  font-family: var(--sa-typography-display-family);
+  font-size: var(--sa-typography-size-3xl);
+}
+
+.atlas-professor-empty-response p {
+  max-width: 15rem;
+  margin: var(--sa-spacing-1) 0;
+  font-size: 9px;
+}
+
+@media (max-width: 1260px) {
+  .atlas-professor-scene {
+    grid-template-columns: minmax(26rem, 1fr) minmax(18rem, 0.88fr);
+  }
+
+  .atlas-professor-boundary,
+  .atlas-professor-books--right {
+    display: none;
+  }
+}
+
+@media (max-width: 760px) {
+  .atlas-professor-workspace {
+    display: block;
+    overflow: auto;
+  }
+
+  .atlas-professor-header,
+  .atlas-professor-header > div:last-child {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .atlas-professor-scene {
+    display: block;
+    overflow: visible;
+  }
+
+  .atlas-professor-study {
+    min-height: 42rem;
+    border-right: 0;
+  }
+
+  .atlas-professor-console {
+    min-height: 38rem;
+    overflow: visible;
+    border-top: var(--sa-border-hairline) solid var(--sa-color-harbor-blue);
+  }
+
+  .atlas-professor-selection > div:last-child,
+  .atlas-professor-response-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* Lantern Square meeting */
 
 .atlas-meeting-workspace {

@@ -518,6 +518,50 @@ describe('ExpeditionRuntime commands', () => {
     });
   });
 
+  it('records an evidence-bounded Professor correlation assessment', () => {
+    const runtime = runtimeWithRequiredEvidence();
+    const result = runtime.submit({
+      id: 'cmd-professor-correlation-1',
+      idempotencyKey: 'professor:correlation:1',
+      expeditionId: 'exp-helios3-demo',
+      issuedAt: '2027-09-26T18:40:00Z',
+      actor: { kind: 'player' },
+      schemaVersion: 1,
+      type: 'professor.query',
+      payload: {
+        query: {
+          id: 'query-professor-correlation-1',
+          expeditionId: 'exp-helios3-demo',
+          mode: 'correlation_check',
+          question: 'Are the weather and historical signals independent?',
+          selectedSourceIds: [],
+          selectedSignalIds: ['sig-crosswind', 'sig-base-rate'],
+          createdAt: '2027-09-26T18:40:00Z',
+        },
+      },
+    });
+
+    expect(result).toMatchObject({ accepted: true });
+    if (!result.accepted) throw new Error('Expected Professor query acceptance.');
+    expect(result.events.map((event) => event.type)).toEqual([
+      'professor.query.started',
+      'correlation.detected',
+      'professor.response.created',
+    ]);
+    const snapshot = runtime.snapshot();
+    expect(snapshot.correlationsById['correlation-query-professor-correlation-1']).toMatchObject({
+      signalIds: ['sig-base-rate', 'sig-crosswind'],
+      relationship: 'possibly_correlated',
+    });
+    expect(snapshot.professorResponsesByQueryId['query-professor-correlation-1']).toMatchObject({
+      answer: expect.stringContaining('related but not duplicates'),
+      evidenceUsed: [
+        { type: 'signal', id: 'sig-crosswind' },
+        { type: 'signal', id: 'sig-base-rate' },
+      ],
+    });
+  });
+
   it.each(['timeout', 'invalid_result'] as const)(
     'records a recoverable %s failure and completes a later successful retry',
     (scenario) => {

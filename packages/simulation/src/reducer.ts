@@ -972,16 +972,36 @@ export function reduceWorldEvent(state: WorldProjection, event: WorldEvent): Wor
     }
     case 'professor.response.created': {
       const response = event.payload.response;
-      requireEntity(state.professorQueriesById, response.queryId, 'Professor query');
+      const query = requireEntity(state.professorQueriesById, response.queryId, 'Professor query');
+      if (response.mode && response.mode !== query.mode) {
+        throw new IllegalTransitionError(
+          `Professor response mode ${response.mode} does not match query mode ${query.mode}.`,
+        );
+      }
       for (const evidence of response.evidenceUsed) {
         if (evidence.type === 'source') {
           requireEntity(state.sourcesById, evidence.id, 'Source');
+          if (!query.selectedSourceIds.includes(evidence.id)) {
+            throw new IllegalTransitionError(
+              `Professor response cites unselected source ${evidence.id}.`,
+            );
+          }
         } else {
           requireEntity(state.signalsById, evidence.id, 'Signal');
+          if (!query.selectedSignalIds.includes(evidence.id)) {
+            throw new IllegalTransitionError(
+              `Professor response cites unselected signal ${evidence.id}.`,
+            );
+          }
         }
       }
       response.selectedSignalIds?.forEach((signalId) => {
         requireEntity(state.signalsById, signalId, 'Signal');
+        if (!query.selectedSignalIds.includes(signalId)) {
+          throw new IllegalTransitionError(
+            `Professor response selects signal ${signalId} outside the query boundary.`,
+          );
+        }
       });
       next = {
         ...state,
