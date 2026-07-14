@@ -1022,6 +1022,9 @@
               "maximum": 9007199254740991,
               "type": "integer"
             },
+            "endsAt": {
+              "$ref": "#/$defs/__schema12"
+            },
             "fromPlaceId": {
               "$ref": "#/$defs/__schema2"
             },
@@ -1045,6 +1048,7 @@
             "fromPlaceId",
             "toPlaceId",
             "startedAt",
+            "endsAt",
             "durationMs"
           ],
           "type": "object"

@@ -114,6 +114,7 @@ const travelStarted = eventVariant(
     fromPlaceId: EntityIdSchema,
     toPlaceId: EntityIdSchema,
     startedAt: DateTimeSchema,
+    endsAt: DateTimeSchema,
     durationMs: z.number().int().positive(),
   }),
 );
