@@ -8,8 +8,11 @@ import { createShellModel, shellModel } from './model.js';
 import {
   createClientId,
   fetchExpeditionSnapshot,
+  fetchFixtureConfiguration,
   interpretMissionDraft,
   submitWorldCommand,
+  updateFixtureMissionScenario,
+  type FixtureMissionScenario,
   type MissionDraft,
 } from './runtime-client.js';
 import { SignalRail } from './SignalRail.js';
@@ -67,6 +70,7 @@ export function WorldShell() {
   const [commandBusy, setCommandBusy] = useState(false);
   const [commandError, setCommandError] = useState<string>();
   const [skipTravel, setSkipTravel] = useState(skipTravelPreference);
+  const [fixtureScenario, setFixtureScenario] = useState<FixtureMissionScenario>('success');
   const [followRequest, setFollowRequest] = useState<
     { agentId: string; requestId: number } | undefined
   >();
@@ -176,10 +180,11 @@ export function WorldShell() {
     }
 
     let active = true;
-    void fetchExpeditionSnapshot()
-      .then((nextProjection) => {
+    void Promise.all([fetchExpeditionSnapshot(), fetchFixtureConfiguration()])
+      .then(([nextProjection, configuration]) => {
         if (!active) return;
         setProjection(nextProjection);
+        setFixtureScenario(configuration.missionScenario);
         setRuntimeState('ready');
       })
       .catch(() => {
@@ -433,6 +438,50 @@ export function WorldShell() {
     }
   };
 
+  const changeFixtureScenario = async (scenario: FixtureMissionScenario) => {
+    setCommandBusy(true);
+    setCommandError(undefined);
+    try {
+      const configuration = await updateFixtureMissionScenario(scenario);
+      setFixtureScenario(configuration.missionScenario);
+      setAnnouncement(`Offline mission result set to ${scenario.replace('_', ' ')}.`);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Result scenario update failed.';
+      setCommandError(message);
+      setAnnouncement(`Offline result control failed: ${message}`);
+    } finally {
+      setCommandBusy(false);
+    }
+  };
+
+  const retryMission = async (mission: (typeof model.missions)[number]) => {
+    if (!mission.failedTurnId) return;
+    const issuedAt = new Date().toISOString();
+    const id = createClientId('cmd-retry');
+    const worldCommand = {
+      ...commandEnvelope(id, `retry:${mission.id}:${mission.failedTurnId}:${id}`, issuedAt),
+      type: 'runtime.retry_turn',
+      payload: {
+        agentId: mission.agentId,
+        missionId: mission.id,
+        failedTurnId: mission.failedTurnId,
+      },
+    } satisfies WorldCommand;
+    setCommandBusy(true);
+    setCommandError(undefined);
+    try {
+      await submitWorldCommand(worldCommand);
+      await refreshProjection();
+      setAnnouncement(`Retry started for ${mission.agentName}.`);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Mission retry failed.';
+      setCommandError(message);
+      setAnnouncement(`Mission retry failed: ${message}`);
+    } finally {
+      setCommandBusy(false);
+    }
+  };
+
   const directDraft = () => {
     const createdAt = new Date().toISOString();
     const place = model.places.find((candidate) => candidate.id === selectedPlaceId);
@@ -546,7 +595,7 @@ export function WorldShell() {
         collapsed={signalRailCollapsed}
         mobileOpen={mobilePanel === 'signals'}
         onToggleCollapsed={() => setSignalRailCollapsed((current) => !current)}
-        signals={model.stagedSignals}
+        signals={model.signals}
       />
 
       <CommandTray
@@ -570,7 +619,10 @@ export function WorldShell() {
         onDraftChange={updateMissionDraft}
         onExpandedChange={() => setTrayExpanded((current) => !current)}
         onMoveMission={(missionId, direction) => void moveMission(missionId, direction)}
+        onRetryMission={(mission) => void retryMission(mission)}
+        onScenarioChange={(scenario) => void changeFixtureScenario(scenario)}
         places={model.places}
+        scenario={fixtureScenario}
         selectedAgent={selectedAgent}
       />
 

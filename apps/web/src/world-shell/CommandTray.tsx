@@ -2,7 +2,11 @@ import type { MissionVerb } from '@signal-atlas/contracts';
 import type { RefObject } from 'react';
 
 import type { ShellAgent, ShellMission, ShellPlace } from './model.js';
-import type { MissionDraft } from './runtime-client.js';
+import {
+  fixtureMissionScenarios,
+  type FixtureMissionScenario,
+  type MissionDraft,
+} from './runtime-client.js';
 
 export interface CommandTrayProps {
   agents: readonly ShellAgent[];
@@ -14,6 +18,7 @@ export interface CommandTrayProps {
   inputRef: RefObject<HTMLInputElement | null>;
   missions: readonly ShellMission[];
   places: readonly ShellPlace[];
+  scenario: FixtureMissionScenario;
   selectedAgent: ShellAgent;
   onCancelDraft: () => void;
   onCancelMission: (missionId: string) => void;
@@ -24,6 +29,8 @@ export interface CommandTrayProps {
   onDraftChange: (patch: Partial<MissionDraft>) => void;
   onExpandedChange: () => void;
   onMoveMission: (missionId: string, direction: -1 | 1) => void;
+  onRetryMission: (mission: ShellMission) => void;
+  onScenarioChange: (scenario: FixtureMissionScenario) => void;
 }
 
 const suggestions = [
@@ -32,6 +39,13 @@ const suggestions = [
   'Ask Professor Vale to check correlation',
   'Call a meeting at Lantern Square',
 ] as const;
+
+const scenarioLabels: Record<FixtureMissionScenario, string> = {
+  success: 'Success',
+  no_result: 'No result',
+  timeout: 'Timeout',
+  invalid_result: 'Invalid result',
+};
 
 function sentenceCase(value: string): string {
   return value
@@ -58,7 +72,10 @@ export function CommandTray({
   onDraftChange,
   onExpandedChange,
   onMoveMission,
+  onRetryMission,
+  onScenarioChange,
   places,
+  scenario,
   selectedAgent,
 }: CommandTrayProps) {
   const selectedPlace = draft?.destinationPlaceId
@@ -256,8 +273,32 @@ export function CommandTray({
 
           <div className="atlas-queue-list">
             <header>
-              <span className="atlas-kicker">Authoritative projection</span>
-              <strong>{missions.length} active</strong>
+              <div>
+                <span className="atlas-kicker">Authoritative projection</span>
+                <strong>
+                  {missions.filter((mission) => mission.status !== 'failed').length} active
+                </strong>
+              </div>
+              <label className="atlas-scenario-control">
+                Offline result
+                <select
+                  aria-label="Offline mission result"
+                  disabled={busy}
+                  onChange={(event) =>
+                    onScenarioChange(event.target.value as FixtureMissionScenario)
+                  }
+                  value={scenario}
+                >
+                  {fixtureMissionScenarios.map((value) => (
+                    <option key={value} value={value}>
+                      {scenarioLabels[value]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <button className="atlas-secondary-action" onClick={onExpandedChange} type="button">
+                Close mission queue
+              </button>
             </header>
             {missions.length === 0 ? (
               <p className="atlas-empty-queue">No queued missions. Your team is ready.</p>
@@ -279,6 +320,7 @@ export function CommandTray({
                         <small>
                           {mission.agentName} → {mission.destinationName} · {mission.status}
                         </small>
+                        {mission.failureMessage && <small>{mission.failureMessage}</small>}
                       </span>
                       <span className="atlas-queue-actions">
                         <button
@@ -301,14 +343,25 @@ export function CommandTray({
                         >
                           ↓
                         </button>
-                        <button
-                          aria-label={`Cancel ${mission.objective}`}
-                          disabled={busy}
-                          onClick={() => onCancelMission(mission.id)}
-                          type="button"
-                        >
-                          Cancel
-                        </button>
+                        {mission.status === 'failed' && mission.failedTurnId ? (
+                          <button
+                            aria-label={`Retry ${mission.objective}`}
+                            disabled={busy}
+                            onClick={() => onRetryMission(mission)}
+                            type="button"
+                          >
+                            Retry
+                          </button>
+                        ) : (
+                          <button
+                            aria-label={`Cancel ${mission.objective}`}
+                            disabled={busy}
+                            onClick={() => onCancelMission(mission.id)}
+                            type="button"
+                          >
+                            Cancel
+                          </button>
+                        )}
                       </span>
                     </li>
                   );

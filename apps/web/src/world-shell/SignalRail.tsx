@@ -86,7 +86,6 @@ export function SignalRail({ collapsed, mobileOpen, onToggleCollapsed, signals }
         role="tabpanel"
         tabIndex={0}
       >
-        <p className="atlas-preview-note">Fixture preview · staged until mission events</p>
         {visibleSignals.length === 0 ? (
           <div className="atlas-empty-rail">
             <span aria-hidden="true">◇</span>

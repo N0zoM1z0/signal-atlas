@@ -17,6 +17,20 @@ export interface MissionDraft {
   createdAt: string;
 }
 
+export const fixtureMissionScenarios = [
+  'success',
+  'no_result',
+  'timeout',
+  'invalid_result',
+] as const;
+
+export type FixtureMissionScenario = (typeof fixtureMissionScenarios)[number];
+
+export interface FixtureConfiguration {
+  seed: string;
+  missionScenario: FixtureMissionScenario;
+}
+
 interface CommandResponse {
   accepted: true;
   duplicate: boolean;
@@ -55,6 +69,24 @@ export async function fetchExpeditionSnapshot(): Promise<WorldProjection> {
     `/api/expeditions/${expeditionId}/snapshot`,
   );
   return response.projection;
+}
+
+export async function fetchFixtureConfiguration(): Promise<FixtureConfiguration> {
+  return requestJson<FixtureConfiguration>(
+    `/api/expeditions/${expeditionId}/fixture-configuration`,
+  );
+}
+
+export async function updateFixtureMissionScenario(
+  missionScenario: FixtureMissionScenario,
+): Promise<FixtureConfiguration> {
+  return requestJson<FixtureConfiguration>(
+    `/api/expeditions/${expeditionId}/fixture-configuration`,
+    {
+      method: 'PUT',
+      body: JSON.stringify({ missionScenario }),
+    },
+  );
 }
 
 export async function interpretMissionDraft(

@@ -39,8 +39,6 @@ function sentenceCase(value: string): string {
     .join(' ');
 }
 
-const sourceById = Object.fromEntries(fixture.sources.map((source) => [source.id, source]));
-
 export function createShellModel(projection: WorldProjection) {
   const latestForecast = selectLatestForecast(projection);
   const placeById = Object.fromEntries(
@@ -57,6 +55,12 @@ export function createShellModel(projection: WorldProjection) {
       missionRankById.set(missionId, missionRank++);
     }
   }
+  const recoverableTurnByMissionId = new Map(
+    Object.values(projection.agentTurnsById)
+      .filter((turn) => turn.status === 'failed' && turn.recoverable)
+      .sort((left, right) => left.sequence - right.sequence)
+      .map((turn) => [turn.missionId, turn]),
+  );
 
   return {
     fixture,
@@ -103,25 +107,39 @@ export function createShellModel(projection: WorldProjection) {
       };
     }),
     missions: Object.values(projection.missionsById)
-      .filter((mission) => !['completed', 'failed', 'canceled'].includes(mission.status))
+      .filter(
+        (mission) =>
+          !['completed', 'failed', 'canceled'].includes(mission.status) ||
+          (mission.status === 'failed' && recoverableTurnByMissionId.has(mission.id)),
+      )
       .sort(
         (left, right) =>
           (missionRankById.get(left.id) ?? Number.MAX_SAFE_INTEGER) -
             (missionRankById.get(right.id) ?? Number.MAX_SAFE_INTEGER) ||
           left.createdAt.localeCompare(right.createdAt),
       )
-      .map((mission) => ({
-        id: mission.id,
-        agentId: mission.assignedAgentId,
-        agentName: agentById[mission.assignedAgentId]?.displayName ?? mission.assignedAgentId,
-        destinationPlaceId: mission.destinationPlaceId,
-        destinationName: mission.destinationPlaceId
-          ? (placeById[mission.destinationPlaceId]?.name ?? mission.destinationPlaceId)
-          : 'No destination',
-        objective: mission.objective,
-        status: mission.status,
-        verb: mission.verb,
-      })),
+      .map((mission) => {
+        const failedTurn =
+          mission.status === 'failed' ? recoverableTurnByMissionId.get(mission.id) : undefined;
+        return {
+          id: mission.id,
+          agentId: mission.assignedAgentId,
+          agentName: agentById[mission.assignedAgentId]?.displayName ?? mission.assignedAgentId,
+          destinationPlaceId: mission.destinationPlaceId,
+          destinationName: mission.destinationPlaceId
+            ? (placeById[mission.destinationPlaceId]?.name ?? mission.destinationPlaceId)
+            : 'No destination',
+          objective: mission.objective,
+          status: mission.status,
+          verb: mission.verb,
+          ...(failedTurn
+            ? {
+                failedTurnId: failedTurn.turnId,
+                failureMessage: failedTurn.message ?? 'The mission turn failed.',
+              }
+            : {}),
+        };
+      }),
     places: projection.worldManifest.places.map((place) => ({
       id: place.id,
       name: place.name,
@@ -136,8 +154,8 @@ export function createShellModel(projection: WorldProjection) {
       projection.worldManifest,
       fixture.agents.map((agent) => agentById[agent.id] ?? agent),
     ),
-    stagedSignals: fixture.signals.map((signal) => {
-      const source = sourceById[signal.sourceIds[0] ?? ''];
+    signals: Object.values(projection.signalsById).map((signal) => {
+      const source = projection.sourcesById[signal.sourceIds[0] ?? ''];
       const discoverer = signal.discoveredByAgentId
         ? agentById[signal.discoveredByAgentId]
         : undefined;
@@ -176,5 +194,5 @@ export const shellModel = createShellModel(replay.projection);
 
 export type ShellAgent = (typeof shellModel.agents)[number];
 export type ShellPlace = (typeof shellModel.places)[number];
-export type ShellSignal = (typeof shellModel.stagedSignals)[number];
+export type ShellSignal = (typeof shellModel.signals)[number];
 export type ShellMission = (typeof shellModel.missions)[number];

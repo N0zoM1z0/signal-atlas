@@ -109,7 +109,98 @@ test('confirmed missions travel, resume from projection, and preserve explicit c
   await page.reload();
   await expect(page.getByLabel('Skip travel')).toBeChecked();
 
+  await expect(
+    page.getByRole('heading', { name: 'Crosswind advisory overlaps launch window' }),
+  ).toBeVisible({ timeout: 5_000 });
   await page.getByRole('button', { name: /Mission queue/ }).click();
-  await page.getByRole('button', { name: /Cancel Check latest weather/ }).click();
   await expect(page.getByText('No queued missions. Your team is ready.')).toBeVisible();
+});
+
+test('injected failures remain visible and recover through an explicit retry', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: /Mission queue/ }).click();
+  await page.getByLabel('Offline mission result').selectOption('timeout');
+  await page.getByRole('button', { name: 'Close mission queue' }).click();
+
+  await page.getByRole('button', { name: /Dispatch/ }).click();
+  await page.getByRole('button', { name: 'Confirm mission' }).click();
+  await page.getByRole('button', { name: 'Skip travel' }).click();
+
+  const failedMission = page.getByText('Mira → Galehaven Weather Tower · failed');
+  await expect(failedMission).toBeVisible({ timeout: 5_000 });
+  await expect(
+    page.getByText('The scripted source request exceeded its injected time limit.'),
+  ).toBeVisible();
+  await page.getByLabel('Offline mission result').selectOption('success');
+  await page.getByRole('button', { name: /Retry Check latest weather/ }).click();
+
+  await expect(page.getByText('Mira → Galehaven Weather Tower · running')).toBeVisible();
+  await expect(
+    page.getByRole('heading', { name: 'Crosswind advisory overlaps launch window' }),
+  ).toBeVisible({ timeout: 5_000 });
+  await expect(page.getByText('No queued missions. Your team is ready.')).toBeVisible();
+});
+
+test('all authored agents complete their evidence missions without external services', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await page.getByLabel('Skip travel').check();
+  await page.getByRole('button', { name: 'Simulation speed 1 times' }).click();
+  await page.getByRole('button', { name: 'Simulation speed 2 times' }).click();
+
+  const dispatch = async (
+    agentId: 'mira' | 'orin' | 'kestrel',
+    agentName: 'Mira' | 'Orin' | 'Kestrel',
+    objective: string,
+    signalHeadline: string,
+  ) => {
+    await page.locator(`.atlas-agent-card[data-agent="${agentId}"]`).click();
+    await page.getByRole('textbox', { name: `Command ${agentName}` }).fill(objective);
+    await page.getByRole('button', { name: /Dispatch/ }).click();
+    await page.getByRole('button', { name: 'Confirm mission' }).click();
+    await expect(page.getByRole('heading', { name: signalHeadline })).toBeVisible({
+      timeout: 5_000,
+    });
+    await page.getByRole('button', { name: 'Close mission queue' }).click();
+  };
+
+  await dispatch(
+    'mira',
+    'Mira',
+    'Check latest weather at Galehaven Weather Tower',
+    'Crosswind advisory overlaps launch window',
+  );
+  await dispatch(
+    'orin',
+    'Orin',
+    'Search historical delays in Archive Quarter',
+    'Comparable windows often slipped under crosswind advisories',
+  );
+  await dispatch(
+    'kestrel',
+    'Kestrel',
+    'Verify operations notice in Ledger Bay Newsroom',
+    'Countdown operations remain scheduled',
+  );
+
+  const response = await page.request.get(snapshotUrl);
+  const snapshot = (await response.json()) as {
+    projection: {
+      beliefUpdates: unknown[];
+      knowledgeByKey: Record<string, unknown>;
+      missionsById: Record<string, { status: string }>;
+      signalsById: Record<string, unknown>;
+    };
+  };
+  expect(Object.keys(snapshot.projection.signalsById)).toHaveLength(3);
+  expect(snapshot.projection.beliefUpdates).toHaveLength(3);
+  expect(snapshot.projection.knowledgeByKey).toMatchObject({
+    'mira:signal:sig-crosswind': expect.anything(),
+    'orin:signal:sig-base-rate': expect.anything(),
+    'kestrel:signal:sig-operations': expect.anything(),
+  });
+  const missions = Object.values(snapshot.projection.missionsById);
+  expect(missions).toHaveLength(3);
+  expect(missions.every((mission) => mission.status === 'completed')).toBe(true);
 });
