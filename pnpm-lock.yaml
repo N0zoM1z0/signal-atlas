@@ -50,6 +50,15 @@ importers:
 
   apps/orchestrator:
     dependencies:
+      '@signal-atlas/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
+      '@signal-atlas/simulation':
+        specifier: workspace:*
+        version: link:../../packages/simulation
+      '@signal-atlas/test-fixtures':
+        specifier: workspace:*
+        version: link:../../packages/test-fixtures
       fastify:
         specifier: 5.10.0
         version: 5.10.0

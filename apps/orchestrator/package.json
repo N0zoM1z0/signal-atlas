@@ -12,6 +12,9 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
+    "@signal-atlas/contracts": "workspace:*",
+    "@signal-atlas/simulation": "workspace:*",
+    "@signal-atlas/test-fixtures": "workspace:*",
     "fastify": "5.10.0"
   }
 }
