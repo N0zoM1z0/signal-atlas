@@ -67,6 +67,8 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
     version: '0.0.0',
   }));
 
+  app.get('/api/runtime/diagnostics', async () => runtime.runtimeDiagnostics());
+
   app.get<{ Params: ExpeditionParams }>('/api/expeditions/:id/snapshot', async (request, reply) => {
     if (request.params.id !== runtime.expeditionId) {
       return reply.code(404).send({ error: 'expedition_not_found' });

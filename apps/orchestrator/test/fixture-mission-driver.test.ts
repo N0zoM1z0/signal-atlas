@@ -2,6 +2,7 @@ import { createHelios3ExpeditionFixture } from '@signal-atlas/test-fixtures';
 import { describe, expect, it } from 'vitest';
 
 import {
+  createFixtureCodexDriver,
   createScriptedFixtureTurn,
   type FixtureMissionScenario,
 } from '../src/fixture-mission-driver.js';
@@ -73,5 +74,49 @@ describe('scripted fixture mission driver', () => {
     });
 
     expect(result).toMatchObject({ scenario: 'no_result', sources: [], signals: [] });
+  });
+
+  it('exposes authored behavior only through the shared CodexDriver contract', () => {
+    const driver = createFixtureCodexDriver(fixture, () => 'success');
+    const result = driver.runTurn(
+      {
+        schemaVersion: 1,
+        turnId: 'turn-driver-contract-1',
+        expeditionId: fixture.expedition.id,
+        agentId: 'mira',
+        mission,
+        effectivePlaceId: 'weather-tower',
+        attempt: 1,
+        knownSourceIds: [],
+        knownSignalIds: [],
+        allowedCapabilities: ['local_conditions'],
+        requestedAt: '2027-09-26T18:32:00Z',
+        timeoutMs: 30_000,
+      },
+      {
+        signal: new AbortController().signal,
+        deadlineAt: '2027-09-26T18:32:30Z',
+        emit: () => undefined,
+      },
+    );
+    if (result instanceof Promise) throw new Error('Fixture driver must stay deterministic.');
+
+    expect(result.output).toMatchObject({
+      agentId: 'mira',
+      missionId: mission.id,
+      action: { type: 'investigate', capability: 'fixture.weather.advisory' },
+      sourceIdsUsed: ['src-weather-bulletin-1'],
+      proposedClaims: [{ sourceIds: ['src-weather-bulletin-1'] }],
+      proposedSignals: [{ headline: 'Crosswind advisory overlaps launch window' }],
+    });
+    expect(result.artifacts).toMatchObject({
+      turnId: 'turn-driver-contract-1',
+      signals: [{ id: 'sig-crosswind' }],
+    });
+    expect(driver.diagnostics()).toMatchObject({
+      id: 'fixture-scripted-codex',
+      kind: 'scripted',
+      runs: 1,
+    });
   });
 });

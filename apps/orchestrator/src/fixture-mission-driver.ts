@@ -1,4 +1,6 @@
 import type {
+  AgentTurnInput,
+  AgentTurnOutput,
   Claim,
   ExpeditionFixture,
   Mission,
@@ -6,6 +8,8 @@ import type {
   Signal,
   SourceRecord,
 } from '@signal-atlas/contracts';
+import { AgentTurnOutputSchema } from '@signal-atlas/contracts';
+import { ScriptedCodexDriver, type CodexDriver } from '@signal-atlas/codex-runtime';
 import { canonicalHash } from '@signal-atlas/simulation';
 
 export const fixtureMissionScenarios = [
@@ -38,6 +42,7 @@ export interface CreateScriptedFixtureTurnOptions {
   effectivePlaceId: string;
   attempt: number;
   scenario: FixtureMissionScenario;
+  turnId?: string;
 }
 
 function cloneByIds<T extends { id: string }>(values: readonly T[], ids: readonly string[]): T[] {
@@ -94,7 +99,7 @@ export function createScriptedFixtureTurn(
     attempt,
     latencyMs: scripted?.latencyMs ?? 800,
     callId: `call-fixture-${idSuffix}`,
-    turnId: `turn-fixture-${idSuffix}`,
+    turnId: options.turnId ?? `turn-fixture-${idSuffix}`,
     capability: sources[0]?.provenance.primitiveName ?? `fixture.mission.${mission.verb}`,
     argumentsHash: identity,
     sources,
@@ -108,4 +113,86 @@ export function createScriptedFixtureTurn(
       ? { suggestedFollowUp: structuredClone(scripted.suggestedFollowUp) }
       : {}),
   };
+}
+
+function agentTurnOutput(input: AgentTurnInput, turn: ScriptedFixtureTurn): AgentTurnOutput {
+  const claimIndexById = new Map(turn.claims.map((claim, index) => [claim.id, index]));
+  const output = {
+    schemaVersion: 1,
+    agentId: input.agentId,
+    missionId: input.mission.id,
+    action:
+      turn.scenario === 'success'
+        ? {
+            type: 'investigate' as const,
+            capability: turn.capability,
+            query: input.mission.objective,
+          }
+        : {
+            type: 'wait' as const,
+            reason: turn.dialogue,
+          },
+    publicDialogue: turn.dialogue,
+    sourceIdsUsed: turn.sources.map((source) => source.id),
+    proposedClaims: turn.claims.map((claim) => ({
+      text: claim.text,
+      sourceIds: [...claim.sourceIds],
+      qualifiers: [...claim.qualifiers],
+    })),
+    proposedSignals: turn.signals.map((signal) => ({
+      headline: signal.headline,
+      summary: signal.summary,
+      claimIndexes: signal.claimIds.flatMap((claimId) => {
+        const index = claimIndexById.get(claimId);
+        return index === undefined ? [] : [index];
+      }),
+      sourceIds: [...signal.sourceIds],
+      direction: signal.direction,
+      ...(signal.targetOutcomeId ? { targetOutcomeId: signal.targetOutcomeId } : {}),
+      impactLabel: signal.impact.label,
+    })),
+    rationale:
+      turn.scenario === 'success'
+        ? `Used the authored ${turn.scriptKey} fixture result within the mission boundary.`
+        : 'No validated fixture evidence was available, so the turn chose a safe wait.',
+    assumptions:
+      turn.scenario === 'success'
+        ? ['Fixture evidence remains subject to its recorded freshness and reliability limits.']
+        : [],
+    unknowns:
+      turn.scenario === 'success'
+        ? []
+        : ['No validated evidence entered the world from this turn.'],
+    ...(turn.suggestedFollowUp
+      ? { suggestedFollowUp: structuredClone(turn.suggestedFollowUp) }
+      : {}),
+  };
+  return AgentTurnOutputSchema.parse(output);
+}
+
+/** Build the offline driver used by the orchestrator through the replaceable Codex boundary. */
+export function createFixtureCodexDriver(
+  fixture: ExpeditionFixture,
+  scenario: () => FixtureMissionScenario,
+): CodexDriver<AgentTurnInput, ScriptedFixtureTurn> {
+  return new ScriptedCodexDriver({
+    id: 'fixture-scripted-codex',
+    description: 'Deterministic Helios-3 scripted mission driver.',
+    run: (input, context) => {
+      if (context.signal.aborted) throw context.signal.reason;
+      const turn = createScriptedFixtureTurn(fixture, {
+        mission: input.mission,
+        effectivePlaceId: input.effectivePlaceId,
+        attempt: input.attempt,
+        scenario: scenario(),
+        turnId: input.turnId,
+      });
+      context.emit({
+        phase: 'script_selected',
+        scenario: turn.scenario,
+        scriptKey: turn.scriptKey,
+      });
+      return { output: agentTurnOutput(input, turn), artifacts: turn };
+    },
+  });
 }

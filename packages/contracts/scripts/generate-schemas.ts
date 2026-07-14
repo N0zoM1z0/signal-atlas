@@ -6,6 +6,7 @@ import { z } from 'zod';
 import {
   AgentKnowledgeSchema,
   AgentSchema,
+  AgentTurnInputSchema,
   AgentTurnOutputSchema,
   BeliefUpdateSchema,
   ClaimSchema,
@@ -32,6 +33,7 @@ export const schemaDirectory = fileURLToPath(new URL('../../../schemas/', import
 const schemas = {
   'agent-knowledge.schema.json': AgentKnowledgeSchema,
   'agent-state.schema.json': AgentSchema,
+  'agent-turn-input.schema.json': AgentTurnInputSchema,
   'agent-turn-output.schema.json': AgentTurnOutputSchema,
   'belief-update.schema.json': BeliefUpdateSchema,
   'claim.schema.json': ClaimSchema,

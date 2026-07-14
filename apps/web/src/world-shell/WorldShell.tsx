@@ -22,6 +22,7 @@ import { MeetingWorkspace } from './MeetingWorkspace.js';
 import { ForecastWorkspace, type ForecastCommitInput } from './ForecastWorkspace.js';
 import { createShellModel, shellModel } from './model.js';
 import { ProfessorWorkspace, type ProfessorQuestionInput } from './ProfessorWorkspace.js';
+import { RuntimeDiagnosticsDialog } from './RuntimeDiagnosticsDialog.js';
 import {
   createClientId,
   fetchExpeditionEvents,
@@ -103,6 +104,7 @@ export function WorldShell() {
   const [fixtureScenario, setFixtureScenario] = useState<FixtureMissionScenario>('success');
   const [workspace, setWorkspace] = useState<Workspace>('world');
   const [forecastOpen, setForecastOpen] = useState(false);
+  const [runtimeDiagnosticsOpen, setRuntimeDiagnosticsOpen] = useState(false);
   const [archiveEvents, setArchiveEvents] = useState<WorldEvent[]>([]);
   const [archiveLoading, setArchiveLoading] = useState(false);
   const [activeMeetingId, setActiveMeetingId] = useState<string>();
@@ -621,6 +623,11 @@ export function WorldShell() {
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
+        if (runtimeDiagnosticsOpen) {
+          setRuntimeDiagnosticsOpen(false);
+          setAnnouncement('Runtime diagnostics closed.');
+          return;
+        }
         if (forecastOpen) {
           setForecastOpen(false);
           setAnnouncement('Forecast desk closed without changing the projection.');
@@ -692,6 +699,7 @@ export function WorldShell() {
     openArchiveWorkspace,
     openForecastWorkspace,
     openPanel,
+    runtimeDiagnosticsOpen,
     workspace,
   ]);
 
@@ -955,6 +963,10 @@ export function WorldShell() {
           const agent = model.agents.find((candidate) => candidate.id === agentId);
           setAnnouncement(`Camera following ${agent?.name ?? 'agent'}.`);
         }}
+        onOpenRuntimeDiagnostics={() => {
+          setRuntimeDiagnosticsOpen(true);
+          setAnnouncement('Codex runtime diagnostics opened.');
+        }}
         onPrepareMission={(objective) => {
           if (objective) void prepareMissionDraft(objective);
           else directDraft();
@@ -1084,6 +1096,14 @@ export function WorldShell() {
           projection={projection}
         />
       )}
+
+      <RuntimeDiagnosticsDialog
+        onClose={() => {
+          setRuntimeDiagnosticsOpen(false);
+          setAnnouncement('Runtime diagnostics closed.');
+        }}
+        open={runtimeDiagnosticsOpen}
+      />
 
       <CommandTray
         agents={model.agents}

@@ -42,6 +42,31 @@ describe('orchestrator health endpoint', () => {
     });
   });
 
+  it('reports the configured driver and scheduler without exposing private input', async () => {
+    const app = buildApp();
+    openApps.push(app);
+
+    const response = await app.inject({ method: 'GET', url: '/api/runtime/diagnostics' });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      driver: {
+        id: 'fixture-scripted-codex',
+        kind: 'scripted',
+        available: true,
+      },
+      scheduler: {
+        maxConcurrency: 2,
+        defaultTimeoutMs: 30_000,
+        activeCount: 0,
+        queuedCount: 0,
+      },
+      turns: [],
+    });
+    expect(response.body).not.toContain('prompt');
+    expect(response.body).not.toContain('secret');
+  });
+
   it('interprets drafts and accepts idempotent mission commands', async () => {
     const app = buildApp();
     openApps.push(app);

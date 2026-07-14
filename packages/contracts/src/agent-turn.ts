@@ -1,12 +1,64 @@
 import { z } from 'zod';
 
 import {
+  DateTimeSchema,
   EntityIdSchema,
   MissionVerbSchema,
   ProbabilityDistributionSchema,
   ProbabilityRangeSchema,
   SCHEMA_VERSION,
 } from './common.js';
+import { MissionSchema } from './agents.js';
+
+export const AgentTurnInputSchema = z
+  .strictObject({
+    schemaVersion: z.literal(SCHEMA_VERSION),
+    turnId: EntityIdSchema,
+    expeditionId: EntityIdSchema,
+    agentId: EntityIdSchema,
+    mission: MissionSchema,
+    effectivePlaceId: EntityIdSchema,
+    attempt: z.number().int().positive(),
+    knownSourceIds: z.array(EntityIdSchema),
+    knownSignalIds: z.array(EntityIdSchema),
+    allowedCapabilities: z.array(z.string().min(1)),
+    requestedAt: DateTimeSchema,
+    timeoutMs: z.number().int().positive(),
+  })
+  .superRefine((input, context) => {
+    if (input.mission.expeditionId !== input.expeditionId) {
+      context.addIssue({
+        code: 'custom',
+        path: ['mission', 'expeditionId'],
+        message: 'Turn mission must belong to the input expedition.',
+      });
+    }
+    if (input.mission.assignedAgentId !== input.agentId) {
+      context.addIssue({
+        code: 'custom',
+        path: ['mission', 'assignedAgentId'],
+        message: 'Turn mission must be assigned to the input agent.',
+      });
+    }
+    if (new Set(input.knownSourceIds).size !== input.knownSourceIds.length) {
+      context.addIssue({
+        code: 'custom',
+        path: ['knownSourceIds'],
+        message: 'Known source IDs must be unique.',
+      });
+    }
+    if (new Set(input.knownSignalIds).size !== input.knownSignalIds.length) {
+      context.addIssue({
+        code: 'custom',
+        path: ['knownSignalIds'],
+        message: 'Known signal IDs must be unique.',
+      });
+    }
+  })
+  .meta({
+    id: 'https://signal-atlas.local/schemas/agent-turn-input.schema.json',
+    title: 'Signal Atlas Agent Turn Input',
+  });
 
 export const AgentTurnActionSchema = z.discriminatedUnion('type', [
   z.strictObject({ type: z.literal('wait'), reason: z.string().min(1) }),
@@ -133,4 +185,5 @@ export const AgentTurnOutputSchema = z
   });
 
 export type AgentTurnAction = z.infer<typeof AgentTurnActionSchema>;
+export type AgentTurnInput = z.infer<typeof AgentTurnInputSchema>;
 export type AgentTurnOutput = z.infer<typeof AgentTurnOutputSchema>;

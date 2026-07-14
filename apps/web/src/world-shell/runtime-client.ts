@@ -1,4 +1,5 @@
 import type { MissionVerb, WorldCommand, WorldEvent } from '@signal-atlas/contracts';
+import type { CodexRuntimeDiagnostics } from '@signal-atlas/codex-runtime';
 import type { WorldProjection } from '@signal-atlas/simulation';
 
 import { shellModel } from './model.js';
@@ -69,6 +70,10 @@ export async function fetchExpeditionSnapshot(): Promise<WorldProjection> {
     `/api/expeditions/${expeditionId}/snapshot`,
   );
   return response.projection;
+}
+
+export async function fetchRuntimeDiagnostics(): Promise<CodexRuntimeDiagnostics> {
+  return requestJson<CodexRuntimeDiagnostics>('/api/runtime/diagnostics');
 }
 
 export async function fetchExpeditionEvents(after = 0): Promise<{

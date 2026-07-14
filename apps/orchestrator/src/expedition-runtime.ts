@@ -1,10 +1,21 @@
 import {
+  AgentTurnInputSchema,
+  AgentTurnOutputSchema,
   parseWorldEvent,
   SCHEMA_VERSION,
   type ExpeditionFixture,
+  type AgentTurnInput,
   type WorldCommand,
   type WorldEvent,
 } from '@signal-atlas/contracts';
+import {
+  isPromiseLike,
+  type CodexDriver,
+  type CodexRuntimeDiagnostics,
+  type CodexRuntimeEvent,
+  type RuntimeTurnRecord,
+  type RuntimeTurnStatus,
+} from '@signal-atlas/codex-runtime';
 import {
   recordAcceptedCommand,
   reduceWorldEvent,
@@ -20,7 +31,7 @@ import {
 } from '@signal-atlas/simulation';
 
 import {
-  createScriptedFixtureTurn,
+  createFixtureCodexDriver,
   type FixtureMissionScenario,
   type ScriptedFixtureTurn,
 } from './fixture-mission-driver.js';
@@ -73,6 +84,12 @@ interface CommandEventPlan {
   clearScheduledForAgentId?: string;
 }
 
+export interface ExpeditionRuntimeOptions {
+  missionDriver?: CodexDriver<AgentTurnInput, ScriptedFixtureTurn>;
+  maxConcurrentTurns?: number;
+  defaultTurnTimeoutMs?: number;
+}
+
 function actorForEvent(actor: WorldCommand['actor']): WorldEvent['actor'] {
   return actor.id ? { kind: actor.kind, id: actor.id } : { kind: actor.kind };
 }
@@ -91,6 +108,9 @@ function addMilliseconds(timestamp: string, durationMs: number): string {
 
 export class ExpeditionRuntime {
   readonly #fixture: ExpeditionFixture;
+  readonly #missionDriver: CodexDriver<AgentTurnInput, ScriptedFixtureTurn>;
+  readonly #maxConcurrentTurns: number;
+  readonly #defaultTurnTimeoutMs: number;
   #projection: WorldProjection;
   #events: WorldEvent[];
   #ledger: CommandIdempotencyLedger = {};
@@ -100,10 +120,18 @@ export class ExpeditionRuntime {
   readonly #attemptByMissionId = new Map<string, number>();
   readonly #meetingsById = new Map<string, ScheduledMeeting>();
   readonly #meetingIdByMissionId = new Map<string, string>();
+  readonly #driverEvents: CodexRuntimeEvent[] = [];
   #missionScenario: FixtureMissionScenario = 'success';
 
-  constructor(fixture: ExpeditionFixture) {
+  constructor(fixture: ExpeditionFixture, options: ExpeditionRuntimeOptions = {}) {
     this.#fixture = structuredClone(fixture);
+    this.#maxConcurrentTurns = options.maxConcurrentTurns ?? 2;
+    this.#defaultTurnTimeoutMs = options.defaultTurnTimeoutMs ?? 30_000;
+    if (!Number.isInteger(this.#maxConcurrentTurns) || this.#maxConcurrentTurns < 1) {
+      throw new Error('Runtime turn concurrency must be a positive integer.');
+    }
+    this.#missionDriver =
+      options.missionDriver ?? createFixtureCodexDriver(this.#fixture, () => this.#missionScenario);
     const replay = replayFixture(this.#fixture);
     this.#projection = replay.projection;
     this.#events = structuredClone(this.#fixture.initialEvents);
@@ -129,6 +157,90 @@ export class ExpeditionRuntime {
     this.#missionScenario = scenario;
   }
 
+  runtimeDiagnostics(): CodexRuntimeDiagnostics {
+    const terminalTurns: RuntimeTurnRecord[] = Object.values(this.#projection.agentTurnsById).map(
+      (turn) => {
+        const mission = this.#projection.missionsById[turn.missionId];
+        const status: RuntimeTurnStatus =
+          turn.status === 'completed'
+            ? 'completed'
+            : turn.code?.includes('timeout')
+              ? 'timed_out'
+              : turn.code?.includes('cancel')
+                ? 'canceled'
+                : 'failed';
+        return {
+          turnId: turn.turnId,
+          expeditionId: this.expeditionId,
+          agentId: turn.agentId,
+          missionId: turn.missionId,
+          driverId: this.#missionDriver.id,
+          status,
+          attempt: this.#attemptByMissionId.get(turn.missionId) ?? 1,
+          requestedAt: mission?.startedAt ?? mission?.createdAt ?? turn.recordedAt,
+          timeoutMs: mission?.budget.timeoutMs ?? this.#defaultTurnTimeoutMs,
+          queuedAt: mission?.createdAt ?? turn.recordedAt,
+          finishedAt: turn.recordedAt,
+          ...(turn.code || turn.message
+            ? {
+                error: {
+                  code: turn.code ?? 'runtime_turn_failed',
+                  message: turn.message ?? 'The agent turn failed.',
+                  recoverable: turn.recoverable ?? false,
+                },
+              }
+            : {}),
+        };
+      },
+    );
+    const activeTurns: RuntimeTurnRecord[] = [...this.#workByAgentId.values()].map((task) => {
+      const mission = this.#projection.missionsById[task.missionId];
+      return {
+        turnId: task.turn.turnId,
+        expeditionId: this.expeditionId,
+        agentId: task.agentId,
+        missionId: task.missionId,
+        driverId: this.#missionDriver.id,
+        status: 'running',
+        attempt: task.turn.attempt,
+        requestedAt: mission?.startedAt ?? mission?.createdAt ?? this.#projection.market.updatedAt,
+        timeoutMs: mission?.budget.timeoutMs ?? this.#defaultTurnTimeoutMs,
+        queuedAt: mission?.createdAt ?? this.#projection.market.updatedAt,
+        startedAt: mission?.startedAt ?? mission?.createdAt ?? this.#projection.market.updatedAt,
+      };
+    });
+    const turns = [...terminalTurns, ...activeTurns].sort(
+      (left, right) =>
+        right.requestedAt.localeCompare(left.requestedAt) ||
+        left.turnId.localeCompare(right.turnId),
+    );
+    const turnStatuses: RuntimeTurnStatus[] = [
+      'queued',
+      'running',
+      'completed',
+      'failed',
+      'canceled',
+      'timed_out',
+    ];
+    return {
+      driver: this.#missionDriver.diagnostics(),
+      scheduler: {
+        maxConcurrency: this.#maxConcurrentTurns,
+        defaultTimeoutMs: this.#defaultTurnTimeoutMs,
+        activeCount: activeTurns.length,
+        queuedCount: 0,
+      },
+      totals: Object.fromEntries(
+        turnStatuses.map((status) => [
+          status,
+          turns.filter((turn) => turn.status === status).length,
+        ]),
+      ) as Record<RuntimeTurnStatus, number>,
+      turns,
+      recentEvents: structuredClone(this.#driverEvents.slice(-40)),
+    };
+  }
+
   resetToFixture(): void {
     const replay = replayFixture(this.#fixture);
     this.#projection = replay.projection;
@@ -140,6 +252,7 @@ export class ExpeditionRuntime {
     this.#attemptByMissionId.clear();
     this.#meetingsById.clear();
     this.#meetingIdByMissionId.clear();
+    this.#driverEvents.length = 0;
     this.#missionScenario = 'success';
   }
 
@@ -338,12 +451,54 @@ export class ExpeditionRuntime {
   ): ScheduledWork {
     const attempt = (this.#attemptByMissionId.get(mission.id) ?? 0) + 1;
     this.#attemptByMissionId.set(mission.id, attempt);
-    const turn = createScriptedFixtureTurn(this.#fixture, {
+    const agent = this.#projection.agentsById[mission.assignedAgentId];
+    if (!agent)
+      throw new Error(`Cannot schedule a turn for missing agent ${mission.assignedAgentId}.`);
+    const place = this.#projection.worldManifest.places.find(
+      (candidate) => candidate.id === effectivePlaceId,
+    );
+    const input = AgentTurnInputSchema.parse({
+      schemaVersion: SCHEMA_VERSION,
+      turnId: `turn-${mission.id}-${attempt}`,
+      expeditionId: this.expeditionId,
+      agentId: mission.assignedAgentId,
       mission,
       effectivePlaceId,
       attempt,
-      scenario: this.#missionScenario,
+      knownSourceIds: agent.knownSourceIds,
+      knownSignalIds: agent.knownSignalIds,
+      allowedCapabilities:
+        place?.capabilityBindings.map((binding) => binding.canonicalCapability) ?? [],
+      requestedAt: mission.startedAt ?? mission.createdAt,
+      timeoutMs: mission.budget.timeoutMs,
     });
+    const controller = new AbortController();
+    const driverResult = this.#missionDriver.runTurn(input, {
+      signal: controller.signal,
+      deadlineAt: addMilliseconds(input.requestedAt, input.timeoutMs),
+      emit: (detail) => {
+        this.#driverEvents.push({
+          id: `runtime-${input.turnId}-${this.#driverEvents.length + 1}`,
+          type: 'driver.event',
+          turnId: input.turnId,
+          occurredAt: input.requestedAt,
+          detail: structuredClone(detail),
+        });
+      },
+    });
+    if (isPromiseLike(driverResult)) {
+      controller.abort();
+      throw new Error(
+        `Driver ${this.#missionDriver.id} is asynchronous; schedule it through CodexTurnScheduler.`,
+      );
+    }
+    const output = AgentTurnOutputSchema.parse(driverResult.output);
+    if (output.agentId !== input.agentId || output.missionId !== input.mission.id) {
+      throw new Error('Scripted driver output identity does not match the scheduled turn.');
+    }
+    const turn = driverResult.artifacts;
+    if (!turn)
+      throw new Error(`Driver ${this.#missionDriver.id} did not return fixture artifacts.`);
     return {
       agentId: mission.assignedAgentId,
       missionId: mission.id,

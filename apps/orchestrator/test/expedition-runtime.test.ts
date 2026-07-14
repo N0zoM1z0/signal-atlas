@@ -409,6 +409,19 @@ describe('ExpeditionRuntime commands', () => {
     expect(snapshot.agentsById['mira']?.belief.probabilities['yes']).toBeCloseTo(0.495);
     expect(snapshot.agentsById['mira']?.belief.probabilities['no']).toBeCloseTo(0.505);
     expect(snapshot.missionsById['mission-mira-weather-1']?.status).toBe('completed');
+    expect(runtime.runtimeDiagnostics()).toMatchObject({
+      driver: { id: 'fixture-scripted-codex', kind: 'scripted', runs: 1 },
+      scheduler: { maxConcurrency: 2, activeCount: 0 },
+      totals: { completed: 1 },
+      turns: [
+        {
+          turnId: 'turn-mission-mira-weather-1-1',
+          agentId: 'mira',
+          missionId: 'mission-mira-weather-1',
+          status: 'completed',
+        },
+      ],
+    });
   });
 
   it('produces the same scripted events for the same seed and command sequence', () => {

@@ -50,6 +50,9 @@ importers:
 
   apps/orchestrator:
     dependencies:
+      '@signal-atlas/codex-runtime':
+        specifier: workspace:*
+        version: link:../../packages/codex-runtime
       '@signal-atlas/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
@@ -68,6 +71,9 @@ importers:
       '@signal-atlas/archive':
         specifier: workspace:*
         version: link:../../packages/archive
+      '@signal-atlas/codex-runtime':
+        specifier: workspace:*
+        version: link:../../packages/codex-runtime
       '@signal-atlas/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
@@ -116,7 +122,11 @@ importers:
         specifier: workspace:*
         version: link:../test-fixtures
 
-  packages/codex-runtime: {}
+  packages/codex-runtime:
+    dependencies:
+      '@signal-atlas/contracts':
+        specifier: workspace:*
+        version: link:../contracts
 
   packages/contracts:
     dependencies:

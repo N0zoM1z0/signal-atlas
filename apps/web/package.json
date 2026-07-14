@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@signal-atlas/archive": "workspace:*",
+    "@signal-atlas/codex-runtime": "workspace:*",
     "@signal-atlas/contracts": "workspace:*",
     "@signal-atlas/game-scene": "workspace:*",
     "@signal-atlas/simulation": "workspace:*",

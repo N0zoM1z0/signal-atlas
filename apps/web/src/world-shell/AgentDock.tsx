@@ -7,6 +7,7 @@ export interface AgentDockProps {
   mobileOpen: boolean;
   selectedAgentId: string;
   onFollowAgent: (agentId: string) => void;
+  onOpenRuntimeDiagnostics: () => void;
   onPrepareMission: (objective?: string) => void;
   onSkipTravel: (agentId: string, missionId: string) => void;
   onSelectAgent: (agentId: string) => void;
@@ -19,6 +20,7 @@ export function AgentDock({
   disconnected,
   mobileOpen,
   onFollowAgent,
+  onOpenRuntimeDiagnostics,
   onPrepareMission,
   onSkipTravel,
   onSelectAgent,
@@ -160,9 +162,9 @@ export function AgentDock({
           <i className={disconnected ? 'is-warning' : ''} aria-hidden="true" /> Pref Gateway
           <b>{disconnected ? 'Offline' : 'Fixture'}</b>
         </span>
-        <span>
+        <button onClick={onOpenRuntimeDiagnostics} type="button">
           <i aria-hidden="true" /> Codex Runtime <b>Local</b>
-        </span>
+        </button>
       </section>
     </aside>
   );
