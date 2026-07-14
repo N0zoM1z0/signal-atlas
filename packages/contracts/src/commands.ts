@@ -50,6 +50,10 @@ export const MissionReorderCommandSchema = commandVariant(
   'agent.reorder_missions',
   z.strictObject({ agentId: EntityIdSchema, orderedMissionIds: z.array(EntityIdSchema) }),
 );
+export const MissionSkipTravelCommandSchema = commandVariant(
+  'agent.skip_travel',
+  z.strictObject({ agentId: EntityIdSchema, missionId: EntityIdSchema }),
+);
 export const MeetingRequestCommandSchema = commandVariant(
   'meeting.request',
   z.strictObject({
@@ -83,6 +87,7 @@ export const WorldCommandSchema = z
     MissionAssignCommandSchema,
     MissionCancelCommandSchema,
     MissionReorderCommandSchema,
+    MissionSkipTravelCommandSchema,
     MeetingRequestCommandSchema,
     ProfessorQueryCommandSchema,
     ForecastCommitCommandSchema,

@@ -14,6 +14,7 @@ export interface HealthResponse {
 
 export interface BuildAppOptions {
   runtime?: ExpeditionRuntime;
+  runScheduler?: boolean;
 }
 
 interface ExpeditionParams {
@@ -38,6 +39,20 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
     logger: process.env['NODE_ENV'] !== 'test',
   });
   const runtime = options.runtime ?? new ExpeditionRuntime(createHelios3ExpeditionFixture());
+  const runScheduler = options.runScheduler ?? process.env['NODE_ENV'] !== 'test';
+  let scheduler: ReturnType<typeof setInterval> | undefined;
+  if (runScheduler) {
+    let previousTick = Date.now();
+    scheduler = setInterval(() => {
+      const currentTick = Date.now();
+      runtime.advance(currentTick - previousTick, new Date(currentTick).toISOString());
+      previousTick = currentTick;
+    }, 100);
+    scheduler.unref();
+  }
+  app.addHook('onClose', async () => {
+    if (scheduler) clearInterval(scheduler);
+  });
 
   app.get<{ Reply: HealthResponse }>('/api/health', async () => ({
     status: 'ok',

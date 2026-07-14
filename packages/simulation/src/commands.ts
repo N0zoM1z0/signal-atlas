@@ -229,6 +229,19 @@ export function validateWorldCommand(
       }
       break;
     }
+    case 'agent.skip_travel': {
+      requireAgent(command.payload.agentId, ['payload', 'agentId']);
+      requireMission(command.payload.missionId, ['payload', 'missionId']);
+      const agent = state.agentsById[command.payload.agentId];
+      if (agent && (!agent.movement || agent.activeMissionId !== command.payload.missionId)) {
+        addIssue(
+          'invalid_state',
+          ['payload', 'missionId'],
+          `Agent ${agent.id} is not traveling for mission ${command.payload.missionId}.`,
+        );
+      }
+      break;
+    }
     case 'meeting.request':
       requirePlace(command.payload.placeId, ['payload', 'placeId']);
       command.payload.participantAgentIds.forEach((id, index) =>

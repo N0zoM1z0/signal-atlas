@@ -88,8 +88,8 @@ describe('orchestrator health endpoint', () => {
     expect(draft.statusCode).toBe(200);
     expect(draft.json()).toMatchObject({ draft: { status: 'ready', verb: 'observe_conditions' } });
     expect(accepted.statusCode).toBe(202);
-    expect(accepted.json()).toMatchObject({ accepted: true, duplicate: false, sequence: 4 });
+    expect(accepted.json()).toMatchObject({ accepted: true, duplicate: false, sequence: 5 });
     expect(duplicate.statusCode).toBe(200);
-    expect(duplicate.json()).toMatchObject({ accepted: true, duplicate: true, sequence: 4 });
+    expect(duplicate.json()).toMatchObject({ accepted: true, duplicate: true, sequence: 5 });
   });
 });

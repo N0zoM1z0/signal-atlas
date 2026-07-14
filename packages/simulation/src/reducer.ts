@@ -144,6 +144,7 @@ function finishMission(
     agent.queuedMissionIds = agent.queuedMissionIds.filter((id) => id !== missionId);
     if (agent.activeMissionId === missionId) {
       delete agent.activeMissionId;
+      delete agent.movement;
       agent.publicState = 'idle';
     }
     return agent;
@@ -252,7 +253,7 @@ export function reduceWorldEvent(state: WorldProjection, event: WorldEvent): Wor
         expedition: {
           ...state.expedition,
           status: 'active',
-          startedAt: event.payload.startedAt,
+          startedAt: state.expedition.startedAt ?? event.payload.startedAt,
         },
       };
       break;

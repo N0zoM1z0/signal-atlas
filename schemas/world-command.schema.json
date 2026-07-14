@@ -270,6 +270,60 @@
         "payload": {
           "additionalProperties": false,
           "properties": {
+            "agentId": {
+              "$ref": "#/$defs/__schema1"
+            },
+            "missionId": {
+              "$ref": "#/$defs/__schema1"
+            }
+          },
+          "required": [
+            "agentId",
+            "missionId"
+          ],
+          "type": "object"
+        },
+        "schemaVersion": {
+          "$ref": "#/$defs/__schema5"
+        },
+        "type": {
+          "const": "agent.skip_travel",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "idempotencyKey",
+        "expeditionId",
+        "issuedAt",
+        "actor",
+        "schemaVersion",
+        "type",
+        "payload"
+      ],
+      "type": "object"
+    },
+    "__schema23": {
+      "additionalProperties": false,
+      "properties": {
+        "actor": {
+          "$ref": "#/$defs/__schema4"
+        },
+        "expeditionId": {
+          "$ref": "#/$defs/__schema1"
+        },
+        "id": {
+          "$ref": "#/$defs/__schema1"
+        },
+        "idempotencyKey": {
+          "$ref": "#/$defs/__schema2"
+        },
+        "issuedAt": {
+          "$ref": "#/$defs/__schema3"
+        },
+        "payload": {
+          "additionalProperties": false,
+          "properties": {
             "meetingId": {
               "$ref": "#/$defs/__schema1"
             },
@@ -311,7 +365,7 @@
       ],
       "type": "object"
     },
-    "__schema23": {
+    "__schema24": {
       "additionalProperties": false,
       "properties": {
         "actor": {
@@ -361,7 +415,7 @@
       ],
       "type": "object"
     },
-    "__schema24": {
+    "__schema25": {
       "enum": [
         "explain",
         "challenge",
@@ -373,15 +427,9 @@
       ],
       "type": "string"
     },
-    "__schema25": {
+    "__schema26": {
       "minLength": 1,
       "type": "string"
-    },
-    "__schema26": {
-      "items": {
-        "$ref": "#/$defs/__schema1"
-      },
-      "type": "array"
     },
     "__schema27": {
       "items": {
@@ -390,6 +438,12 @@
       "type": "array"
     },
     "__schema28": {
+      "items": {
+        "$ref": "#/$defs/__schema1"
+      },
+      "type": "array"
+    },
+    "__schema29": {
       "additionalProperties": false,
       "properties": {
         "actor": {
@@ -439,7 +493,12 @@
       ],
       "type": "object"
     },
-    "__schema29": {
+    "__schema3": {
+      "format": "date-time",
+      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+      "type": "string"
+    },
+    "__schema30": {
       "additionalProperties": false,
       "properties": {
         "id": {
@@ -459,34 +518,29 @@
       ],
       "type": "object"
     },
-    "__schema3": {
-      "format": "date-time",
-      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-      "type": "string"
-    },
-    "__schema30": {
+    "__schema31": {
       "additionalProperties": {
-        "$ref": "#/$defs/__schema31"
+        "$ref": "#/$defs/__schema32"
       },
       "propertyNames": {
         "$ref": "#/$defs/__schema1"
       },
       "type": "object"
     },
-    "__schema31": {
+    "__schema32": {
       "maximum": 1,
       "minimum": 0,
       "type": "number"
     },
-    "__schema32": {
+    "__schema33": {
       "additionalProperties": {
         "additionalProperties": false,
         "properties": {
           "high": {
-            "$ref": "#/$defs/__schema31"
+            "$ref": "#/$defs/__schema32"
           },
           "low": {
-            "$ref": "#/$defs/__schema31"
+            "$ref": "#/$defs/__schema32"
           }
         },
         "required": [
@@ -500,24 +554,24 @@
       },
       "type": "object"
     },
-    "__schema33": {
+    "__schema34": {
       "minLength": 1,
       "type": "string"
     },
-    "__schema34": {
+    "__schema35": {
       "items": {
         "$ref": "#/$defs/__schema1"
       },
       "type": "array"
     },
-    "__schema35": {
+    "__schema36": {
       "items": {
         "minLength": 1,
         "type": "string"
       },
       "type": "array"
     },
-    "__schema36": {
+    "__schema37": {
       "enum": [
         "initial",
         "revision",
@@ -526,16 +580,13 @@
       ],
       "type": "string"
     },
-    "__schema37": {
+    "__schema38": {
       "maxLength": 280,
       "type": "string"
     },
-    "__schema38": {
+    "__schema39": {
       "minLength": 1,
       "type": "string"
-    },
-    "__schema39": {
-      "type": "boolean"
     },
     "__schema4": {
       "additionalProperties": false,
@@ -558,6 +609,9 @@
       "type": "object"
     },
     "__schema40": {
+      "type": "boolean"
+    },
+    "__schema41": {
       "additionalProperties": false,
       "properties": {
         "actor": {
@@ -803,19 +857,19 @@
       "additionalProperties": false,
       "properties": {
         "actor": {
-          "$ref": "#/$defs/__schema29"
+          "$ref": "#/$defs/__schema30"
         },
         "assumptions": {
-          "$ref": "#/$defs/__schema35"
+          "$ref": "#/$defs/__schema36"
         },
         "commitType": {
-          "$ref": "#/$defs/__schema36"
+          "$ref": "#/$defs/__schema37"
         },
         "createdAt": {
           "$ref": "#/$defs/__schema3"
         },
         "evidenceSignalIds": {
-          "$ref": "#/$defs/__schema34"
+          "$ref": "#/$defs/__schema35"
         },
         "expeditionId": {
           "$ref": "#/$defs/__schema1"
@@ -824,25 +878,25 @@
           "$ref": "#/$defs/__schema1"
         },
         "newProbabilities": {
-          "$ref": "#/$defs/__schema30"
+          "$ref": "#/$defs/__schema31"
         },
         "previousProbabilities": {
-          "$ref": "#/$defs/__schema30"
+          "$ref": "#/$defs/__schema31"
         },
         "privateMemo": {
-          "$ref": "#/$defs/__schema38"
-        },
-        "publicNote": {
-          "$ref": "#/$defs/__schema37"
-        },
-        "rationale": {
-          "$ref": "#/$defs/__schema33"
-        },
-        "scoringEligible": {
           "$ref": "#/$defs/__schema39"
         },
+        "publicNote": {
+          "$ref": "#/$defs/__schema38"
+        },
+        "rationale": {
+          "$ref": "#/$defs/__schema34"
+        },
+        "scoringEligible": {
+          "$ref": "#/$defs/__schema40"
+        },
         "uncertainty": {
-          "$ref": "#/$defs/__schema32"
+          "$ref": "#/$defs/__schema33"
         }
       },
       "required": [
@@ -938,16 +992,16 @@
           "$ref": "#/$defs/__schema1"
         },
         "mode": {
-          "$ref": "#/$defs/__schema24"
-        },
-        "question": {
           "$ref": "#/$defs/__schema25"
         },
+        "question": {
+          "$ref": "#/$defs/__schema26"
+        },
         "selectedSignalIds": {
-          "$ref": "#/$defs/__schema27"
+          "$ref": "#/$defs/__schema28"
         },
         "selectedSourceIds": {
-          "$ref": "#/$defs/__schema26"
+          "$ref": "#/$defs/__schema27"
         }
       },
       "required": [
@@ -991,10 +1045,13 @@
       "$ref": "#/$defs/__schema23"
     },
     {
-      "$ref": "#/$defs/__schema28"
+      "$ref": "#/$defs/__schema24"
     },
     {
-      "$ref": "#/$defs/__schema40"
+      "$ref": "#/$defs/__schema29"
+    },
+    {
+      "$ref": "#/$defs/__schema41"
     }
   ],
   "title": "Signal Atlas World Command"

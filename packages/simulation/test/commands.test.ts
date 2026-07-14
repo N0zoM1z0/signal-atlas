@@ -169,4 +169,26 @@ describe('pure command validation', () => {
       ]),
     });
   });
+
+  it('rejects skip-travel unless the agent is moving for that mission', () => {
+    const state = createInitialWorldStateFromFixture(fixture);
+    const result = validateWorldCommand(
+      {
+        ...baseCommand,
+        id: 'cmd-skip-1',
+        idempotencyKey: 'skip-mira-travel-0001',
+        type: 'agent.skip_travel',
+        payload: { agentId: 'mira', missionId: 'mission-missing' },
+      },
+      state,
+    );
+
+    expect(result).toMatchObject({
+      accepted: false,
+      issues: expect.arrayContaining([
+        expect.objectContaining({ code: 'missing_reference' }),
+        expect.objectContaining({ code: 'invalid_state' }),
+      ]),
+    });
+  });
 });
