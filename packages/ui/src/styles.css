@@ -1,0 +1,336 @@
+@import './generated/tokens.css';
+
+:root {
+  color-scheme: dark;
+  font-family: var(--sa-typography-ui-family);
+}
+
+:where(.sa-button, .sa-tab, .sa-dialog__backdrop):focus-visible {
+  outline: 2px solid var(--sa-color-focus);
+  outline-offset: 3px;
+  box-shadow: var(--sa-shadow-focus);
+}
+
+.sa-button {
+  display: inline-flex;
+  min-width: var(--sa-size-min-touch-target);
+  min-height: var(--sa-size-min-touch-target);
+  align-items: center;
+  justify-content: center;
+  gap: var(--sa-spacing-2);
+  padding: var(--sa-spacing-2) var(--sa-spacing-4);
+  border: var(--sa-border-hairline) solid transparent;
+  border-radius: var(--sa-radius-medium);
+  color: var(--sa-color-paper-light);
+  background: transparent;
+  font-weight: var(--sa-typography-weight-semibold);
+  cursor: pointer;
+  transition:
+    background-color var(--sa-motion-fast) ease,
+    border-color var(--sa-motion-fast) ease,
+    color var(--sa-motion-fast) ease,
+    translate var(--sa-motion-fast) ease;
+}
+
+.sa-button:not(:disabled):active {
+  translate: 0 1px;
+}
+
+.sa-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+
+.sa-button--primary {
+  color: var(--sa-color-atlas-night);
+  background: var(--sa-color-weather-cyan);
+}
+
+.sa-button--primary:hover:not(:disabled) {
+  background: var(--sa-color-paper-light);
+}
+
+.sa-button--secondary {
+  border-color: var(--sa-color-harbor-blue);
+  background: var(--sa-color-deep-ink);
+}
+
+.sa-button--quiet {
+  border-color: var(--sa-color-slate-cloud);
+  color: var(--sa-color-muted-steel);
+  background: transparent;
+}
+
+.sa-button--quiet:hover:not(:disabled) {
+  color: var(--sa-color-paper-light);
+  background: var(--sa-color-slate-cloud);
+}
+
+.sa-button--danger {
+  color: var(--sa-color-paper-light);
+  background: var(--sa-color-alert-coral);
+}
+
+.sa-icon-button {
+  width: var(--sa-size-min-touch-target);
+  padding: 0;
+  font-size: var(--sa-typography-size-lg);
+}
+
+.sa-panel {
+  overflow: hidden;
+  border: var(--sa-border-hairline) solid var(--sa-color-slate-cloud);
+  border-radius: var(--sa-radius-large);
+  background: var(--sa-color-panel);
+  box-shadow: var(--sa-shadow-panel);
+}
+
+.sa-panel__header {
+  display: flex;
+  min-height: var(--sa-size-top-ribbon);
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sa-spacing-4);
+  padding: var(--sa-spacing-4) var(--sa-spacing-5);
+  border-bottom: var(--sa-border-hairline) solid var(--sa-color-slate-cloud);
+}
+
+.sa-panel__header h2,
+.sa-dialog__header h2,
+.sa-card h3 {
+  margin: 0;
+  color: var(--sa-color-paper-light);
+}
+
+.sa-panel__actions {
+  display: flex;
+  gap: var(--sa-spacing-2);
+}
+
+.sa-panel__body {
+  padding: var(--sa-spacing-5);
+}
+
+.sa-eyebrow {
+  margin: 0 0 var(--sa-spacing-1);
+  color: var(--sa-color-window-gold);
+  font-family: var(--sa-typography-display-family);
+  font-size: var(--sa-typography-size-xs);
+  font-weight: var(--sa-typography-weight-bold);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.sa-badge {
+  display: inline-flex;
+  min-height: 1.75rem;
+  align-items: center;
+  padding: var(--sa-spacing-1) var(--sa-spacing-2);
+  border: var(--sa-border-hairline) solid currentColor;
+  border-radius: var(--sa-radius-pill);
+  color: var(--sa-color-muted-steel);
+  font-size: var(--sa-typography-size-xs);
+  font-weight: var(--sa-typography-weight-semibold);
+  line-height: 1;
+}
+
+.sa-badge--yes,
+.sa-badge--success {
+  color: var(--sa-color-yes);
+}
+
+.sa-badge--no {
+  color: var(--sa-color-no);
+}
+
+.sa-badge--context {
+  color: var(--sa-color-context);
+}
+
+.sa-badge--disputed {
+  color: var(--sa-color-disputed);
+}
+
+.sa-tooltip {
+  position: relative;
+  display: inline-flex;
+}
+
+.sa-tooltip__content {
+  position: absolute;
+  z-index: var(--sa-z-index-tooltip);
+  bottom: calc(100% + var(--sa-spacing-2));
+  left: 50%;
+  width: max-content;
+  max-width: 18rem;
+  padding: var(--sa-spacing-2) var(--sa-spacing-3);
+  border: var(--sa-border-hairline) solid var(--sa-color-harbor-blue);
+  border-radius: var(--sa-radius-small);
+  opacity: 0;
+  color: var(--sa-color-paper-light);
+  background: var(--sa-color-deep-ink);
+  box-shadow: var(--sa-shadow-card);
+  font-size: var(--sa-typography-size-xs);
+  pointer-events: none;
+  transform: translate(-50%, var(--sa-spacing-1));
+  transition:
+    opacity var(--sa-motion-fast) ease,
+    transform var(--sa-motion-fast) ease;
+}
+
+.sa-tooltip:hover .sa-tooltip__content,
+.sa-tooltip:focus-within .sa-tooltip__content {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+.sa-dialog-layer {
+  position: fixed;
+  z-index: var(--sa-z-index-modal-backdrop);
+  inset: 0;
+  display: grid;
+  padding: var(--sa-spacing-6);
+  place-items: center;
+}
+
+.sa-dialog__backdrop {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  background: var(--sa-color-overlay);
+  cursor: default;
+}
+
+.sa-dialog {
+  position: relative;
+  z-index: var(--sa-z-index-modal);
+  width: min(38rem, 100%);
+  overflow: hidden;
+  border: var(--sa-border-hairline) solid var(--sa-color-harbor-blue);
+  border-radius: var(--sa-radius-large);
+  background: var(--sa-color-deep-ink);
+  box-shadow: var(--sa-shadow-panel);
+}
+
+.sa-dialog__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sa-spacing-4);
+  padding: var(--sa-spacing-4) var(--sa-spacing-5);
+  border-bottom: var(--sa-border-hairline) solid var(--sa-color-slate-cloud);
+}
+
+.sa-dialog__description {
+  margin: 0;
+  padding: var(--sa-spacing-4) var(--sa-spacing-5) 0;
+  color: var(--sa-color-muted-steel);
+  line-height: var(--sa-typography-line-height-normal);
+}
+
+.sa-dialog__body {
+  padding: var(--sa-spacing-5);
+}
+
+.sa-tab-list {
+  display: flex;
+  gap: var(--sa-spacing-1);
+  border-bottom: var(--sa-border-hairline) solid var(--sa-color-slate-cloud);
+}
+
+.sa-tab {
+  min-height: var(--sa-size-min-touch-target);
+  padding: var(--sa-spacing-2) var(--sa-spacing-4);
+  border: 0;
+  border-bottom: var(--sa-border-pixel) solid transparent;
+  color: var(--sa-color-muted-steel);
+  background: transparent;
+  cursor: pointer;
+}
+
+.sa-tab[aria-selected='true'] {
+  border-bottom-color: var(--sa-color-weather-cyan);
+  color: var(--sa-color-paper-light);
+}
+
+.sa-tab-panel {
+  padding: var(--sa-spacing-4) 0;
+  color: var(--sa-color-paper-light);
+  line-height: var(--sa-typography-line-height-normal);
+}
+
+.sa-progress__label {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: var(--sa-spacing-2);
+  color: var(--sa-color-paper-light);
+  font-size: var(--sa-typography-size-sm);
+}
+
+.sa-progress progress {
+  width: 100%;
+  height: var(--sa-spacing-2);
+  overflow: hidden;
+  border: 0;
+  border-radius: var(--sa-radius-pill);
+  background: var(--sa-color-atlas-night);
+}
+
+.sa-progress progress::-webkit-progress-bar {
+  background: var(--sa-color-atlas-night);
+}
+
+.sa-progress progress::-webkit-progress-value {
+  background: var(--sa-color-weather-cyan);
+}
+
+.sa-progress progress::-moz-progress-bar {
+  background: var(--sa-color-weather-cyan);
+}
+
+.sa-card {
+  padding: var(--sa-spacing-4);
+  border: var(--sa-border-hairline) solid var(--sa-color-slate-cloud);
+  border-left: var(--sa-border-heavy) solid var(--sa-color-context);
+  border-radius: var(--sa-radius-medium);
+  color: var(--sa-color-deep-ink);
+  background: var(--sa-color-parchment);
+  box-shadow: var(--sa-shadow-card);
+}
+
+.sa-card h3 {
+  color: var(--sa-color-deep-ink);
+}
+
+.sa-card__body {
+  margin-top: var(--sa-spacing-2);
+  color: var(--sa-color-slate-cloud);
+  line-height: var(--sa-typography-line-height-normal);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+@media (prefers-contrast: more) {
+  .sa-panel,
+  .sa-dialog,
+  .sa-card,
+  .sa-button {
+    border-width: var(--sa-border-pixel);
+  }
+}
+
+[data-contrast='high'] .sa-panel,
+[data-contrast='high'] .sa-dialog,
+[data-contrast='high'] .sa-card,
+[data-contrast='high'] .sa-button {
+  border-width: var(--sa-border-pixel);
+}

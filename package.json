@@ -17,10 +17,13 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "pnpm --recursive --if-present test",
+    "test:e2e": "playwright test --grep-invert @visual",
+    "test:visual": "playwright test --grep @visual",
     "clean": "pnpm --recursive --if-present clean"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
+    "@playwright/test": "1.61.1",
     "@types/node": "26.1.1",
     "concurrently": "10.0.3",
     "eslint": "10.7.0",

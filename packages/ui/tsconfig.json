@@ -1,9 +1,10 @@
 {
-  "extends": "../../tsconfig.package.json",
+  "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "rootDir": "src",
-    "outDir": "dist",
-    "tsBuildInfoFile": "dist/.tsbuildinfo"
+    "jsx": "react-jsx",
+    "noEmit": true,
+    "types": ["vitest/globals", "node"],
+    "tsBuildInfoFile": "node_modules/.cache/tsconfig.tsbuildinfo"
   },
-  "include": ["src"]
+  "include": ["src", "test", "vitest.config.ts"]
 }

@@ -1,1 +1,22 @@
-export const uiPackage = '@signal-atlas/ui' as const;
+export { tokens, type DesignTokens } from './generated/tokens.js';
+export {
+  Badge,
+  Button,
+  Card,
+  Dialog,
+  IconButton,
+  Panel,
+  Progress,
+  Tabs,
+  Tooltip,
+  type BadgeProps,
+  type ButtonProps,
+  type CardProps,
+  type DialogProps,
+  type IconButtonProps,
+  type PanelProps,
+  type ProgressProps,
+  type TabDefinition,
+  type TabsProps,
+  type TooltipProps,
+} from './primitives.js';

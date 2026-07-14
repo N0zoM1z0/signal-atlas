@@ -1,0 +1,135 @@
+// Generated from design-tokens.json. Do not edit manually.
+
+export const tokens = {
+  "$schema": "https://json.schemastore.org/design-tokens.json",
+  "meta": {
+    "name": "Signal Atlas Cozy Intelligence",
+    "version": "1.0.0",
+    "referenceViewport": {
+      "width": 1440,
+      "height": 900
+    },
+    "logicalTileSize": 16,
+    "worldScale": 3
+  },
+  "color": {
+    "atlasNight": "#101524",
+    "deepInk": "#182036",
+    "slateCloud": "#273451",
+    "harborBlue": "#355A78",
+    "windowGold": "#F2B84B",
+    "parchment": "#F3E5BE",
+    "paperLight": "#FFF7DE",
+    "mossSignal": "#9FD36A",
+    "weatherCyan": "#63C3D1",
+    "scholarViolet": "#A78BEA",
+    "alertCoral": "#EC6A68",
+    "mutedSteel": "#8490A8",
+    "white": "#FFFFFF",
+    "black": "#070A10",
+    "overlay": "rgba(7, 10, 16, 0.72)",
+    "panel": "rgba(24, 32, 54, 0.92)",
+    "panelSoft": "rgba(39, 52, 81, 0.78)",
+    "focus": "#FFF1A8",
+    "yes": "#9FD36A",
+    "no": "#EC6A68",
+    "context": "#63C3D1",
+    "disputed": "#F2B84B",
+    "archived": "#8490A8"
+  },
+  "spacing": {
+    "0": 0,
+    "1": 4,
+    "2": 8,
+    "3": 12,
+    "4": 16,
+    "5": 20,
+    "6": 24,
+    "8": 32,
+    "10": 40,
+    "12": 48,
+    "16": 64,
+    "18": 72,
+    "22": 88
+  },
+  "size": {
+    "topRibbon": 72,
+    "agentDock": 216,
+    "signalRail": 320,
+    "commandTray": 88,
+    "commandTrayExpanded": 260,
+    "signalCardWidth": 288,
+    "signalCardHeight": 148,
+    "portraitSmall": 32,
+    "portraitMedium": 48,
+    "portraitLarge": 64,
+    "minTouchTarget": 44
+  },
+  "radius": {
+    "none": 0,
+    "small": 4,
+    "medium": 8,
+    "large": 12,
+    "pill": 999
+  },
+  "border": {
+    "hairline": 1,
+    "pixel": 2,
+    "heavy": 3
+  },
+  "shadow": {
+    "panel": "0 12px 32px rgba(0, 0, 0, 0.28)",
+    "card": "0 6px 0 rgba(7, 10, 16, 0.28)",
+    "focus": "0 0 0 3px rgba(255, 241, 168, 0.45)",
+    "windowGlow": "0 0 24px rgba(242, 184, 75, 0.32)"
+  },
+  "typography": {
+    "displayFamily": "'Courier New', monospace",
+    "uiFamily": "Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+    "monoFamily": "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+    "size": {
+      "xs": 12,
+      "sm": 14,
+      "md": 16,
+      "lg": 18,
+      "xl": 22,
+      "2xl": 28,
+      "3xl": 36,
+      "probability": 42
+    },
+    "lineHeight": {
+      "tight": 1.15,
+      "normal": 1.45,
+      "relaxed": 1.6
+    },
+    "weight": {
+      "regular": 400,
+      "medium": 500,
+      "semibold": 600,
+      "bold": 700
+    }
+  },
+  "motion": {
+    "instant": 0,
+    "fast": 160,
+    "standard": 220,
+    "camera": 600,
+    "forecast": 500,
+    "provenance": 300,
+    "weather": 3000,
+    "worldFpsMin": 6,
+    "worldFpsMax": 12
+  },
+  "zIndex": {
+    "world": 0,
+    "worldCallout": 10,
+    "rail": 20,
+    "tray": 30,
+    "modalBackdrop": 80,
+    "modal": 90,
+    "toast": 100,
+    "tooltip": 110
+  }
+} as const;
+
+export type DesignTokens = typeof tokens;

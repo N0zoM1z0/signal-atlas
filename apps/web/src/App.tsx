@@ -1,4 +1,12 @@
+import { ComponentDemo } from './ComponentDemo.js';
+
 export function App() {
+  const pathname = typeof window === 'undefined' ? '/' : window.location.pathname;
+
+  if (pathname === '/components') {
+    return <ComponentDemo />;
+  }
+
   return (
     <main className="loading-shell" aria-labelledby="signal-atlas-title">
       <section className="loading-card">
