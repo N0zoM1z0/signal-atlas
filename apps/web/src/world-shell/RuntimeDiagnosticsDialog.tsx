@@ -101,10 +101,21 @@ export function RuntimeDiagnosticsDialog({ open, onClose }: RuntimeDiagnosticsDi
                 </span>
               </header>
               <p>{diagnostics.driver.description}</p>
+              {diagnostics.driver.activeMode === 'scripted_fallback' && (
+                <p className="atlas-runtime-driver__fallback" role="status">
+                  <strong>Scripted fallback active.</strong>{' '}
+                  {diagnostics.driver.fallback?.reason ?? 'The local executable is unavailable.'}
+                </p>
+              )}
               <dl>
                 <div>
                   <dt>Mode</dt>
-                  <dd>{diagnostics.driver.kind.replace('_', ' ')}</dd>
+                  <dd>
+                    {(diagnostics.driver.activeMode ?? diagnostics.driver.kind).replaceAll(
+                      '_',
+                      ' ',
+                    )}
+                  </dd>
                 </div>
                 <div>
                   <dt>Driver runs</dt>
@@ -116,7 +127,13 @@ export function RuntimeDiagnosticsDialog({ open, onClose }: RuntimeDiagnosticsDi
                 </div>
                 <div>
                   <dt>Process command</dt>
-                  <dd>None · scripted mode</dd>
+                  <dd>
+                    {diagnostics.driver.command ? (
+                      <code>{diagnostics.driver.command.display}</code>
+                    ) : (
+                      'None · scripted mode'
+                    )}
+                  </dd>
                 </div>
               </dl>
               {diagnostics.driver.lastError && (

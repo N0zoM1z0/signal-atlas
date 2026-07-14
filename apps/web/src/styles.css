@@ -4532,6 +4532,7 @@ kbd {
 }
 
 .atlas-runtime-driver__error,
+.atlas-runtime-driver__fallback,
 .atlas-runtime-turns__error {
   margin: 0;
   padding: var(--sa-spacing-2) var(--sa-spacing-3);
@@ -4539,6 +4540,25 @@ kbd {
   color: var(--sa-color-ember-coral);
   background: color-mix(in srgb, var(--sa-color-ember-coral) 7%, transparent);
   font-size: 9px;
+}
+
+.atlas-runtime-driver__fallback {
+  border: var(--sa-border-hairline) solid var(--sa-color-window-gold);
+  border-radius: var(--sa-radius-small);
+  background: color-mix(in srgb, var(--sa-color-window-gold) 9%, transparent);
+  color: var(--sa-color-window-gold);
+}
+
+.atlas-runtime-driver dd code {
+  display: block;
+  max-block-size: 6.5rem;
+  overflow: auto;
+  color: var(--sa-color-paper-light);
+  font-size: 8px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+  text-transform: none;
+  white-space: normal;
 }
 
 .atlas-runtime-scheduler > header > button,

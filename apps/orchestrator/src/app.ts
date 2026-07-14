@@ -5,6 +5,10 @@ import { createHelios3ExpeditionFixture } from '@signal-atlas/test-fixtures';
 import { ExpeditionRuntime } from './expedition-runtime.js';
 import { fixtureMissionScenarios, type FixtureMissionScenario } from './fixture-mission-driver.js';
 import { interpretFixtureMission } from './fixture-mission-interpreter.js';
+import {
+  createConfiguredMissionDriver,
+  type CodexMissionMode,
+} from './local-fixture-codex-driver.js';
 
 export interface HealthResponse {
   status: 'ok';
@@ -44,7 +48,28 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
     logger:
       process.env['NODE_ENV'] === 'test' ? false : { level: process.env['LOG_LEVEL'] ?? 'warn' },
   });
-  const runtime = options.runtime ?? new ExpeditionRuntime(createHelios3ExpeditionFixture());
+  const runtime =
+    options.runtime ??
+    (() => {
+      const fixture = createHelios3ExpeditionFixture();
+      const mode: CodexMissionMode =
+        process.env['SIGNAL_ATLAS_CODEX_MODE'] === 'local' ? 'local' : 'scripted';
+      return new ExpeditionRuntime(fixture, {
+        missionDriverFactory: (scenario) =>
+          createConfiguredMissionDriver(fixture, scenario, {
+            mode,
+            ...(process.env['SIGNAL_ATLAS_CODEX_EXECUTABLE']
+              ? { executable: process.env['SIGNAL_ATLAS_CODEX_EXECUTABLE'] }
+              : {}),
+            ...(process.env['SIGNAL_ATLAS_CODEX_MODEL']
+              ? { model: process.env['SIGNAL_ATLAS_CODEX_MODEL'] }
+              : {}),
+            ...(process.env['SIGNAL_ATLAS_CODEX_RUNTIME_ROOT']
+              ? { runtimeRoot: process.env['SIGNAL_ATLAS_CODEX_RUNTIME_ROOT'] }
+              : {}),
+          }),
+      });
+    })();
   const runScheduler = options.runScheduler ?? process.env['NODE_ENV'] !== 'test';
   let scheduler: ReturnType<typeof setInterval> | undefined;
   if (runScheduler) {
@@ -58,6 +83,7 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   }
   app.addHook('onClose', async () => {
     if (scheduler) clearInterval(scheduler);
+    await runtime.waitForRuntimeIdle();
   });
 
   app.get<{ Reply: HealthResponse }>('/api/health', async () => ({

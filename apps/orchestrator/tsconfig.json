@@ -5,5 +5,5 @@
     "types": ["node", "vitest/globals"],
     "tsBuildInfoFile": "node_modules/.cache/tsconfig.tsbuildinfo"
   },
-  "include": ["src", "test"]
+  "include": ["src", "test", "scripts"]
 }

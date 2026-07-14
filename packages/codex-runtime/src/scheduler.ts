@@ -69,6 +69,7 @@ export class CodexTurnScheduler<
   readonly #active = new Map<string, AbortController>();
   readonly #events: CodexRuntimeEvent[] = [];
   readonly #listeners = new Set<(event: CodexRuntimeEvent) => void>();
+  readonly #idleWaiters = new Set<() => void>();
 
   constructor(options: CodexTurnSchedulerOptions<TInput, TArtifacts>) {
     this.#driver = options.driver;
@@ -140,6 +141,7 @@ export class CodexTurnScheduler<
       this.#finish(item.input, 'canceled', error);
       item.reject(error);
       this.#pump();
+      this.#notifyIdle();
       return true;
     }
     const controller = this.#active.get(turnId);
@@ -174,13 +176,7 @@ export class CodexTurnScheduler<
 
   async waitForIdle(): Promise<void> {
     if (this.#active.size === 0 && this.#queue.length === 0) return;
-    await new Promise<void>((resolve) => {
-      const unsubscribe = this.subscribe(() => {
-        if (this.#active.size > 0 || this.#queue.length > 0) return;
-        unsubscribe();
-        resolve();
-      });
-    });
+    await new Promise<void>((resolve) => this.#idleWaiters.add(resolve));
   }
 
   #pump(): void {
@@ -255,6 +251,7 @@ export class CodexTurnScheduler<
       clearTimeout(timeout);
       this.#active.delete(input.turnId);
       this.#pump();
+      this.#notifyIdle();
     }
   }
 
@@ -294,6 +291,12 @@ export class CodexTurnScheduler<
 
   #timestamp(): string {
     return this.#now().toISOString();
+  }
+
+  #notifyIdle(): void {
+    if (this.#active.size > 0 || this.#queue.length > 0) return;
+    for (const resolve of this.#idleWaiters) resolve();
+    this.#idleWaiters.clear();
   }
 
   #emit(

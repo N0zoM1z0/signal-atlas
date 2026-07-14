@@ -7,6 +7,7 @@
     "dev": "tsx watch src/server.ts",
     "start": "node dist/server.js",
     "build": "tsc --project tsconfig.build.json",
+    "smoke:codex": "tsx scripts/run-local-codex-smoke.ts",
     "typecheck": "tsc --project tsconfig.json --noEmit --pretty false",
     "test": "vitest run",
     "clean": "rm -rf dist"

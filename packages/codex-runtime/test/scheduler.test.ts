@@ -191,4 +191,25 @@ describe('CodexTurnScheduler', () => {
       }),
     ]);
   });
+
+  it('resolves the idle barrier after the final active turn releases its slot', async () => {
+    let release!: () => void;
+    const driver = new ScriptedCodexDriver({
+      run: async (input: AgentTurnInput) => {
+        await new Promise<void>((resolve) => {
+          release = resolve;
+        });
+        return { output: turnOutput(input) };
+      },
+    });
+    const scheduler = new CodexTurnScheduler({ driver });
+    const turn = scheduler.submit(turnInput(1));
+    await allowSchedulerToPump();
+    const idle = scheduler.waitForIdle();
+
+    release();
+    await Promise.all([turn.completion, idle]);
+
+    expect(scheduler.diagnostics().scheduler.activeCount).toBe(0);
+  });
 });

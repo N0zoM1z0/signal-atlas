@@ -104,7 +104,7 @@ describe('scripted fixture mission driver', () => {
     expect(result.output).toMatchObject({
       agentId: 'mira',
       missionId: mission.id,
-      action: { type: 'investigate', capability: 'fixture.weather.advisory' },
+      action: { type: 'investigate', capability: 'local_conditions' },
       sourceIdsUsed: ['src-weather-bulletin-1'],
       proposedClaims: [{ sourceIds: ['src-weather-bulletin-1'] }],
       proposedSignals: [{ headline: 'Crosswind advisory overlaps launch window' }],

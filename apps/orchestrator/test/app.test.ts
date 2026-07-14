@@ -67,6 +67,38 @@ describe('orchestrator health endpoint', () => {
     expect(response.body).not.toContain('secret');
   });
 
+  it('selects the visible scripted fallback when local Codex is absent', async () => {
+    const previousMode = process.env['SIGNAL_ATLAS_CODEX_MODE'];
+    const previousExecutable = process.env['SIGNAL_ATLAS_CODEX_EXECUTABLE'];
+    process.env['SIGNAL_ATLAS_CODEX_MODE'] = 'local';
+    process.env['SIGNAL_ATLAS_CODEX_EXECUTABLE'] = '/definitely/missing/signal-atlas-codex';
+    try {
+      const app = buildApp();
+      openApps.push(app);
+
+      const response = await app.inject({ method: 'GET', url: '/api/runtime/diagnostics' });
+
+      expect(response.statusCode).toBe(200);
+      expect(response.json()).toMatchObject({
+        driver: {
+          kind: 'local_exec',
+          activeMode: 'scripted_fallback',
+          available: true,
+          fallback: { driverId: 'fixture-scripted-codex', used: false },
+        },
+      });
+      expect(response.body).not.toMatch(/auth\.json|api[_-]?key|bearer/iu);
+    } finally {
+      if (previousMode === undefined) delete process.env['SIGNAL_ATLAS_CODEX_MODE'];
+      else process.env['SIGNAL_ATLAS_CODEX_MODE'] = previousMode;
+      if (previousExecutable === undefined) {
+        delete process.env['SIGNAL_ATLAS_CODEX_EXECUTABLE'];
+      } else {
+        process.env['SIGNAL_ATLAS_CODEX_EXECUTABLE'] = previousExecutable;
+      }
+    }
+  });
+
   it('interprets drafts and accepts idempotent mission commands', async () => {
     const app = buildApp();
     openApps.push(app);

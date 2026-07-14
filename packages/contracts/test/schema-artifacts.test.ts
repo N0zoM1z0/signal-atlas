@@ -19,4 +19,26 @@ describe('published contract artifacts', () => {
     ) as { dependencies?: Record<string, string> };
     expect(packageJson.dependencies).toEqual({ zod: '4.4.3' });
   });
+
+  it('publishes a Codex transport schema with every object property required', () => {
+    const schema = JSON.parse(
+      readFileSync(`${schemaDirectory}agent-turn-output.codex.schema.json`, 'utf8'),
+    ) as unknown;
+    const visit = (value: unknown): void => {
+      if (Array.isArray(value)) {
+        value.forEach(visit);
+        return;
+      }
+      if (!value || typeof value !== 'object') return;
+      const record = value as Record<string, unknown>;
+      if (record['type'] === 'object' && record['properties']) {
+        expect(record['additionalProperties']).toBe(false);
+        expect(new Set(record['required'] as string[])).toEqual(
+          new Set(Object.keys(record['properties'] as Record<string, unknown>)),
+        );
+      }
+      Object.values(record).forEach(visit);
+    };
+    visit(schema);
+  });
 });

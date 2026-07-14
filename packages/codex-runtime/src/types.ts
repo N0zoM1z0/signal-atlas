@@ -43,6 +43,17 @@ export interface CodexDriverDiagnostics {
   runs: number;
   lastRunAt?: string;
   lastError?: string;
+  activeMode?: 'local_exec' | 'scripted_fallback';
+  command?: {
+    executable: string;
+    args: string[];
+    display: string;
+  };
+  fallback?: {
+    driverId: string;
+    used: boolean;
+    reason?: string;
+  };
 }
 
 export interface CodexDriver<TInput extends AgentTurnInput = AgentTurnInput, TArtifacts = unknown> {

@@ -125,7 +125,7 @@ function agentTurnOutput(input: AgentTurnInput, turn: ScriptedFixtureTurn): Agen
       turn.scenario === 'success'
         ? {
             type: 'investigate' as const,
-            capability: turn.capability,
+            capability: input.allowedCapabilities[0] ?? turn.capability,
             query: input.mission.objective,
           }
         : {

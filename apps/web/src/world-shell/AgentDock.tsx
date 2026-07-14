@@ -163,7 +163,7 @@ export function AgentDock({
           <b>{disconnected ? 'Offline' : 'Fixture'}</b>
         </span>
         <button onClick={onOpenRuntimeDiagnostics} type="button">
-          <i aria-hidden="true" /> Codex Runtime <b>Local</b>
+          <i aria-hidden="true" /> Codex Runtime <b>Inspect</b>
         </button>
       </section>
     </aside>

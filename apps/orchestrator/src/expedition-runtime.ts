@@ -9,6 +9,7 @@ import {
   type WorldEvent,
 } from '@signal-atlas/contracts';
 import {
+  CodexTurnScheduler,
   isPromiseLike,
   type CodexDriver,
   type CodexRuntimeDiagnostics,
@@ -64,8 +65,15 @@ interface ScheduledTravel {
 interface ScheduledWork {
   agentId: string;
   missionId: string;
+  turnId: string;
   remainingMs: number;
-  turn: ScriptedFixtureTurn;
+  schedulerManaged: boolean;
+  turn?: ScriptedFixtureTurn;
+  error?: {
+    code: string;
+    message: string;
+    recoverable: boolean;
+  };
 }
 
 interface ScheduledMeeting {
@@ -86,6 +94,9 @@ interface CommandEventPlan {
 
 export interface ExpeditionRuntimeOptions {
   missionDriver?: CodexDriver<AgentTurnInput, ScriptedFixtureTurn>;
+  missionDriverFactory?: (
+    scenario: () => FixtureMissionScenario,
+  ) => CodexDriver<AgentTurnInput, ScriptedFixtureTurn>;
   maxConcurrentTurns?: number;
   defaultTurnTimeoutMs?: number;
 }
@@ -111,6 +122,7 @@ export class ExpeditionRuntime {
   readonly #missionDriver: CodexDriver<AgentTurnInput, ScriptedFixtureTurn>;
   readonly #maxConcurrentTurns: number;
   readonly #defaultTurnTimeoutMs: number;
+  #turnScheduler: CodexTurnScheduler<AgentTurnInput, ScriptedFixtureTurn> | undefined;
   #projection: WorldProjection;
   #events: WorldEvent[];
   #ledger: CommandIdempotencyLedger = {};
@@ -131,7 +143,10 @@ export class ExpeditionRuntime {
       throw new Error('Runtime turn concurrency must be a positive integer.');
     }
     this.#missionDriver =
-      options.missionDriver ?? createFixtureCodexDriver(this.#fixture, () => this.#missionScenario);
+      options.missionDriver ??
+      options.missionDriverFactory?.(() => this.#missionScenario) ??
+      createFixtureCodexDriver(this.#fixture, () => this.#missionScenario);
+    this.#turnScheduler = this.#createTurnScheduler();
     const replay = replayFixture(this.#fixture);
     this.#projection = replay.projection;
     this.#events = structuredClone(this.#fixture.initialEvents);
@@ -158,6 +173,17 @@ export class ExpeditionRuntime {
   }
 
   runtimeDiagnostics(): CodexRuntimeDiagnostics {
+    if (this.#turnScheduler) {
+      const diagnostics = this.#turnScheduler.diagnostics();
+      return {
+        ...diagnostics,
+        turns: [...diagnostics.turns].sort(
+          (left, right) =>
+            right.requestedAt.localeCompare(left.requestedAt) ||
+            left.turnId.localeCompare(right.turnId),
+        ),
+      };
+    }
     const terminalTurns: RuntimeTurnRecord[] = Object.values(this.#projection.agentTurnsById).map(
       (turn) => {
         const mission = this.#projection.missionsById[turn.missionId];
@@ -196,13 +222,13 @@ export class ExpeditionRuntime {
     const activeTurns: RuntimeTurnRecord[] = [...this.#workByAgentId.values()].map((task) => {
       const mission = this.#projection.missionsById[task.missionId];
       return {
-        turnId: task.turn.turnId,
+        turnId: task.turnId,
         expeditionId: this.expeditionId,
         agentId: task.agentId,
         missionId: task.missionId,
         driverId: this.#missionDriver.id,
         status: 'running',
-        attempt: task.turn.attempt,
+        attempt: task.turn?.attempt ?? this.#attemptByMissionId.get(task.missionId) ?? 1,
         requestedAt: mission?.startedAt ?? mission?.createdAt ?? this.#projection.market.updatedAt,
         timeoutMs: mission?.budget.timeoutMs ?? this.#defaultTurnTimeoutMs,
         queuedAt: mission?.createdAt ?? this.#projection.market.updatedAt,
@@ -242,6 +268,9 @@ export class ExpeditionRuntime {
   }
 
   resetToFixture(): void {
+    for (const task of this.#workByAgentId.values()) {
+      if (task.schedulerManaged) this.#turnScheduler?.cancel(task.turnId, 'Fixture reset.');
+    }
     const replay = replayFixture(this.#fixture);
     this.#projection = replay.projection;
     this.#events = structuredClone(this.#fixture.initialEvents);
@@ -254,6 +283,12 @@ export class ExpeditionRuntime {
     this.#meetingIdByMissionId.clear();
     this.#driverEvents.length = 0;
     this.#missionScenario = 'success';
+    this.#turnScheduler = this.#createTurnScheduler();
+  }
+
+  async waitForRuntimeIdle(): Promise<void> {
+    await this.#turnScheduler?.waitForIdle();
+    await Promise.resolve();
   }
 
   submit(input: unknown): SubmitCommandResult {
@@ -291,6 +326,10 @@ export class ExpeditionRuntime {
     this.#ledger = recordAcceptedCommand(this.#ledger, command);
     if (plan.clearScheduledForAgentId) {
       this.#travelByAgentId.delete(plan.clearScheduledForAgentId);
+      const work = this.#workByAgentId.get(plan.clearScheduledForAgentId);
+      if (work?.schedulerManaged) {
+        this.#turnScheduler?.cancel(work.turnId, 'Mission canceled by an accepted world command.');
+      }
       this.#workByAgentId.delete(plan.clearScheduledForAgentId);
     }
     if (plan.scheduleTravel) {
@@ -436,6 +475,12 @@ export class ExpeditionRuntime {
 
     for (const task of existingWork) {
       if (this.#workByAgentId.get(task.agentId) !== task) continue;
+      if (task.error) {
+        this.#workByAgentId.delete(task.agentId);
+        appended.push(...this.#completeFailedScheduledWork(task, occurredAt));
+        continue;
+      }
+      if (!task.turn) continue;
       task.remainingMs -= elapsedRealMs * speed;
       if (task.remainingMs > 0) continue;
       this.#workByAgentId.delete(task.agentId);
@@ -472,6 +517,35 @@ export class ExpeditionRuntime {
       requestedAt: mission.startedAt ?? mission.createdAt,
       timeoutMs: mission.budget.timeoutMs,
     });
+    if (this.#turnScheduler) {
+      const task: ScheduledWork = {
+        agentId: mission.assignedAgentId,
+        missionId: mission.id,
+        turnId: input.turnId,
+        remainingMs: 0,
+        schedulerManaged: true,
+      };
+      const scheduled = this.#turnScheduler.submit(input);
+      void scheduled.completion
+        .then((result) => {
+          if (!result.artifacts) {
+            task.error = {
+              code: 'runtime_missing_artifacts',
+              message: `Driver ${this.#missionDriver.id} returned no mission artifacts.`,
+              recoverable: false,
+            };
+            return;
+          }
+          task.turn = result.artifacts;
+          // The process latency has already elapsed while the world remained responsive.
+          task.remainingMs = 0;
+        })
+        .catch((error: unknown) => {
+          task.error = this.#runtimeError(error);
+        });
+      return task;
+    }
+
     const controller = new AbortController();
     const driverResult = this.#missionDriver.runTurn(input, {
       signal: controller.signal,
@@ -502,13 +576,16 @@ export class ExpeditionRuntime {
     return {
       agentId: mission.assignedAgentId,
       missionId: mission.id,
+      turnId: turn.turnId,
       remainingMs: turn.latencyMs,
+      schedulerManaged: false,
       turn,
     };
   }
 
   #completeScheduledWork(task: ScheduledWork, occurredAt: string): WorldEvent[] {
     const { turn } = task;
+    if (!turn) throw new Error(`Cannot complete unresolved turn ${task.turnId}.`);
     const appended: WorldEvent[] = [];
     const emit = (label: string, type: WorldEvent['type'], payload: unknown) => {
       const event = this.#appendSystemEvent(
@@ -634,6 +711,7 @@ export class ExpeditionRuntime {
   }
 
   #beliefUpdate(task: ScheduledWork, occurredAt: string) {
+    if (!task.turn) throw new Error(`Cannot update belief from unresolved turn ${task.turnId}.`);
     const agent = this.#projection.agentsById[task.agentId];
     if (!agent) throw new Error(`Cannot update belief for missing agent ${task.agentId}.`);
     const previousProbabilities = structuredClone(agent.belief.probabilities);
@@ -669,6 +747,77 @@ export class ExpeditionRuntime {
       assumptions: ['Fixture impact ranges are directional evidence, not certainty.'],
       createdAt: occurredAt,
     };
+  }
+
+  #completeFailedScheduledWork(task: ScheduledWork, occurredAt: string): WorldEvent[] {
+    const error = task.error ?? {
+      code: 'runtime_turn_failed',
+      message: 'The Codex runtime did not return a usable result.',
+      recoverable: true,
+    };
+    const dialogue =
+      error.code === 'runtime_timeout'
+        ? 'The local Codex turn reached its time limit, so I recorded no evidence.'
+        : 'The local Codex boundary failed before a valid result was accepted. I recorded no evidence.';
+    return [
+      this.#appendSystemEvent(
+        `evt-${task.turnId}-dialogue`,
+        'agent.dialogue.emitted',
+        { agentId: task.agentId, text: dialogue, sourceIds: [], signalIds: [] },
+        occurredAt,
+        task.missionId,
+      ),
+      this.#appendSystemEvent(
+        `evt-${task.turnId}-failed`,
+        'agent.turn.failed',
+        {
+          agentId: task.agentId,
+          missionId: task.missionId,
+          turnId: task.turnId,
+          code: error.code,
+          message: error.message,
+          recoverable: error.recoverable,
+        },
+        occurredAt,
+        task.missionId,
+      ),
+      this.#appendSystemEvent(
+        `evt-${task.turnId}-mission-failed`,
+        'agent.mission.failed',
+        { missionId: task.missionId, code: error.code, message: error.message },
+        occurredAt,
+        task.missionId,
+      ),
+    ];
+  }
+
+  #runtimeError(error: unknown): NonNullable<ScheduledWork['error']> {
+    if (error && typeof error === 'object') {
+      const candidate = error as { code?: unknown; message?: unknown; recoverable?: unknown };
+      return {
+        code: typeof candidate.code === 'string' ? candidate.code : 'runtime_driver_failed',
+        message:
+          typeof candidate.message === 'string'
+            ? candidate.message
+            : 'The Codex runtime failed without a message.',
+        recoverable: typeof candidate.recoverable === 'boolean' ? candidate.recoverable : true,
+      };
+    }
+    return {
+      code: 'runtime_driver_failed',
+      message: String(error),
+      recoverable: true,
+    };
+  }
+
+  #createTurnScheduler(): CodexTurnScheduler<AgentTurnInput, ScriptedFixtureTurn> | undefined {
+    return this.#missionDriver.kind === 'local_exec'
+      ? new CodexTurnScheduler({
+          driver: this.#missionDriver,
+          maxConcurrency: this.#maxConcurrentTurns,
+          defaultTimeoutMs: this.#defaultTurnTimeoutMs,
+        })
+      : undefined;
   }
 
   #completeReadyMeetings(occurredAt: string): WorldEvent[] {
