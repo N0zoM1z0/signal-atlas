@@ -33,6 +33,19 @@ function assignmentCommand(overrides: Record<string, unknown> = {}) {
   };
 }
 
+function skipWeatherCommand() {
+  return {
+    id: 'cmd-skip-weather-result-1',
+    idempotencyKey: 'skip:weather:result:1',
+    expeditionId: 'exp-helios3-demo',
+    issuedAt: '2027-09-26T18:32:01Z',
+    actor: { kind: 'player' },
+    schemaVersion: 1,
+    type: 'agent.skip_travel',
+    payload: { agentId: 'mira', missionId: 'mission-mira-weather-1' },
+  };
+}
+
 describe('fixture mission interpretation', () => {
   it('resolves a selected agent and an unambiguous weather destination', () => {
     const runtime = new ExpeditionRuntime(createHelios3ExpeditionFixture());
@@ -280,5 +293,115 @@ describe('ExpeditionRuntime commands', () => {
     expect(fastTypes).toEqual(normalTypes);
     expect(normal.snapshot().agentsById['mira']?.publicState).toBe('working');
     expect(fast.snapshot().agentsById['mira']?.publicState).toBe('working');
+  });
+
+  it('emits the complete source-to-belief audit chain after scripted latency', () => {
+    const runtime = new ExpeditionRuntime(createHelios3ExpeditionFixture());
+    runtime.submit(assignmentCommand());
+    runtime.submit(skipWeatherCommand());
+
+    expect(runtime.advance(2_399, '2027-09-26T18:32:03.399Z')).toEqual([]);
+    const completed = runtime.advance(1, '2027-09-26T18:32:03.400Z');
+
+    expect(completed.map((event) => event.type)).toEqual([
+      'pref.call.started',
+      'source.recorded',
+      'pref.call.completed',
+      'claim.created',
+      'signal.created',
+      'agent.knowledge.acquired',
+      'agent.knowledge.acquired',
+      'agent.knowledge.acquired',
+      'belief.updated',
+      'agent.dialogue.emitted',
+      'agent.turn.completed',
+      'agent.mission.completed',
+    ]);
+    const snapshot = runtime.snapshot();
+    expect(snapshot.sourcesById['src-weather-bulletin-1']).toBeDefined();
+    expect(snapshot.claimsById['claim-crosswind']).toBeDefined();
+    expect(snapshot.signalsById['sig-crosswind']).toBeDefined();
+    expect(snapshot.knowledgeByKey['mira:signal:sig-crosswind']).toBeDefined();
+    expect(snapshot.agentsById['mira']?.belief.evidenceSignalIds).toEqual(['sig-crosswind']);
+    expect(snapshot.agentsById['mira']?.belief.probabilities['yes']).toBeCloseTo(0.495);
+    expect(snapshot.agentsById['mira']?.belief.probabilities['no']).toBeCloseTo(0.505);
+    expect(snapshot.missionsById['mission-mira-weather-1']?.status).toBe('completed');
+  });
+
+  it('produces the same scripted events for the same seed and command sequence', () => {
+    const run = () => {
+      const runtime = new ExpeditionRuntime(createHelios3ExpeditionFixture());
+      runtime.submit(assignmentCommand());
+      runtime.submit(skipWeatherCommand());
+      return runtime.advance(2_400, '2027-09-26T18:32:03.400Z');
+    };
+
+    expect(run()).toEqual(run());
+  });
+
+  it.each(['timeout', 'invalid_result'] as const)(
+    'records a recoverable %s failure and completes a later successful retry',
+    (scenario) => {
+      const runtime = new ExpeditionRuntime(createHelios3ExpeditionFixture());
+      runtime.setFixtureMissionScenario(scenario);
+      runtime.submit(assignmentCommand());
+      runtime.submit(skipWeatherCommand());
+
+      const failedEvents = runtime.advance(2_400, '2027-09-26T18:32:03.400Z');
+      expect(failedEvents.map((event) => event.type)).toEqual([
+        'pref.call.started',
+        'pref.call.failed',
+        'agent.dialogue.emitted',
+        'agent.turn.failed',
+        'agent.mission.failed',
+      ]);
+      const failedTurn = Object.values(runtime.snapshot().agentTurnsById).at(-1);
+      expect(failedTurn).toMatchObject({ status: 'failed', recoverable: true });
+
+      runtime.setFixtureMissionScenario('success');
+      const retry = runtime.submit({
+        id: `cmd-retry-${scenario}-1`,
+        idempotencyKey: `retry:${scenario}:1`,
+        expeditionId: 'exp-helios3-demo',
+        issuedAt: '2027-09-26T18:32:04Z',
+        actor: { kind: 'player' },
+        schemaVersion: 1,
+        type: 'runtime.retry_turn',
+        payload: {
+          agentId: 'mira',
+          missionId: 'mission-mira-weather-1',
+          failedTurnId: failedTurn?.turnId ?? '',
+        },
+      });
+      expect(retry).toMatchObject({
+        accepted: true,
+        events: [{ type: 'agent.work.started' }],
+      });
+
+      runtime.advance(2_400, '2027-09-26T18:32:06.400Z');
+      expect(runtime.snapshot().missionsById['mission-mira-weather-1']).toMatchObject({
+        status: 'completed',
+        completedAt: '2027-09-26T18:32:06.400Z',
+      });
+      expect(runtime.snapshot().signalsById['sig-crosswind']).toBeDefined();
+    },
+  );
+
+  it('completes a no-result turn without inventing evidence', () => {
+    const runtime = new ExpeditionRuntime(createHelios3ExpeditionFixture());
+    runtime.setFixtureMissionScenario('no_result');
+    runtime.submit(assignmentCommand());
+    runtime.submit(skipWeatherCommand());
+
+    const events = runtime.advance(2_400, '2027-09-26T18:32:03.400Z');
+
+    expect(events.map((event) => event.type)).toEqual([
+      'pref.call.started',
+      'pref.call.completed',
+      'agent.dialogue.emitted',
+      'agent.turn.completed',
+      'agent.mission.completed',
+    ]);
+    expect(runtime.snapshot().signalsById).toEqual({});
   });
 });

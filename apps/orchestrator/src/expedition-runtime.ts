@@ -11,12 +11,19 @@ import {
   replayFixture,
   selectRoutePlan,
   validateWorldCommand,
+  knowledgeKey,
   type CommandIdempotencyLedger,
   type CommandValidationIssue,
   type RouteLeg,
   type RoutePlan,
   type WorldProjection,
 } from '@signal-atlas/simulation';
+
+import {
+  createScriptedFixtureTurn,
+  type FixtureMissionScenario,
+  type ScriptedFixtureTurn,
+} from './fixture-mission-driver.js';
 
 export interface AcceptedCommandResult {
   accepted: true;
@@ -42,10 +49,18 @@ interface ScheduledTravel {
   emittedProgressStep: number;
 }
 
+interface ScheduledWork {
+  agentId: string;
+  missionId: string;
+  remainingMs: number;
+  turn: ScriptedFixtureTurn;
+}
+
 interface CommandEventPlan {
   events: WorldEvent[];
-  schedule?: ScheduledTravel;
-  clearTravelForAgentId?: string;
+  scheduleTravel?: ScheduledTravel;
+  scheduleWork?: ScheduledWork;
+  clearScheduledForAgentId?: string;
 }
 
 function actorForEvent(actor: WorldCommand['actor']): WorldEvent['actor'] {
@@ -71,6 +86,9 @@ export class ExpeditionRuntime {
   #ledger: CommandIdempotencyLedger = {};
   readonly #acceptedByKey = new Map<string, AcceptedCommandResult>();
   readonly #travelByAgentId = new Map<string, ScheduledTravel>();
+  readonly #workByAgentId = new Map<string, ScheduledWork>();
+  readonly #attemptByMissionId = new Map<string, number>();
+  #missionScenario: FixtureMissionScenario = 'success';
 
   constructor(fixture: ExpeditionFixture) {
     this.#fixture = structuredClone(fixture);
@@ -91,6 +109,14 @@ export class ExpeditionRuntime {
     return structuredClone(this.#events.filter((event) => event.sequence > sequence));
   }
 
+  fixtureConfiguration(): { seed: string; missionScenario: FixtureMissionScenario } {
+    return { seed: this.#fixture.seed, missionScenario: this.#missionScenario };
+  }
+
+  setFixtureMissionScenario(scenario: FixtureMissionScenario): void {
+    this.#missionScenario = scenario;
+  }
+
   resetToFixture(): void {
     const replay = replayFixture(this.#fixture);
     this.#projection = replay.projection;
@@ -98,6 +124,9 @@ export class ExpeditionRuntime {
     this.#ledger = {};
     this.#acceptedByKey.clear();
     this.#travelByAgentId.clear();
+    this.#workByAgentId.clear();
+    this.#attemptByMissionId.clear();
+    this.#missionScenario = 'success';
   }
 
   submit(input: unknown): SubmitCommandResult {
@@ -133,8 +162,14 @@ export class ExpeditionRuntime {
     this.#projection = nextProjection;
     this.#events = [...this.#events, ...plan.events];
     this.#ledger = recordAcceptedCommand(this.#ledger, command);
-    if (plan.clearTravelForAgentId) this.#travelByAgentId.delete(plan.clearTravelForAgentId);
-    if (plan.schedule) this.#travelByAgentId.set(plan.schedule.agentId, plan.schedule);
+    if (plan.clearScheduledForAgentId) {
+      this.#travelByAgentId.delete(plan.clearScheduledForAgentId);
+      this.#workByAgentId.delete(plan.clearScheduledForAgentId);
+    }
+    if (plan.scheduleTravel) {
+      this.#travelByAgentId.set(plan.scheduleTravel.agentId, plan.scheduleTravel);
+    }
+    if (plan.scheduleWork) this.#workByAgentId.set(plan.scheduleWork.agentId, plan.scheduleWork);
     const result: AcceptedCommandResult = {
       accepted: true,
       duplicate: false,
@@ -154,6 +189,11 @@ export class ExpeditionRuntime {
     if (speed === 0) return [];
 
     const appended: WorldEvent[] = [];
+    // Capture existing work first so a long tick cannot count the same elapsed time toward both
+    // the final travel leg and newly-started location work.
+    const existingWork = [...this.#workByAgentId.values()].sort((left, right) =>
+      left.agentId.localeCompare(right.agentId),
+    );
     const tasks = [...this.#travelByAgentId.values()].sort((left, right) =>
       left.agentId.localeCompare(right.agentId),
     );
@@ -230,11 +270,212 @@ export class ExpeditionRuntime {
             ),
           );
           this.#travelByAgentId.delete(task.agentId);
+          const mission = this.#projection.missionsById[task.missionId];
+          if (mission) {
+            const effectivePlaceId =
+              mission.destinationPlaceId ??
+              this.#projection.agentsById[task.agentId]?.placeId ??
+              task.plan.toPlaceId;
+            const scheduled = this.#createScheduledWork(mission, effectivePlaceId);
+            this.#workByAgentId.set(task.agentId, scheduled);
+          }
         }
       }
     }
 
+    for (const task of existingWork) {
+      if (this.#workByAgentId.get(task.agentId) !== task) continue;
+      task.remainingMs -= elapsedRealMs * speed;
+      if (task.remainingMs > 0) continue;
+      this.#workByAgentId.delete(task.agentId);
+      appended.push(...this.#completeScheduledWork(task, occurredAt));
+    }
+
     return structuredClone(appended);
+  }
+
+  #createScheduledWork(
+    mission: WorldProjection['missionsById'][string],
+    effectivePlaceId: string,
+  ): ScheduledWork {
+    const attempt = (this.#attemptByMissionId.get(mission.id) ?? 0) + 1;
+    this.#attemptByMissionId.set(mission.id, attempt);
+    const turn = createScriptedFixtureTurn(this.#fixture, {
+      mission,
+      effectivePlaceId,
+      attempt,
+      scenario: this.#missionScenario,
+    });
+    return {
+      agentId: mission.assignedAgentId,
+      missionId: mission.id,
+      remainingMs: turn.latencyMs,
+      turn,
+    };
+  }
+
+  #completeScheduledWork(task: ScheduledWork, occurredAt: string): WorldEvent[] {
+    const { turn } = task;
+    const appended: WorldEvent[] = [];
+    const emit = (label: string, type: WorldEvent['type'], payload: unknown) => {
+      const event = this.#appendSystemEvent(
+        `evt-${turn.turnId}-${label}`,
+        type,
+        payload,
+        occurredAt,
+        task.missionId,
+      );
+      appended.push(event);
+    };
+
+    emit('pref-started', 'pref.call.started', {
+      callId: turn.callId,
+      missionId: task.missionId,
+      agentId: task.agentId,
+      capability: turn.capability,
+      argumentsHash: turn.argumentsHash,
+    });
+
+    if (turn.scenario === 'timeout' || turn.scenario === 'invalid_result') {
+      const invalid = turn.scenario === 'invalid_result';
+      const code = invalid ? 'fixture_invalid_result' : 'fixture_timeout';
+      const message = invalid
+        ? 'The scripted source response did not satisfy the result contract.'
+        : 'The scripted source request exceeded its injected time limit.';
+      emit('pref-failed', 'pref.call.failed', {
+        callId: turn.callId,
+        code,
+        message,
+        retryable: true,
+      });
+      emit('dialogue', 'agent.dialogue.emitted', {
+        agentId: task.agentId,
+        text: turn.dialogue,
+        sourceIds: [],
+        signalIds: [],
+      });
+      emit('failed', 'agent.turn.failed', {
+        agentId: task.agentId,
+        missionId: task.missionId,
+        turnId: turn.turnId,
+        code,
+        message,
+        recoverable: true,
+      });
+      emit('mission-failed', 'agent.mission.failed', {
+        missionId: task.missionId,
+        code,
+        message,
+      });
+      return appended;
+    }
+
+    for (const source of turn.sources) {
+      if (!this.#projection.sourcesById[source.id]) {
+        emit(`source-${source.id}`, 'source.recorded', { source });
+      }
+    }
+    emit('pref-completed', 'pref.call.completed', {
+      callId: turn.callId,
+      sourceIds: turn.sources.map((source) => source.id),
+      durationMs: turn.latencyMs,
+    });
+    for (const claim of turn.claims) {
+      if (!this.#projection.claimsById[claim.id]) {
+        emit(`claim-${claim.id}`, 'claim.created', { claim });
+      }
+    }
+    for (const signal of turn.signals) {
+      if (!this.#projection.signalsById[signal.id]) {
+        emit(`signal-${signal.id}`, 'signal.created', { signal });
+      }
+    }
+
+    const shouldUpdateBelief = turn.signals.some(
+      (signal) => !this.#projection.knowledgeByKey[knowledgeKey(task.agentId, 'signal', signal.id)],
+    );
+    for (const [objectType, values] of [
+      ['source', turn.sources],
+      ['claim', turn.claims],
+      ['signal', turn.signals],
+    ] as const) {
+      for (const value of values) {
+        if (this.#projection.knowledgeByKey[knowledgeKey(task.agentId, objectType, value.id)]) {
+          continue;
+        }
+        emit(`knowledge-${objectType}-${value.id}`, 'agent.knowledge.acquired', {
+          knowledge: {
+            agentId: task.agentId,
+            objectType,
+            objectId: value.id,
+            acquiredAt: occurredAt,
+            acquisition: { kind: 'retrieved', missionId: task.missionId },
+          },
+        });
+      }
+    }
+
+    if (shouldUpdateBelief && turn.signals.length > 0) {
+      emit('belief', 'belief.updated', {
+        update: this.#beliefUpdate(task, occurredAt),
+      });
+    }
+    emit('dialogue', 'agent.dialogue.emitted', {
+      agentId: task.agentId,
+      text: turn.dialogue,
+      sourceIds: turn.sources.map((source) => source.id),
+      signalIds: turn.signals.map((signal) => signal.id),
+    });
+    emit('completed', 'agent.turn.completed', {
+      agentId: task.agentId,
+      missionId: task.missionId,
+      turnId: turn.turnId,
+      sourceIds: turn.sources.map((source) => source.id),
+      signalIds: turn.signals.map((signal) => signal.id),
+    });
+    emit('mission-completed', 'agent.mission.completed', {
+      missionId: task.missionId,
+      completedAt: occurredAt,
+    });
+    return appended;
+  }
+
+  #beliefUpdate(task: ScheduledWork, occurredAt: string) {
+    const agent = this.#projection.agentsById[task.agentId];
+    if (!agent) throw new Error(`Cannot update belief for missing agent ${task.agentId}.`);
+    const previousProbabilities = structuredClone(agent.belief.probabilities);
+    const newProbabilities = { ...previousProbabilities };
+
+    for (const signal of task.turn.signals) {
+      const targetOutcomeId = signal.targetOutcomeId;
+      const range = signal.impact.probabilityPointRange;
+      if (!targetOutcomeId || !range || newProbabilities[targetOutcomeId] === undefined) continue;
+      const previousTarget = newProbabilities[targetOutcomeId];
+      const target = Math.min(0.99, Math.max(0.01, previousTarget + (range.low + range.high) / 2));
+      const previousRemainder = 1 - previousTarget;
+      const nextRemainder = 1 - target;
+      newProbabilities[targetOutcomeId] = target;
+      const otherOutcomeIds = Object.keys(newProbabilities).filter((id) => id !== targetOutcomeId);
+      for (const outcomeId of otherOutcomeIds) {
+        const weight =
+          previousRemainder > 0
+            ? (newProbabilities[outcomeId] ?? 0) / previousRemainder
+            : 1 / otherOutcomeIds.length;
+        newProbabilities[outcomeId] = nextRemainder * weight;
+      }
+    }
+
+    return {
+      id: `belief-${task.turn.turnId}`,
+      expeditionId: this.expeditionId,
+      actor: { kind: 'agent' as const, id: task.agentId },
+      previousProbabilities,
+      newProbabilities,
+      rationale: `Updated from ${task.turn.signals.map((signal) => signal.headline).join('; ')}.`,
+      evidenceSignalIds: task.turn.signals.map((signal) => signal.id),
+      assumptions: ['Fixture impact ranges are directional evidence, not certainty.'],
+      createdAt: occurredAt,
+    };
   }
 
   #appendSystemEvent(
@@ -334,7 +575,13 @@ export class ExpeditionRuntime {
               missionId: mission.id,
             }),
           );
-          return { events };
+          return {
+            events,
+            scheduleWork: this.#createScheduledWork(
+              mission,
+              mission.destinationPlaceId ?? agent.placeId,
+            ),
+          };
         }
         const routePlan = selectRoutePlan(
           this.#projection.worldManifest,
@@ -352,7 +599,7 @@ export class ExpeditionRuntime {
         );
         return {
           events,
-          schedule: {
+          scheduleTravel: {
             agentId: agent.id,
             missionId: mission.id,
             plan: routePlan,
@@ -368,7 +615,7 @@ export class ExpeditionRuntime {
         return {
           events: [event(1, 'agent.mission.canceled', command.payload)],
           ...(mission && agent?.activeMissionId === mission.id
-            ? { clearTravelForAgentId: mission.assignedAgentId }
+            ? { clearScheduledForAgentId: mission.assignedAgentId }
             : {}),
         };
       }
@@ -412,13 +659,50 @@ export class ExpeditionRuntime {
             missionId: task.missionId,
           }),
         );
-        return { events, clearTravelForAgentId: task.agentId };
+        const mission = this.#projection.missionsById[task.missionId];
+        if (!mission) return undefined;
+        return {
+          events,
+          clearScheduledForAgentId: task.agentId,
+          scheduleWork: this.#createScheduledWork(
+            mission,
+            mission.destinationPlaceId ?? this.#projection.agentsById[task.agentId]?.placeId ?? '',
+          ),
+        };
       }
       case 'meeting.request':
       case 'professor.query':
       case 'forecast.commit':
-      case 'runtime.retry_turn':
         return undefined;
+      case 'runtime.retry_turn': {
+        const failedTurn = this.#projection.agentTurnsById[command.payload.failedTurnId];
+        const mission = this.#projection.missionsById[command.payload.missionId];
+        const agent = this.#projection.agentsById[command.payload.agentId];
+        if (
+          !failedTurn ||
+          failedTurn.status !== 'failed' ||
+          !failedTurn.recoverable ||
+          failedTurn.agentId !== command.payload.agentId ||
+          failedTurn.missionId !== command.payload.missionId ||
+          !mission ||
+          mission.status !== 'failed' ||
+          !agent
+        ) {
+          return undefined;
+        }
+        return {
+          events: [
+            event(1, 'agent.work.started', {
+              agentId: command.payload.agentId,
+              missionId: command.payload.missionId,
+            }),
+          ],
+          scheduleWork: this.#createScheduledWork(
+            mission,
+            mission.destinationPlaceId ?? agent.placeId,
+          ),
+        };
+      }
     }
   }
 }

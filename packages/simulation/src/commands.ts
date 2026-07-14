@@ -329,17 +329,38 @@ export function validateWorldCommand(
       }
       break;
     }
-    case 'runtime.retry_turn':
+    case 'runtime.retry_turn': {
       requireAgent(command.payload.agentId, ['payload', 'agentId']);
       requireMission(command.payload.missionId, ['payload', 'missionId']);
-      if (!state.agentTurnsById[command.payload.failedTurnId]) {
+      const turn = state.agentTurnsById[command.payload.failedTurnId];
+      const mission = state.missionsById[command.payload.missionId];
+      if (!turn) {
         addIssue(
           'missing_reference',
           ['payload', 'failedTurnId'],
           `Failed turn ${command.payload.failedTurnId} does not exist.`,
         );
+      } else if (
+        turn.status !== 'failed' ||
+        !turn.recoverable ||
+        turn.agentId !== command.payload.agentId ||
+        turn.missionId !== command.payload.missionId
+      ) {
+        addIssue(
+          'invalid_state',
+          ['payload', 'failedTurnId'],
+          `Turn ${turn.turnId} is not a recoverable failure for the selected agent and mission.`,
+        );
+      }
+      if (mission && mission.status !== 'failed') {
+        addIssue(
+          'invalid_state',
+          ['payload', 'missionId'],
+          `Mission ${mission.id} must be failed before its turn can be retried.`,
+        );
       }
       break;
+    }
     default:
       unknownCommand(command);
   }

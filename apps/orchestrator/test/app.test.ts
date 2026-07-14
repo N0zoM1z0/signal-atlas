@@ -92,4 +92,33 @@ describe('orchestrator health endpoint', () => {
     expect(duplicate.statusCode).toBe(200);
     expect(duplicate.json()).toMatchObject({ accepted: true, duplicate: true, sequence: 5 });
   });
+
+  it('switches fixture result scenarios through a validated configuration endpoint', async () => {
+    const app = buildApp();
+    openApps.push(app);
+
+    const initial = await app.inject({
+      method: 'GET',
+      url: '/api/expeditions/exp-helios3-demo/fixture-configuration',
+    });
+    const changed = await app.inject({
+      method: 'PUT',
+      url: '/api/expeditions/exp-helios3-demo/fixture-configuration',
+      payload: { missionScenario: 'timeout' },
+    });
+    const rejected = await app.inject({
+      method: 'PUT',
+      url: '/api/expeditions/exp-helios3-demo/fixture-configuration',
+      payload: { missionScenario: 'surprise' },
+    });
+
+    expect(initial.json()).toMatchObject({
+      seed: 'helios3-cozy-intelligence-v1',
+      missionScenario: 'success',
+    });
+    expect(changed.statusCode).toBe(200);
+    expect(changed.json()).toMatchObject({ missionScenario: 'timeout' });
+    expect(rejected.statusCode).toBe(400);
+    expect(rejected.json()).toMatchObject({ error: 'invalid_fixture_mission_scenario' });
+  });
 });

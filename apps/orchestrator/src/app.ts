@@ -3,6 +3,7 @@ import Fastify, { type FastifyInstance } from 'fastify';
 import { createHelios3ExpeditionFixture } from '@signal-atlas/test-fixtures';
 
 import { ExpeditionRuntime } from './expedition-runtime.js';
+import { fixtureMissionScenarios, type FixtureMissionScenario } from './fixture-mission-driver.js';
 import { interpretFixtureMission } from './fixture-mission-interpreter.js';
 
 export interface HealthResponse {
@@ -28,6 +29,10 @@ interface EventsQuery {
 interface InterpretMissionBody {
   text?: unknown;
   selectedAgentId?: unknown;
+}
+
+interface FixtureScenarioBody {
+  missionScenario?: unknown;
 }
 
 function statusForRejectedCommand(issues: readonly { code: string }[]): number {
@@ -80,6 +85,37 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
         return reply.code(400).send({ error: 'invalid_sequence' });
       }
       return { events: runtime.eventsAfter(after), sequence: runtime.snapshot().sequence };
+    },
+  );
+
+  app.get<{ Params: ExpeditionParams }>(
+    '/api/expeditions/:id/fixture-configuration',
+    async (request, reply) => {
+      if (request.params.id !== runtime.expeditionId) {
+        return reply.code(404).send({ error: 'expedition_not_found' });
+      }
+      return runtime.fixtureConfiguration();
+    },
+  );
+
+  app.put<{ Params: ExpeditionParams; Body: FixtureScenarioBody }>(
+    '/api/expeditions/:id/fixture-configuration',
+    async (request, reply) => {
+      if (request.params.id !== runtime.expeditionId) {
+        return reply.code(404).send({ error: 'expedition_not_found' });
+      }
+      const scenario = request.body?.missionScenario;
+      if (
+        typeof scenario !== 'string' ||
+        !fixtureMissionScenarios.includes(scenario as FixtureMissionScenario)
+      ) {
+        return reply.code(400).send({
+          error: 'invalid_fixture_mission_scenario',
+          allowed: fixtureMissionScenarios,
+        });
+      }
+      runtime.setFixtureMissionScenario(scenario as FixtureMissionScenario);
+      return runtime.fixtureConfiguration();
     },
   );
 

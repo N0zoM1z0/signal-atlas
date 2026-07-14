@@ -490,11 +490,15 @@ export function reduceWorldEvent(state: WorldProjection, event: WorldEvent): Wor
           );
         }
       }
-      next = updateMission(state, mission.id, (current) => ({
-        ...current,
-        status: 'running',
-        startedAt: current.startedAt ?? event.occurredAt,
-      }));
+      next = updateMission(state, mission.id, (current) => {
+        const running = {
+          ...current,
+          status: 'running' as const,
+          startedAt: current.startedAt ?? event.occurredAt,
+        };
+        delete running.completedAt;
+        return running;
+      });
       next = updateAgent(next, event.payload.agentId, (agent) => ({
         ...agent,
         activeMissionId: mission.id,
