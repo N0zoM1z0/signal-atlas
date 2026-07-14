@@ -143,7 +143,14 @@ importers:
         specifier: 3.90.0
         version: 3.90.0
 
-  packages/pref-gateway: {}
+  packages/pref-gateway:
+    dependencies:
+      '@signal-atlas/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      zod:
+        specifier: 4.4.3
+        version: 4.4.3
 
   packages/simulation:
     dependencies:
