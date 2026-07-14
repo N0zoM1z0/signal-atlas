@@ -1869,6 +1869,21 @@ kbd {
   box-shadow: var(--sa-shadow-panel);
 }
 
+.atlas-command-draft,
+.atlas-queue-list {
+  min-width: 0;
+  max-height: 100%;
+  overflow: auto;
+}
+
+.atlas-command-draft > header,
+.atlas-queue-list > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sa-spacing-3);
+}
+
 .atlas-command-queue h2 {
   margin: var(--sa-spacing-1) 0;
   font-family: var(--sa-typography-display-family);
@@ -1881,6 +1896,104 @@ kbd {
   color: var(--sa-color-muted-steel);
   font-size: var(--sa-typography-size-xs);
   line-height: var(--sa-typography-line-height-normal);
+}
+
+.atlas-secondary-action,
+.atlas-draft-actions button,
+.atlas-queue-actions button {
+  min-height: var(--sa-spacing-8);
+  padding: 0 var(--sa-spacing-2);
+  border: var(--sa-border-hairline) solid var(--sa-color-slate-cloud);
+  border-radius: var(--sa-radius-small);
+  color: var(--sa-color-paper-light);
+  background: var(--sa-color-atlas-night);
+  font-size: 9px;
+}
+
+.atlas-draft-form {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--sa-spacing-2);
+  margin-top: var(--sa-spacing-2);
+}
+
+.atlas-draft-form label {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+  color: var(--sa-color-muted-steel);
+  font-family: var(--sa-typography-mono-family);
+  font-size: 8px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.atlas-draft-form input,
+.atlas-draft-form select {
+  min-width: 0;
+  min-height: var(--sa-spacing-8);
+  padding: 0 var(--sa-spacing-2);
+  border: var(--sa-border-hairline) solid var(--sa-color-slate-cloud);
+  border-radius: var(--sa-radius-small);
+  color: var(--sa-color-paper-light);
+  background: var(--sa-color-atlas-night);
+  font: inherit;
+  font-size: 9px;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.atlas-draft-objective {
+  grid-column: 1 / -1;
+}
+
+.atlas-draft-form > p {
+  align-self: center;
+  grid-column: 1 / 3;
+  color: var(--sa-color-window-gold);
+  font-size: 9px;
+}
+
+.atlas-draft-form > p[data-ready='true'] {
+  color: var(--sa-color-moss-signal);
+}
+
+.atlas-draft-form > .atlas-command-error {
+  grid-column: 1 / -1;
+  color: var(--sa-color-alert-coral);
+}
+
+.atlas-draft-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--sa-spacing-2);
+}
+
+.atlas-draft-actions button:last-child {
+  border-color: var(--sa-color-weather-cyan);
+  color: var(--sa-color-atlas-night);
+  background: var(--sa-color-weather-cyan);
+  font-weight: var(--sa-typography-weight-bold);
+}
+
+.atlas-draft-actions button:disabled,
+.atlas-queue-actions button:disabled {
+  opacity: 0.45;
+}
+
+.atlas-queue-list > header strong {
+  color: var(--sa-color-weather-cyan);
+  font-family: var(--sa-typography-mono-family);
+  font-size: 9px;
+}
+
+.atlas-empty-queue {
+  margin-top: var(--sa-spacing-4) !important;
+  padding: var(--sa-spacing-4);
+  border: var(--sa-border-hairline) dashed var(--sa-color-slate-cloud);
+  border-radius: var(--sa-radius-small);
+  text-align: center;
 }
 
 .atlas-command-queue ol {
@@ -1902,7 +2015,12 @@ kbd {
   background: var(--sa-color-atlas-night);
 }
 
-.atlas-command-queue li > span {
+.atlas-command-queue li > span:nth-child(2) {
+  display: grid;
+  min-width: 0;
+}
+
+.atlas-command-queue li > span:first-child {
   display: grid;
   width: var(--sa-spacing-8);
   height: var(--sa-spacing-8);
@@ -1922,6 +2040,16 @@ kbd {
 .atlas-command-queue li small {
   color: var(--sa-color-muted-steel);
   font-size: 9px;
+}
+
+.atlas-queue-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--sa-spacing-1);
+}
+
+.atlas-queue-actions button:last-child {
+  color: var(--sa-color-alert-coral);
 }
 
 @keyframes atlas-cloud-drift {
@@ -2085,6 +2213,17 @@ kbd {
     grid-template-columns: 1fr;
     gap: var(--sa-spacing-4);
     overflow: auto;
+  }
+
+  .atlas-draft-form {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .atlas-draft-form label:nth-of-type(3),
+  .atlas-draft-objective,
+  .atlas-draft-form > p,
+  .atlas-draft-actions {
+    grid-column: 1 / -1;
   }
 }
 

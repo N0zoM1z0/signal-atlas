@@ -14,6 +14,6 @@ describe('Signal Atlas world shell', () => {
     expect(markup).toContain('aria-label="Signals"');
     expect(markup).toContain('aria-label="Agent command desk"');
     expect(markup).toContain('Fixture preview · staged until mission events');
-    expect(markup).toContain('Check whether the weather advisory');
+    expect(markup).toContain('Check latest weather at Galehaven Weather Tower');
   });
 });

@@ -7,6 +7,7 @@ export interface AgentDockProps {
   mobileOpen: boolean;
   selectedAgentId: string;
   onFollowAgent: (agentId: string) => void;
+  onPrepareMission: (objective?: string) => void;
   onSelectAgent: (agentId: string) => void;
   onToggleCollapsed: () => void;
 }
@@ -17,6 +18,7 @@ export function AgentDock({
   disconnected,
   mobileOpen,
   onFollowAgent,
+  onPrepareMission,
   onSelectAgent,
   onToggleCollapsed,
   selectedAgentId,
@@ -101,18 +103,24 @@ export function AgentDock({
         <section className="atlas-mission-board" aria-labelledby="mission-board-title">
           <header>
             <h3 id="mission-board-title">Mission board</h3>
-            <button aria-label="Add mission draft" type="button">
+            <button aria-label="Add mission draft" onClick={() => onPrepareMission()} type="button">
               +
             </button>
           </header>
-          <button type="button">
+          <button
+            onClick={() => onPrepareMission('Check latest weather at Galehaven Weather Tower')}
+            type="button"
+          >
             <span aria-hidden="true">↗</span>
             <span>
               <strong>Check latest weather</strong>
               <small>Galehaven Weather Tower</small>
             </span>
           </button>
-          <button type="button">
+          <button
+            onClick={() => onPrepareMission('Search historical delays in Archive Quarter')}
+            type="button"
+          >
             <span aria-hidden="true">▤</span>
             <span>
               <strong>Search historical delays</strong>

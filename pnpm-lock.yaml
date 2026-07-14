@@ -65,6 +65,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@signal-atlas/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
       '@signal-atlas/game-scene':
         specifier: workspace:*
         version: link:../../packages/game-scene

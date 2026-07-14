@@ -110,4 +110,60 @@ describe('ExpeditionRuntime commands', () => {
     );
     expect(runtime.snapshot().sequence).toBe(4);
   });
+
+  it('reorders and cancels queued missions through explicit events', () => {
+    const runtime = new ExpeditionRuntime(createHelios3ExpeditionFixture());
+    const first = assignmentCommand();
+    const firstMission = first.payload.mission;
+    const second = assignmentCommand({
+      id: 'cmd-mira-weather-2',
+      idempotencyKey: 'mission:mira:weather:2',
+      payload: {
+        mission: {
+          ...firstMission,
+          id: 'mission-mira-weather-2',
+          objective: 'Check whether the tower bulletin has changed.',
+        },
+      },
+    });
+    runtime.submit(first);
+    runtime.submit(second);
+
+    const reordered = runtime.submit({
+      id: 'cmd-reorder-mira-1',
+      idempotencyKey: 'reorder:mira:weather:1',
+      expeditionId: 'exp-helios3-demo',
+      issuedAt,
+      actor: { kind: 'player' },
+      schemaVersion: 1,
+      type: 'agent.reorder_missions',
+      payload: {
+        agentId: 'mira',
+        orderedMissionIds: ['mission-mira-weather-2', 'mission-mira-weather-1'],
+      },
+    });
+    const canceled = runtime.submit({
+      id: 'cmd-cancel-mira-2',
+      idempotencyKey: 'cancel:mira:weather:2',
+      expeditionId: 'exp-helios3-demo',
+      issuedAt,
+      actor: { kind: 'player' },
+      schemaVersion: 1,
+      type: 'agent.cancel_mission',
+      payload: { missionId: 'mission-mira-weather-2', reason: 'Player changed priorities.' },
+    });
+
+    expect(reordered).toMatchObject({
+      accepted: true,
+      events: [{ type: 'agent.mission.reordered' }],
+    });
+    expect(canceled).toMatchObject({
+      accepted: true,
+      events: [{ type: 'agent.mission.canceled' }],
+    });
+    expect(runtime.snapshot().agentsById['mira']?.queuedMissionIds).toEqual([
+      'mission-mira-weather-1',
+    ]);
+    expect(runtime.snapshot().missionsById['mission-mira-weather-2']?.status).toBe('canceled');
+  });
 });

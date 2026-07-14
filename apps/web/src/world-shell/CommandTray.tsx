@@ -1,33 +1,78 @@
+import type { MissionVerb } from '@signal-atlas/contracts';
 import type { RefObject } from 'react';
 
-import type { ShellAgent } from './model.js';
+import type { ShellAgent, ShellMission, ShellPlace } from './model.js';
+import type { MissionDraft } from './runtime-client.js';
 
 export interface CommandTrayProps {
+  agents: readonly ShellAgent[];
+  busy: boolean;
   command: string;
+  draft: MissionDraft | undefined;
+  error: string | undefined;
   expanded: boolean;
   inputRef: RefObject<HTMLInputElement | null>;
+  missions: readonly ShellMission[];
+  places: readonly ShellPlace[];
   selectedAgent: ShellAgent;
+  onCancelDraft: () => void;
+  onCancelMission: (missionId: string) => void;
   onCommandChange: (value: string) => void;
+  onConfirmDraft: () => void;
+  onDirectDraft: () => void;
   onDispatch: () => void;
+  onDraftChange: (patch: Partial<MissionDraft>) => void;
   onExpandedChange: () => void;
+  onMoveMission: (missionId: string, direction: -1 | 1) => void;
 }
 
 const suggestions = [
-  'Check latest weather',
-  'Search base rate',
-  'Ask Professor',
-  'Call meeting',
+  'Check latest weather at Galehaven Weather Tower',
+  'Search historical delays in Archive Quarter',
+  'Ask Professor Vale to check correlation',
+  'Call a meeting at Lantern Square',
 ] as const;
 
+function sentenceCase(value: string): string {
+  return value
+    .split('_')
+    .map((part) => `${part.slice(0, 1).toUpperCase()}${part.slice(1)}`)
+    .join(' ');
+}
+
 export function CommandTray({
+  agents,
+  busy,
   command,
+  draft,
+  error,
   expanded,
   inputRef,
+  missions,
+  onCancelDraft,
+  onCancelMission,
   onCommandChange,
+  onConfirmDraft,
+  onDirectDraft,
   onDispatch,
+  onDraftChange,
   onExpandedChange,
+  onMoveMission,
+  places,
   selectedAgent,
 }: CommandTrayProps) {
+  const selectedPlace = draft?.destinationPlaceId
+    ? places.find((place) => place.id === draft.destinationPlaceId)
+    : undefined;
+  const supportedVerbs = selectedPlace?.missionVerbs ?? [];
+  const draftReady = Boolean(
+    draft?.assignedAgentId &&
+    draft.destinationPlaceId &&
+    draft.verb &&
+    draft.objective.trim() &&
+    supportedVerbs.includes(draft.verb),
+  );
+
   return (
     <footer className="atlas-command-tray" aria-label="Agent command desk">
       <div className="atlas-command-agent">
@@ -63,8 +108,8 @@ export function CommandTray({
           ref={inputRef}
           value={command}
         />
-        <button disabled={command.trim().length === 0} type="submit">
-          Dispatch <kbd>↵</kbd>
+        <button disabled={busy || command.trim().length === 0} type="submit">
+          {busy ? 'Reading…' : 'Dispatch'} <kbd>↵</kbd>
         </button>
       </form>
 
@@ -83,38 +128,189 @@ export function CommandTray({
         onClick={onExpandedChange}
         type="button"
       >
-        {expanded ? 'Close queue' : 'Mission queue'}{' '}
+        {expanded
+          ? 'Close queue'
+          : `Mission queue${missions.length ? ` · ${missions.length}` : ''}`}{' '}
         <span aria-hidden="true">{expanded ? '⌄' : '⌃'}</span>
       </button>
 
       <div className="atlas-command-status">
         <i aria-hidden="true" />
         <small>World live</small>
-        <strong>18:32:14</strong>
+        <strong>SEQ {String(Math.max(2, missions.length + 2)).padStart(2, '0')}</strong>
       </div>
 
       {expanded && (
         <section className="atlas-command-queue" aria-labelledby="queue-heading">
-          <div>
-            <span className="atlas-kicker">Draft interpretation</span>
-            <h2 id="queue-heading">Mission queue</h2>
-            <p>
-              P1 keeps commands as drafts. P2 will validate, confirm, and append authoritative
-              mission events.
-            </p>
+          <div className="atlas-command-draft">
+            <header>
+              <div>
+                <span className="atlas-kicker">Player confirmation</span>
+                <h2 id="queue-heading">{draft ? 'Mission draft' : 'Mission queue'}</h2>
+              </div>
+              {!draft && (
+                <button className="atlas-secondary-action" onClick={onDirectDraft} type="button">
+                  Build mission
+                </button>
+              )}
+            </header>
+
+            {draft ? (
+              <form
+                className="atlas-draft-form"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  if (draftReady) onConfirmDraft();
+                }}
+              >
+                <label>
+                  Agent
+                  <select
+                    aria-label="Mission agent"
+                    onChange={(event) =>
+                      onDraftChange({ assignedAgentId: event.target.value || undefined })
+                    }
+                    value={draft.assignedAgentId ?? ''}
+                  >
+                    <option value="">Choose an agent</option>
+                    {agents.map((agent) => (
+                      <option key={agent.id} value={agent.id}>
+                        {agent.name} · {agent.role}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Destination
+                  <select
+                    aria-label="Mission destination"
+                    onChange={(event) => {
+                      const place = places.find((candidate) => candidate.id === event.target.value);
+                      const nextVerb = place?.missionVerbs.includes(draft.verb as MissionVerb)
+                        ? draft.verb
+                        : undefined;
+                      onDraftChange({
+                        destinationPlaceId: event.target.value || undefined,
+                        verb: nextVerb,
+                      });
+                    }}
+                    value={draft.destinationPlaceId ?? ''}
+                  >
+                    <option value="">Choose a place</option>
+                    {places.map((place) => (
+                      <option key={place.id} value={place.id}>
+                        {place.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Mission type
+                  <select
+                    aria-label="Mission type"
+                    disabled={!selectedPlace}
+                    onChange={(event) =>
+                      onDraftChange({ verb: (event.target.value || undefined) as MissionVerb })
+                    }
+                    value={draft.verb ?? ''}
+                  >
+                    <option value="">Choose an action</option>
+                    {supportedVerbs.map((verb) => (
+                      <option key={verb} value={verb}>
+                        {sentenceCase(verb)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="atlas-draft-objective">
+                  Objective
+                  <input
+                    aria-label="Mission objective"
+                    onChange={(event) => onDraftChange({ objective: event.target.value })}
+                    value={draft.objective}
+                  />
+                </label>
+                <p data-ready={draftReady} role="status">
+                  {draftReady
+                    ? 'Ready to append validated mission events.'
+                    : draft.explanation ||
+                      'Resolve the highlighted mission fields before confirming.'}
+                </p>
+                {error && <p className="atlas-command-error">{error}</p>}
+                <div className="atlas-draft-actions">
+                  <button onClick={onCancelDraft} type="button">
+                    Keep editing later
+                  </button>
+                  <button disabled={!draftReady || busy} type="submit">
+                    {busy ? 'Submitting…' : 'Confirm mission'}
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <p>
+                Interpret a command or use the direct builder. Only confirmed, schema-valid missions
+                enter the authoritative event log.
+              </p>
+            )}
           </div>
-          <ol>
-            <li>
-              <span>1</span>
-              <strong>Observe conditions</strong>
-              <small>Mira → Weather Tower</small>
-            </li>
-            <li>
-              <span>2</span>
-              <strong>Search history</strong>
-              <small>Orin → Archive Quarter</small>
-            </li>
-          </ol>
+
+          <div className="atlas-queue-list">
+            <header>
+              <span className="atlas-kicker">Authoritative projection</span>
+              <strong>{missions.length} active</strong>
+            </header>
+            {missions.length === 0 ? (
+              <p className="atlas-empty-queue">No queued missions. Your team is ready.</p>
+            ) : (
+              <ol>
+                {missions.map((mission, index) => {
+                  const agentMissions = missions.filter(
+                    (candidate) => candidate.agentId === mission.agentId,
+                  );
+                  const agentIndex = agentMissions.findIndex(
+                    (candidate) => candidate.id === mission.id,
+                  );
+                  return (
+                    <li key={mission.id}>
+                      <span>{index + 1}</span>
+                      <span>
+                        <strong>{sentenceCase(mission.verb)}</strong>
+                        <small>
+                          {mission.agentName} → {mission.destinationName} · {mission.status}
+                        </small>
+                      </span>
+                      <span className="atlas-queue-actions">
+                        <button
+                          aria-label={`Move ${mission.objective} earlier`}
+                          disabled={busy || agentIndex <= 0}
+                          onClick={() => onMoveMission(mission.id, -1)}
+                          type="button"
+                        >
+                          ↑
+                        </button>
+                        <button
+                          aria-label={`Move ${mission.objective} later`}
+                          disabled={busy || agentIndex === agentMissions.length - 1}
+                          onClick={() => onMoveMission(mission.id, 1)}
+                          type="button"
+                        >
+                          ↓
+                        </button>
+                        <button
+                          aria-label={`Cancel ${mission.objective}`}
+                          disabled={busy}
+                          onClick={() => onCancelMission(mission.id)}
+                          type="button"
+                        >
+                          Cancel
+                        </button>
+                      </span>
+                    </li>
+                  );
+                })}
+              </ol>
+            )}
+          </div>
         </section>
       )}
     </footer>

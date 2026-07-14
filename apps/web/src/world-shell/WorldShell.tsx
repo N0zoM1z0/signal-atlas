@@ -1,9 +1,17 @@
+import { SCHEMA_VERSION, type MissionVerb, type WorldCommand } from '@signal-atlas/contracts';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { AgentDock } from './AgentDock.js';
 import { CommandTray } from './CommandTray.js';
 import { MarketRibbon } from './MarketRibbon.js';
-import { shellModel } from './model.js';
+import { createShellModel, shellModel } from './model.js';
+import {
+  createClientId,
+  fetchExpeditionSnapshot,
+  interpretMissionDraft,
+  submitWorldCommand,
+  type MissionDraft,
+} from './runtime-client.js';
 import { SignalRail } from './SignalRail.js';
 import { WorldStageHost } from './WorldStageHost.js';
 
@@ -20,35 +28,80 @@ function isEditableTarget(target: EventTarget | null): boolean {
   return (
     target instanceof HTMLInputElement ||
     target instanceof HTMLTextAreaElement ||
+    target instanceof HTMLSelectElement ||
     (target instanceof HTMLElement && target.isContentEditable)
   );
 }
 
+function commandEnvelope(id: string, idempotencyKey: string, issuedAt: string) {
+  return {
+    id,
+    idempotencyKey,
+    expeditionId: shellModel.projection.expedition.id,
+    issuedAt,
+    actor: { kind: 'player' as const },
+    schemaVersion: SCHEMA_VERSION,
+  };
+}
+
 export function WorldShell() {
+  const [projection, setProjection] = useState(shellModel.projection);
+  const model = useMemo(() => createShellModel(projection), [projection]);
   const [agentDockCollapsed, setAgentDockCollapsed] = useState(false);
   const [signalRailCollapsed, setSignalRailCollapsed] = useState(false);
   const [trayExpanded, setTrayExpanded] = useState(false);
   const [mobilePanel, setMobilePanel] = useState<MobilePanel>(null);
-  const [selectedAgentId, setSelectedAgentId] = useState(shellModel.agents[0]?.id ?? 'mira');
+  const [selectedAgentId, setSelectedAgentId] = useState(model.agents[0]?.id ?? 'mira');
   const [selectedPlaceId, setSelectedPlaceId] = useState<string | undefined>('observatory');
   const [paused, setPaused] = useState(false);
   const [speed, setSpeed] = useState<1 | 2 | 4>(1);
   const [mode, setMode] = useState<'director' | 'observatory'>('director');
-  const [command, setCommand] = useState(
-    'Check whether the weather advisory is newer than the launch notice',
-  );
+  const [command, setCommand] = useState('Check latest weather at Galehaven Weather Tower');
   const [announcement, setAnnouncement] = useState('Fixture projection ready.');
   const [reducedMotion, setReducedMotion] = useState(false);
+  const [runtimeState, setRuntimeState] = useState<RuntimeState>(runtimeStateFromLocation);
+  const [missionDraft, setMissionDraft] = useState<MissionDraft>();
+  const [commandBusy, setCommandBusy] = useState(false);
+  const [commandError, setCommandError] = useState<string>();
   const [followRequest, setFollowRequest] = useState<
     { agentId: string; requestId: number } | undefined
   >();
   const inputRef = useRef<HTMLInputElement>(null);
-  const runtimeState = runtimeStateFromLocation();
 
   const selectedAgent = useMemo(
-    () => shellModel.agents.find((agent) => agent.id === selectedAgentId) ?? shellModel.agents[0],
-    [selectedAgentId],
+    () => model.agents.find((agent) => agent.id === selectedAgentId) ?? model.agents[0],
+    [model.agents, selectedAgentId],
   );
+
+  const refreshProjection = async () => {
+    const nextProjection = await fetchExpeditionSnapshot();
+    setProjection(nextProjection);
+    setRuntimeState('ready');
+    return nextProjection;
+  };
+
+  useEffect(() => {
+    const forcedState = runtimeStateFromLocation();
+    if (forcedState !== 'ready') {
+      return;
+    }
+
+    let active = true;
+    void fetchExpeditionSnapshot()
+      .then((nextProjection) => {
+        if (!active) return;
+        setProjection(nextProjection);
+        setRuntimeState('ready');
+      })
+      .catch(() => {
+        if (!active) return;
+        setRuntimeState('disconnected');
+        setAnnouncement('Orchestrator disconnected. The last valid projection remains visible.');
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     const media = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -62,6 +115,8 @@ export function WorldShell() {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         setMobilePanel(null);
+        setMissionDraft(undefined);
+        setTrayExpanded(false);
         return;
       }
 
@@ -74,7 +129,7 @@ export function WorldShell() {
       }
 
       const agentIndex = Number(event.key) - 1;
-      const shortcutAgent = shellModel.agents[agentIndex];
+      const shortcutAgent = model.agents[agentIndex];
       if (shortcutAgent) {
         setSelectedAgentId(shortcutAgent.id);
         setAnnouncement(`${shortcutAgent.name} selected.`);
@@ -100,7 +155,7 @@ export function WorldShell() {
 
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, []);
+  }, [model.agents]);
 
   if (!selectedAgent) {
     return <main role="alert">The fixture does not define an expedition team.</main>;
@@ -117,6 +172,179 @@ export function WorldShell() {
         ? 'Archive workspace arrives in the investigation journey.'
         : 'Professor Vale arrives in the collaboration journey.',
     );
+  };
+
+  const prepareMissionDraft = async (objective = command) => {
+    setCommand(objective);
+    setTrayExpanded(true);
+    setCommandBusy(true);
+    setCommandError(undefined);
+    try {
+      const draft = await interpretMissionDraft(objective, selectedAgent.id);
+      setMissionDraft(draft);
+      setAnnouncement(
+        draft.status === 'ready'
+          ? `Mission draft prepared for ${selectedAgent.name}. Confirm to append it.`
+          : `Mission draft needs ${draft.missing.join(', ')} before confirmation.`,
+      );
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Mission interpretation failed.';
+      setCommandError(message);
+      setAnnouncement(`Mission parser failed: ${message}`);
+      setRuntimeState('disconnected');
+    } finally {
+      setCommandBusy(false);
+    }
+  };
+
+  const updateMissionDraft = (patch: Partial<MissionDraft>) => {
+    setMissionDraft((current) => {
+      if (!current) return current;
+      const next = { ...current, ...patch };
+      const place = model.places.find((candidate) => candidate.id === next.destinationPlaceId);
+      const missing: MissionDraft['missing'] = [];
+      if (!next.assignedAgentId) missing.push('agent');
+      if (!next.destinationPlaceId) missing.push('destination');
+      if (!next.verb || !place?.missionVerbs.includes(next.verb)) missing.push('verb');
+      return {
+        ...next,
+        status: missing.length === 0 ? 'ready' : 'ambiguous',
+        missing,
+        explanation:
+          missing.length === 0
+            ? 'All mission fields are explicit and supported at this location.'
+            : `Confirmation is blocked until these fields are resolved: ${missing.join(', ')}.`,
+      };
+    });
+  };
+
+  const confirmMission = async () => {
+    if (!missionDraft?.assignedAgentId || !missionDraft.destinationPlaceId || !missionDraft.verb) {
+      return;
+    }
+    setCommandBusy(true);
+    setCommandError(undefined);
+    const missionId = `mission-${missionDraft.submissionId}`;
+    const commandId = `cmd-${missionDraft.submissionId}`;
+    const worldCommand = {
+      ...commandEnvelope(commandId, missionDraft.submissionId, missionDraft.createdAt),
+      type: 'agent.assign_mission',
+      payload: {
+        mission: {
+          id: missionId,
+          expeditionId: model.projection.expedition.id,
+          assignedAgentId: missionDraft.assignedAgentId,
+          verb: missionDraft.verb,
+          objective: missionDraft.objective,
+          destinationPlaceId: missionDraft.destinationPlaceId,
+          budget: { maxToolCalls: 3, timeoutMs: 30_000 },
+          status: 'draft',
+          createdBy: { kind: 'player' },
+          createdAt: missionDraft.createdAt,
+        },
+      },
+    } satisfies WorldCommand;
+
+    try {
+      const accepted = await submitWorldCommand(worldCommand);
+      await refreshProjection();
+      setMissionDraft(undefined);
+      setAnnouncement(
+        accepted.duplicate
+          ? 'The original mission is already queued; no duplicate was created.'
+          : `Mission queued for ${selectedAgent.name} at sequence ${accepted.sequence}.`,
+      );
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Mission submission failed.';
+      setCommandError(message);
+      setAnnouncement(`Mission was not accepted: ${message}`);
+    } finally {
+      setCommandBusy(false);
+    }
+  };
+
+  const cancelMission = async (missionId: string) => {
+    const issuedAt = new Date().toISOString();
+    const id = createClientId('cmd-cancel');
+    const worldCommand = {
+      ...commandEnvelope(id, `cancel:${id}`, issuedAt),
+      type: 'agent.cancel_mission',
+      payload: { missionId, reason: 'Canceled by player from the mission queue.' },
+    } satisfies WorldCommand;
+    setCommandBusy(true);
+    setCommandError(undefined);
+    try {
+      await submitWorldCommand(worldCommand);
+      await refreshProjection();
+      setAnnouncement('Mission canceled. The event remains in expedition history.');
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Mission cancellation failed.';
+      setCommandError(message);
+      setAnnouncement(`Mission cancellation failed: ${message}`);
+    } finally {
+      setCommandBusy(false);
+    }
+  };
+
+  const moveMission = async (missionId: string, direction: -1 | 1) => {
+    const mission = model.missions.find((candidate) => candidate.id === missionId);
+    const agent = mission ? model.projection.agentsById[mission.agentId] : undefined;
+    if (!mission || !agent) return;
+    const orderedMissionIds = [...agent.queuedMissionIds];
+    const index = orderedMissionIds.indexOf(missionId);
+    const target = index + direction;
+    if (index < 0 || target < 0 || target >= orderedMissionIds.length) return;
+    [orderedMissionIds[index], orderedMissionIds[target]] = [
+      orderedMissionIds[target] as string,
+      orderedMissionIds[index] as string,
+    ];
+    const issuedAt = new Date().toISOString();
+    const id = createClientId('cmd-reorder');
+    const worldCommand = {
+      ...commandEnvelope(id, `reorder:${id}`, issuedAt),
+      type: 'agent.reorder_missions',
+      payload: { agentId: agent.id, orderedMissionIds },
+    } satisfies WorldCommand;
+    setCommandBusy(true);
+    setCommandError(undefined);
+    try {
+      await submitWorldCommand(worldCommand);
+      await refreshProjection();
+      setAnnouncement('Mission priority updated from an authoritative reorder event.');
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Mission reorder failed.';
+      setCommandError(message);
+      setAnnouncement(`Mission reorder failed: ${message}`);
+    } finally {
+      setCommandBusy(false);
+    }
+  };
+
+  const directDraft = () => {
+    const createdAt = new Date().toISOString();
+    const place = model.places.find((candidate) => candidate.id === selectedPlaceId);
+    const verb = place?.missionVerbs[0] as MissionVerb | undefined;
+    setMissionDraft({
+      status: place && verb ? 'ready' : 'ambiguous',
+      objective:
+        command.trim() || `Research the latest evidence at ${place?.name ?? 'a location'}.`,
+      assignedAgentId: selectedAgent.id,
+      ...(place ? { destinationPlaceId: place.id } : {}),
+      ...(verb ? { verb } : {}),
+      candidateAgentIds: [selectedAgent.id],
+      candidatePlaceIds: place ? [place.id] : [],
+      missing: [
+        ...(!place ? (['destination'] as const) : []),
+        ...(!verb ? (['verb'] as const) : []),
+      ],
+      explanation: place
+        ? 'Review the explicit fields before confirming this direct mission.'
+        : 'Choose a destination and supported mission type.',
+      submissionId: createClientId('submission'),
+      createdAt,
+    });
+    setTrayExpanded(true);
+    setCommandError(undefined);
   };
 
   return (
@@ -143,7 +371,7 @@ export function WorldShell() {
       />
 
       <AgentDock
-        agents={shellModel.agents}
+        agents={model.agents}
         collapsed={agentDockCollapsed}
         disconnected={runtimeState === 'disconnected'}
         mobileOpen={mobilePanel === 'agents'}
@@ -152,11 +380,15 @@ export function WorldShell() {
             agentId,
             requestId: (current?.requestId ?? 0) + 1,
           }));
-          const agent = shellModel.agents.find((candidate) => candidate.id === agentId);
+          const agent = model.agents.find((candidate) => candidate.id === agentId);
           setAnnouncement(`Camera following ${agent?.name ?? 'agent'}.`);
         }}
+        onPrepareMission={(objective) => {
+          if (objective) void prepareMissionDraft(objective);
+          else directDraft();
+        }}
         onSelectAgent={(agentId) => {
-          const agent = shellModel.agents.find((candidate) => candidate.id === agentId);
+          const agent = model.agents.find((candidate) => candidate.id === agentId);
           setSelectedAgentId(agentId);
           setAnnouncement(`${agent?.name ?? 'Agent'} selected.`);
         }}
@@ -170,19 +402,19 @@ export function WorldShell() {
         loading={runtimeState === 'loading'}
         onOpenPanel={openPanel}
         onSelectAgent={(agentId) => {
-          const agent = shellModel.agents.find((candidate) => candidate.id === agentId);
+          const agent = model.agents.find((candidate) => candidate.id === agentId);
           setSelectedAgentId(agentId);
           setAnnouncement(`${agent?.name ?? 'Agent'} selected from the world.`);
         }}
         onSelectPlace={(placeId) => {
-          const place = shellModel.places.find((candidate) => candidate.id === placeId);
+          const place = model.places.find((candidate) => candidate.id === placeId);
           setSelectedPlaceId(placeId);
           setAnnouncement(`${place?.name ?? 'Place'} selected.`);
         }}
-        places={shellModel.places}
+        places={model.places}
         reducedMotion={reducedMotion}
-        routes={shellModel.routes}
-        sceneDefinition={shellModel.sceneDefinition}
+        routes={model.routes}
+        sceneDefinition={model.sceneDefinition}
         selectedAgentId={selectedAgentId}
         selectedAgentName={selectedAgent.name}
         selectedPlaceId={selectedPlaceId}
@@ -193,21 +425,31 @@ export function WorldShell() {
         collapsed={signalRailCollapsed}
         mobileOpen={mobilePanel === 'signals'}
         onToggleCollapsed={() => setSignalRailCollapsed((current) => !current)}
-        signals={shellModel.stagedSignals}
+        signals={model.stagedSignals}
       />
 
       <CommandTray
+        agents={model.agents}
+        busy={commandBusy}
         command={command}
+        draft={missionDraft}
+        error={commandError}
         expanded={trayExpanded}
         inputRef={inputRef}
-        onCommandChange={setCommand}
-        onDispatch={() => {
-          setTrayExpanded(true);
-          setAnnouncement(
-            `Mission draft prepared for ${selectedAgent.name}. Confirmation is required.`,
-          );
+        missions={model.missions}
+        onCancelDraft={() => {
+          setMissionDraft(undefined);
+          setCommandError(undefined);
         }}
+        onCancelMission={(missionId) => void cancelMission(missionId)}
+        onCommandChange={setCommand}
+        onConfirmDraft={() => void confirmMission()}
+        onDirectDraft={directDraft}
+        onDispatch={() => void prepareMissionDraft()}
+        onDraftChange={updateMissionDraft}
         onExpandedChange={() => setTrayExpanded((current) => !current)}
+        onMoveMission={(missionId, direction) => void moveMission(missionId, direction)}
+        places={model.places}
         selectedAgent={selectedAgent}
       />
 
