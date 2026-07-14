@@ -83,7 +83,11 @@ importers:
 
   packages/codex-runtime: {}
 
-  packages/contracts: {}
+  packages/contracts:
+    dependencies:
+      zod:
+        specifier: 4.4.3
+        version: 4.4.3
 
   packages/game-scene: {}
 
@@ -91,7 +95,11 @@ importers:
 
   packages/simulation: {}
 
-  packages/test-fixtures: {}
+  packages/test-fixtures:
+    dependencies:
+      '@signal-atlas/contracts':
+        specifier: workspace:*
+        version: link:../contracts
 
   packages/ui:
     devDependencies:

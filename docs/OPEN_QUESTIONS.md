@@ -18,21 +18,31 @@ This log records design-package ambiguities that must be resolved without silent
 
 ## OQ-003: Professor mode contract coverage
 
-- **Status:** Open; resolve during P0-003 contract synchronization.
+- **Status:** Resolved in P0-003.
 - **Conflict:** Product specifications define Explain, Challenge, Compare, Base rate, Missing evidence, Correlation check, and Forecast impact. `professor-response.schema.json` currently permits only four of these modes.
-- **Proposed direction:** Extend the implementation contract to all seven specified modes while keeping the supplied correlation fixture valid.
+- **Implementation decision:** The shared `ProfessorMode` contract contains all seven product modes. Professor queries require one of them; responses may repeat the mode and selected signal IDs so both the lean architecture interface and the richer supplied fixture remain valid.
+- **Reason:** The complete product vocabulary is finite and safe to expose as a closed enum, while response metadata is useful but not required to ground a response because the query ID remains canonical.
 
 ## OQ-004: Runtime event vocabulary
 
-- **Status:** Open; resolve during P0-003/P0-004.
+- **Status:** Resolved for the contract baseline in P0-003; reducer behavior remains P0-004 work.
 - **Conflict:** Architecture examples mention `pref.source.retrieved` and `runtime.turn.failed`; the detailed event catalog uses `source.recorded` and `agent.turn.failed`.
-- **Proposed direction:** Treat the detailed catalog in `docs/10_data_models_and_events.md` as canonical and document aliases only at infrastructure boundaries.
+- **Implementation decision:** `source.recorded` and `agent.turn.failed` are canonical domain events. Infrastructure adapters translate any provider/runtime aliases before appending events. The contract also adds the explicit mission reorder/cancel/complete/fail and agent-knowledge-acquired transitions required by later taskbook flows.
+- **Reason:** One closed, discriminated event vocabulary gives the reducer exhaustive handling and prevents infrastructure terminology from leaking into replay data.
 
 ## OQ-005: Agent action vocabulary versus mission vocabulary
 
-- **Status:** Open; resolve during P0-003.
+- **Status:** Resolved in P0-003.
 - **Conflict:** The agent behavior document lists direct actions such as `query_archive`, `consult_professor`, and `meet_agent`; the supplied agent-turn schema represents these mainly through `request_mission` plus a mission verb.
-- **Proposed direction:** Keep the narrow agent-turn action union and express location workflows as validated missions, unless a concrete runtime flow proves a dedicated action necessary.
+- **Implementation decision:** Keep the six-action agent-turn union (`wait`, `move`, `investigate`, `share_signal`, `request_mission`, and `update_belief`) and express location workflows through the ten validated mission verbs.
+- **Reason:** The orchestrator owns legality and world transitions. A narrow model output surface is easier to validate, retry, and replay without losing the richer player-facing mission vocabulary.
+
+## OQ-006: Source location semantics
+
+- **Status:** Resolved in P0-003.
+- **Ambiguity:** A source can describe conditions at one world place while an agent retrieves it from another; the starter archive record, for example, concerns weather-tower conditions even when an archivist may find it in the archive.
+- **Implementation decision:** `SourceRecord.location` identifies the source's subject, observation, or geographic scope. Retrieval and possession locations belong to missions, events, and `AgentKnowledge.acquisition` edges.
+- **Reason:** Separating subject location from acquisition location preserves provenance and avoids rewriting a source when agents retrieve or share it through different places.
 
 ## Owner decisions that do not block the offline vertical slice
 
