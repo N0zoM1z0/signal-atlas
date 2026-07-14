@@ -46,6 +46,56 @@ function skipWeatherCommand() {
   };
 }
 
+function archiveAssignmentCommand() {
+  return {
+    id: 'cmd-orin-archive-1',
+    idempotencyKey: 'mission:orin:archive:1',
+    expeditionId: 'exp-helios3-demo',
+    issuedAt: '2027-09-26T18:33:00Z',
+    actor: { kind: 'player' },
+    schemaVersion: 1,
+    type: 'agent.assign_mission',
+    payload: {
+      mission: {
+        id: 'mission-orin-archive-1',
+        expeditionId: 'exp-helios3-demo',
+        assignedAgentId: 'orin',
+        verb: 'search_history',
+        objective: 'Search historical delays in Archive Quarter.',
+        destinationPlaceId: 'archive',
+        budget: { maxToolCalls: 3, timeoutMs: 30_000 },
+        status: 'draft',
+        createdBy: { kind: 'player' },
+        createdAt: '2027-09-26T18:33:00Z',
+      },
+    },
+  };
+}
+
+function skipCommand(agentId: string, missionId: string, index: number) {
+  return {
+    id: `cmd-skip-${agentId}-${index}`,
+    idempotencyKey: `skip:${agentId}:${missionId}:${index}`,
+    expeditionId: 'exp-helios3-demo',
+    issuedAt: `2027-09-26T18:3${index}:00Z`,
+    actor: { kind: 'player' },
+    schemaVersion: 1,
+    type: 'agent.skip_travel',
+    payload: { agentId, missionId },
+  };
+}
+
+function runtimeWithRequiredEvidence() {
+  const runtime = new ExpeditionRuntime(createHelios3ExpeditionFixture());
+  runtime.submit(assignmentCommand());
+  runtime.submit(skipWeatherCommand());
+  runtime.advance(2_400, '2027-09-26T18:32:03.400Z');
+  runtime.submit(archiveAssignmentCommand());
+  runtime.submit(skipCommand('orin', 'mission-orin-archive-1', 4));
+  runtime.advance(2_800, '2027-09-26T18:34:02.800Z');
+  return runtime;
+}
+
 describe('fixture mission interpretation', () => {
   it('resolves a selected agent and an unambiguous weather destination', () => {
     const runtime = new ExpeditionRuntime(createHelios3ExpeditionFixture());
@@ -337,6 +387,135 @@ describe('ExpeditionRuntime commands', () => {
     };
 
     expect(run()).toEqual(run());
+  });
+
+  it('coordinates a skippable Lantern Square meeting with explicit knowledge transfer', () => {
+    const runtime = runtimeWithRequiredEvidence();
+
+    const before = runtime.snapshot();
+    expect(before.agentsById['mira']?.knownSignalIds).toEqual(['sig-crosswind']);
+    expect(before.agentsById['orin']?.knownSignalIds).toEqual(['sig-base-rate']);
+    expect(before.agentsById['kestrel']?.knownSignalIds).toEqual([]);
+
+    const requested = runtime.submit({
+      id: 'cmd-meeting-required-journey-1',
+      idempotencyKey: 'meeting:required:journey:1',
+      expeditionId: 'exp-helios3-demo',
+      issuedAt: '2027-09-26T18:35:00Z',
+      actor: { kind: 'player' },
+      schemaVersion: 1,
+      type: 'meeting.request',
+      payload: {
+        meetingId: 'meeting-required-journey-1',
+        placeId: 'square',
+        participantAgentIds: ['mira', 'orin', 'kestrel'],
+      },
+    });
+    expect(requested).toMatchObject({ accepted: true, duplicate: false });
+    if (!requested.accepted) throw new Error('Expected meeting request acceptance.');
+    expect(requested.events.map((event) => event.type)).toEqual([
+      'meeting.requested',
+      'agent.mission.queued',
+      'agent.mission.assigned',
+      'agent.travel.started',
+      'agent.mission.queued',
+      'agent.mission.assigned',
+      'agent.travel.started',
+      'agent.mission.queued',
+      'agent.mission.assigned',
+      'agent.travel.started',
+    ]);
+
+    const meetingMission = (agentId: string) =>
+      `meeting-mission-meeting-required-journey-1-${agentId}`;
+    runtime.submit(skipCommand('mira', meetingMission('mira'), 5));
+    runtime.submit(skipCommand('orin', meetingMission('orin'), 6));
+    const finalSkip = runtime.submit(skipCommand('kestrel', meetingMission('kestrel'), 7));
+    expect(finalSkip).toMatchObject({ accepted: true });
+    if (!finalSkip.accepted) throw new Error('Expected final arrival skip acceptance.');
+    expect(finalSkip.events.map((event) => event.type)).toEqual([
+      'agent.travel.progressed',
+      'agent.arrived',
+      'agent.mission.completed',
+      'meeting.started',
+      'meeting.signal_shared',
+      'agent.knowledge.acquired',
+      'agent.knowledge.acquired',
+      'meeting.signal_shared',
+      'agent.knowledge.acquired',
+      'agent.knowledge.acquired',
+      'belief.updated',
+      'belief.updated',
+      'belief.updated',
+      'meeting.memo_created',
+      'meeting.ended',
+    ]);
+
+    const snapshot = runtime.snapshot();
+    expect(snapshot.meetingsById['meeting-required-journey-1']).toMatchObject({
+      placeId: 'square',
+      sharedSignalIds: ['sig-base-rate', 'sig-crosswind'],
+      disagreementTypes: ['evidence', 'model', 'prior'],
+      endedAt: '2027-09-26T18:37:00Z',
+      memo: {
+        disagreements: [
+          expect.stringContaining('Evidence:'),
+          expect.stringContaining('Model:'),
+          expect.stringContaining('Prior:'),
+        ],
+        followUpMissionProposals: [
+          expect.objectContaining({ verb: 'consult_professor', agentId: 'kestrel' }),
+        ],
+      },
+    });
+    for (const agentId of ['mira', 'orin', 'kestrel']) {
+      expect(snapshot.agentsById[agentId]?.knownSignalIds.sort()).toEqual([
+        'sig-base-rate',
+        'sig-crosswind',
+      ]);
+      expect(snapshot.agentsById[agentId]).toMatchObject({
+        placeId: 'square',
+        publicState: 'idle',
+      });
+      expect(snapshot.missionsById[meetingMission(agentId)]?.status).toBe('completed');
+    }
+    expect(snapshot.signalShares).toHaveLength(2);
+    expect(snapshot.knowledgeByKey['kestrel:signal:sig-crosswind']).toMatchObject({
+      acquisition: {
+        kind: 'shared',
+        fromAgentId: 'mira',
+        meetingId: 'meeting-required-journey-1',
+      },
+    });
+  });
+
+  it('starts the meeting after all natural arrival routes complete', () => {
+    const runtime = runtimeWithRequiredEvidence();
+    const result = runtime.submit({
+      id: 'cmd-meeting-natural-1',
+      idempotencyKey: 'meeting:natural:arrival:1',
+      expeditionId: 'exp-helios3-demo',
+      issuedAt: '2027-09-26T18:35:00Z',
+      actor: { kind: 'player' },
+      schemaVersion: 1,
+      type: 'meeting.request',
+      payload: {
+        meetingId: 'meeting-natural-1',
+        placeId: 'square',
+        participantAgentIds: ['mira', 'orin', 'kestrel'],
+      },
+    });
+    expect(result).toMatchObject({ accepted: true });
+
+    const arrivalEvents = runtime.advance(7_500, '2027-09-26T18:35:07.500Z');
+
+    expect(arrivalEvents.filter((event) => event.type === 'agent.arrived')).toHaveLength(3);
+    expect(arrivalEvents.map((event) => event.type)).toContain('meeting.started');
+    expect(arrivalEvents.at(-1)?.type).toBe('meeting.ended');
+    expect(runtime.snapshot().meetingsById['meeting-natural-1']).toMatchObject({
+      placeId: 'square',
+      endedAt: '2027-09-26T18:35:07.500Z',
+    });
   });
 
   it.each(['timeout', 'invalid_result'] as const)(

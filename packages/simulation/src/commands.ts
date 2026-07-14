@@ -242,7 +242,7 @@ export function validateWorldCommand(
       }
       break;
     }
-    case 'meeting.request':
+    case 'meeting.request': {
       requirePlace(command.payload.placeId, ['payload', 'placeId']);
       command.payload.participantAgentIds.forEach((id, index) =>
         requireAgent(id, ['payload', 'participantAgentIds', index]),
@@ -257,7 +257,41 @@ export function validateWorldCommand(
           'Meeting participants must be unique.',
         );
       }
+      if (
+        state.meetingRequestsById[command.payload.meetingId] ||
+        state.meetingsById[command.payload.meetingId]
+      ) {
+        addIssue(
+          'invalid_reference',
+          ['payload', 'meetingId'],
+          `Meeting ${command.payload.meetingId} already exists.`,
+        );
+      }
+      const meetingPlace = state.worldManifest.places.find(
+        (place) => place.id === command.payload.placeId,
+      );
+      if (meetingPlace && !meetingPlace.missionVerbs.includes('meet_agent')) {
+        addIssue(
+          'invalid_reference',
+          ['payload', 'placeId'],
+          `${meetingPlace.name} does not support meetings.`,
+        );
+      }
+      command.payload.participantAgentIds.forEach((id, index) => {
+        const agent = state.agentsById[id];
+        if (
+          agent &&
+          (agent.activeMissionId || agent.movement || agent.queuedMissionIds.length > 0)
+        ) {
+          addIssue(
+            'invalid_state',
+            ['payload', 'participantAgentIds', index],
+            `${agent.displayName} must finish active and queued missions before joining a meeting.`,
+          );
+        }
+      });
       break;
+    }
     case 'professor.query': {
       const query = command.payload.query;
       if (query.expeditionId !== state.expedition.id) {

@@ -24,6 +24,9 @@ export interface WorldStageHostProps {
   selectedPlaceId: string | undefined;
   skipTravel: boolean;
   signalsDrawerOpen: boolean;
+  meetingBusy: boolean;
+  meetingDisabled: boolean;
+  onConveneMeeting: () => void;
   onOpenPanel: (panel: 'agents' | 'signals' | 'archive' | 'professor') => void;
   onSelectAgent: (agentId: string) => void;
   onSelectPlace: (placeId: string) => void;
@@ -42,6 +45,9 @@ export function WorldStageHost({
   autoCamera,
   followRequest,
   loading,
+  meetingBusy,
+  meetingDisabled,
+  onConveneMeeting,
   onOpenPanel,
   onSelectAgent,
   onSelectPlace,
@@ -220,8 +226,18 @@ export function WorldStageHost({
             />
             Skip travel
           </label>
-          <button type="button">
-            <i aria-hidden="true" /> Convene at Lantern Square
+          <button
+            disabled={meetingBusy || meetingDisabled}
+            onClick={onConveneMeeting}
+            title={
+              meetingDisabled
+                ? 'Finish active and queued missions before convening the team.'
+                : undefined
+            }
+            type="button"
+          >
+            <i aria-hidden="true" />{' '}
+            {meetingBusy ? 'Calling the team…' : 'Convene at Lantern Square'}
           </button>
         </span>
       </footer>

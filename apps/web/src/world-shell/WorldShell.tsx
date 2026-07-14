@@ -17,6 +17,7 @@ import {
   type EvidencePreferences,
 } from './evidence-preferences.js';
 import { MarketRibbon } from './MarketRibbon.js';
+import { MeetingWorkspace } from './MeetingWorkspace.js';
 import { createShellModel, shellModel } from './model.js';
 import {
   createClientId,
@@ -35,7 +36,7 @@ import { WorldStageHost } from './WorldStageHost.js';
 
 type RuntimeState = 'ready' | 'loading' | 'disconnected';
 type MobilePanel = 'agents' | 'signals' | null;
-type Workspace = 'world' | 'archive';
+type Workspace = 'world' | 'archive' | 'meeting';
 
 function runtimeStateFromLocation(): RuntimeState {
   if (typeof window === 'undefined') return 'ready';
@@ -90,6 +91,9 @@ export function WorldShell() {
   const [workspace, setWorkspace] = useState<Workspace>('world');
   const [archiveEvents, setArchiveEvents] = useState<WorldEvent[]>([]);
   const [archiveLoading, setArchiveLoading] = useState(false);
+  const [activeMeetingId, setActiveMeetingId] = useState<string>();
+  const [meetingEvents, setMeetingEvents] = useState<WorldEvent[]>([]);
+  const [meetingBusy, setMeetingBusy] = useState(false);
   const [evidencePreferences, setEvidencePreferences] =
     useState<EvidencePreferences>(readEvidencePreferences);
   const [inspectedSignalId, setInspectedSignalId] = useState<string>();
@@ -103,6 +107,10 @@ export function WorldShell() {
   const speed: 1 | 2 | 4 = projectionSpeed === 2 || projectionSpeed === 4 ? projectionSpeed : 1;
   const runtimeActive = Object.values(projection.agentsById).some((agent) =>
     ['traveling', 'working', 'meeting'].includes(agent.publicState),
+  );
+  const meetingDisabled = Object.values(projection.agentsById).some(
+    (agent) =>
+      Boolean(agent.activeMissionId || agent.movement) || agent.queuedMissionIds.length > 0,
   );
 
   const selectedAgent = useMemo(
@@ -217,6 +225,82 @@ export function WorldShell() {
       setArchiveLoading(false);
     }
   }, []);
+
+  const conveneMeeting = useCallback(async () => {
+    const participantAgentIds = Object.keys(projection.agentsById);
+    const issuedAt = new Date().toISOString();
+    const meetingId = createClientId('meeting');
+    const commandId = createClientId('cmd-meeting');
+    const worldCommand = {
+      ...commandEnvelope(commandId, `meeting:${meetingId}`, issuedAt),
+      type: 'meeting.request',
+      payload: {
+        meetingId,
+        placeId: 'square',
+        participantAgentIds,
+      },
+    } satisfies WorldCommand;
+    setMeetingBusy(true);
+    setCommandError(undefined);
+    try {
+      await submitWorldCommand(worldCommand);
+      const [nextProjection, eventLog] = await Promise.all([
+        fetchExpeditionSnapshot(),
+        fetchExpeditionEvents(),
+      ]);
+      setProjection(nextProjection);
+      setMeetingEvents(eventLog.events);
+      setActiveMeetingId(meetingId);
+      setWorkspace('meeting');
+      setTrayExpanded(false);
+      setMobilePanel(null);
+      setRuntimeState('ready');
+      setAnnouncement('The team is gathering at Lantern Square.');
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Meeting request failed.';
+      setCommandError(message);
+      setAnnouncement(`Meeting request failed: ${message}`);
+    } finally {
+      setMeetingBusy(false);
+    }
+  }, [projection.agentsById]);
+
+  const skipMeetingArrivals = useCallback(async () => {
+    if (!activeMeetingId) return;
+    setMeetingBusy(true);
+    setCommandError(undefined);
+    try {
+      let nextProjection = await fetchExpeditionSnapshot();
+      for (const agent of Object.values(nextProjection.agentsById)) {
+        const missionId = agent.activeMissionId;
+        if (!agent.movement || !missionId?.startsWith(`meeting-mission-${activeMeetingId}-`)) {
+          continue;
+        }
+        const issuedAt = new Date().toISOString();
+        const commandId = createClientId('cmd-skip-meeting');
+        await submitWorldCommand({
+          ...commandEnvelope(
+            commandId,
+            `skip-meeting:${activeMeetingId}:${agent.id}:${commandId}`,
+            issuedAt,
+          ),
+          type: 'agent.skip_travel',
+          payload: { agentId: agent.id, missionId },
+        });
+        nextProjection = await fetchExpeditionSnapshot();
+      }
+      const eventLog = await fetchExpeditionEvents();
+      setProjection(nextProjection);
+      setMeetingEvents(eventLog.events);
+      setAnnouncement('Arrivals skipped with every route and arrival event preserved.');
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Meeting skip failed.';
+      setCommandError(message);
+      setAnnouncement(`Meeting skip failed: ${message}`);
+    } finally {
+      setMeetingBusy(false);
+    }
+  }, [activeMeetingId]);
 
   const openPanel = useCallback(
     (panel: 'agents' | 'signals' | 'archive' | 'professor') => {
@@ -352,6 +436,21 @@ export function WorldShell() {
     }, 250);
     return () => clearInterval(timer);
   }, [refreshProjection, runtimeActive]);
+
+  useEffect(() => {
+    if (workspace !== 'meeting' || !activeMeetingId) return;
+    let active = true;
+    void fetchExpeditionEvents()
+      .then((eventLog) => {
+        if (active) setMeetingEvents(eventLog.events);
+      })
+      .catch(() => {
+        if (active) setAnnouncement('Meeting events could not be refreshed.');
+      });
+    return () => {
+      active = false;
+    };
+  }, [activeMeetingId, projection.sequence, workspace]);
 
   useEffect(() => {
     if (!skipTravel) return;
@@ -712,12 +811,28 @@ export function WorldShell() {
           onToggleCaseFile={toggleCaseFileEntry}
           projection={projection}
         />
+      ) : workspace === 'meeting' && activeMeetingId ? (
+        <MeetingWorkspace
+          busy={meetingBusy}
+          events={meetingEvents}
+          loading={runtimeState === 'loading'}
+          meetingId={activeMeetingId}
+          onClose={() => {
+            setWorkspace('world');
+            setAnnouncement('Returned to the world atlas.');
+          }}
+          onSkipArrivals={() => void skipMeetingArrivals()}
+          projection={projection}
+        />
       ) : (
         <WorldStageHost
           agentsDrawerOpen={mobilePanel === 'agents'}
           autoCamera={model.projection.expedition.settings.autoCamera}
           followRequest={followRequest}
           loading={runtimeState === 'loading'}
+          meetingBusy={meetingBusy}
+          meetingDisabled={meetingDisabled}
+          onConveneMeeting={() => void conveneMeeting()}
           onOpenPanel={openPanel}
           onSelectAgent={(agentId) => {
             const agent = model.agents.find((candidate) => candidate.id === agentId);

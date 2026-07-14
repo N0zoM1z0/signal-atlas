@@ -56,10 +56,19 @@ interface ScheduledWork {
   turn: ScriptedFixtureTurn;
 }
 
+interface ScheduledMeeting {
+  meetingId: string;
+  placeId: string;
+  participantAgentIds: string[];
+  missionIdsByAgentId: Record<string, string>;
+}
+
 interface CommandEventPlan {
   events: WorldEvent[];
   scheduleTravel?: ScheduledTravel;
+  scheduleTravels?: ScheduledTravel[];
   scheduleWork?: ScheduledWork;
+  scheduleMeeting?: ScheduledMeeting;
   clearScheduledForAgentId?: string;
 }
 
@@ -88,6 +97,8 @@ export class ExpeditionRuntime {
   readonly #travelByAgentId = new Map<string, ScheduledTravel>();
   readonly #workByAgentId = new Map<string, ScheduledWork>();
   readonly #attemptByMissionId = new Map<string, number>();
+  readonly #meetingsById = new Map<string, ScheduledMeeting>();
+  readonly #meetingIdByMissionId = new Map<string, string>();
   #missionScenario: FixtureMissionScenario = 'success';
 
   constructor(fixture: ExpeditionFixture) {
@@ -126,6 +137,8 @@ export class ExpeditionRuntime {
     this.#travelByAgentId.clear();
     this.#workByAgentId.clear();
     this.#attemptByMissionId.clear();
+    this.#meetingsById.clear();
+    this.#meetingIdByMissionId.clear();
     this.#missionScenario = 'success';
   }
 
@@ -169,12 +182,22 @@ export class ExpeditionRuntime {
     if (plan.scheduleTravel) {
       this.#travelByAgentId.set(plan.scheduleTravel.agentId, plan.scheduleTravel);
     }
+    for (const travel of plan.scheduleTravels ?? []) {
+      this.#travelByAgentId.set(travel.agentId, travel);
+    }
     if (plan.scheduleWork) this.#workByAgentId.set(plan.scheduleWork.agentId, plan.scheduleWork);
+    if (plan.scheduleMeeting) {
+      this.#meetingsById.set(plan.scheduleMeeting.meetingId, plan.scheduleMeeting);
+      for (const missionId of Object.values(plan.scheduleMeeting.missionIdsByAgentId)) {
+        this.#meetingIdByMissionId.set(missionId, plan.scheduleMeeting.meetingId);
+      }
+    }
+    const meetingEvents = this.#completeReadyMeetings(command.issuedAt);
     const result: AcceptedCommandResult = {
       accepted: true,
       duplicate: false,
       commandId: command.id,
-      events: structuredClone(plan.events),
+      events: structuredClone([...plan.events, ...meetingEvents]),
       sequence: this.#projection.sequence,
     };
     this.#acceptedByKey.set(command.idempotencyKey, result);
@@ -260,18 +283,30 @@ export class ExpeditionRuntime {
             ),
           );
         } else {
-          appended.push(
-            this.#appendSystemEvent(
-              `evt-work-${task.missionId}-started`,
-              'agent.work.started',
-              { agentId: task.agentId, missionId: task.missionId },
-              occurredAt,
-              task.missionId,
-            ),
-          );
           this.#travelByAgentId.delete(task.agentId);
-          const mission = this.#projection.missionsById[task.missionId];
-          if (mission) {
+          const meetingId = this.#meetingIdByMissionId.get(task.missionId);
+          if (meetingId) {
+            appended.push(
+              this.#appendSystemEvent(
+                `evt-meeting-arrival-${meetingId}-${task.agentId}`,
+                'agent.mission.completed',
+                { missionId: task.missionId, completedAt: occurredAt },
+                occurredAt,
+                meetingId,
+              ),
+            );
+          } else {
+            appended.push(
+              this.#appendSystemEvent(
+                `evt-work-${task.missionId}-started`,
+                'agent.work.started',
+                { agentId: task.agentId, missionId: task.missionId },
+                occurredAt,
+                task.missionId,
+              ),
+            );
+            const mission = this.#projection.missionsById[task.missionId];
+            if (!mission) continue;
             const effectivePlaceId =
               mission.destinationPlaceId ??
               this.#projection.agentsById[task.agentId]?.placeId ??
@@ -282,6 +317,8 @@ export class ExpeditionRuntime {
         }
       }
     }
+
+    appended.push(...this.#completeReadyMeetings(occurredAt));
 
     for (const task of existingWork) {
       if (this.#workByAgentId.get(task.agentId) !== task) continue;
@@ -478,6 +515,223 @@ export class ExpeditionRuntime {
     };
   }
 
+  #completeReadyMeetings(occurredAt: string): WorldEvent[] {
+    const appended: WorldEvent[] = [];
+    const meetings = [...this.#meetingsById.values()].sort((left, right) =>
+      left.meetingId.localeCompare(right.meetingId),
+    );
+    for (const meeting of meetings) {
+      const ready = meeting.participantAgentIds.every((agentId) => {
+        const agent = this.#projection.agentsById[agentId];
+        const missionId = meeting.missionIdsByAgentId[agentId];
+        const mission = missionId ? this.#projection.missionsById[missionId] : undefined;
+        return (
+          agent?.placeId === meeting.placeId &&
+          !agent.movement &&
+          (!missionId || mission?.status === 'completed')
+        );
+      });
+      if (!ready) continue;
+      appended.push(...this.#completeMeeting(meeting, occurredAt));
+      this.#meetingsById.delete(meeting.meetingId);
+      for (const missionId of Object.values(meeting.missionIdsByAgentId)) {
+        this.#meetingIdByMissionId.delete(missionId);
+      }
+    }
+    return appended;
+  }
+
+  #completeMeeting(meeting: ScheduledMeeting, occurredAt: string): WorldEvent[] {
+    const appended: WorldEvent[] = [];
+    const emit = (label: string, type: WorldEvent['type'], payload: unknown) => {
+      const event = this.#appendSystemEvent(
+        `evt-${meeting.meetingId}-${label}`,
+        type,
+        payload,
+        occurredAt,
+        meeting.meetingId,
+      );
+      appended.push(event);
+    };
+    const beforeSignalsByAgentId = Object.fromEntries(
+      meeting.participantAgentIds.map((agentId) => [
+        agentId,
+        [...(this.#projection.agentsById[agentId]?.knownSignalIds ?? [])].sort(),
+      ]),
+    ) as Record<string, string[]>;
+    const availableSignalIds = [
+      ...new Set(meeting.participantAgentIds.flatMap((id) => beforeSignalsByAgentId[id] ?? [])),
+    ].sort();
+    const disagreementTypes: Array<'evidence' | 'model' | 'prior'> = [];
+    const knowledgeSignatures = new Set(
+      meeting.participantAgentIds.map((id) => (beforeSignalsByAgentId[id] ?? []).join('|')),
+    );
+    if (knowledgeSignatures.size > 1) disagreementTypes.push('evidence');
+    if (availableSignalIds.length > 1) disagreementTypes.push('model');
+    const yesProbabilities = meeting.participantAgentIds.flatMap((id) => {
+      const probability = this.#projection.agentsById[id]?.belief.probabilities['yes'];
+      return probability === undefined ? [] : [probability];
+    });
+    if (
+      yesProbabilities.length > 1 &&
+      Math.max(...yesProbabilities) - Math.min(...yesProbabilities) >= 0.01
+    ) {
+      disagreementTypes.push('prior');
+    }
+
+    emit('started', 'meeting.started', {
+      meeting: {
+        id: meeting.meetingId,
+        expeditionId: this.expeditionId,
+        placeId: meeting.placeId,
+        participantAgentIds: meeting.participantAgentIds,
+        startedAt: occurredAt,
+        sharedSignalIds: [],
+        disagreementTypes,
+      },
+    });
+
+    for (const signalId of availableSignalIds) {
+      const fromAgentId = meeting.participantAgentIds.find((id) =>
+        beforeSignalsByAgentId[id]?.includes(signalId),
+      );
+      const toAgentIds = meeting.participantAgentIds.filter(
+        (id) => !beforeSignalsByAgentId[id]?.includes(signalId),
+      );
+      if (!fromAgentId || toAgentIds.length === 0) continue;
+      emit(`share-${signalId}`, 'meeting.signal_shared', {
+        meetingId: meeting.meetingId,
+        signalId,
+        fromAgentId,
+        toAgentIds,
+      });
+      for (const agentId of toAgentIds) {
+        emit(`knowledge-${agentId}-${signalId}`, 'agent.knowledge.acquired', {
+          knowledge: {
+            agentId,
+            objectType: 'signal',
+            objectId: signalId,
+            acquiredAt: occurredAt,
+            acquisition: {
+              kind: 'shared',
+              fromAgentId,
+              meetingId: meeting.meetingId,
+            },
+          },
+        });
+      }
+    }
+
+    for (const agentId of meeting.participantAgentIds) {
+      const learnedSignalIds = availableSignalIds.filter(
+        (signalId) => !beforeSignalsByAgentId[agentId]?.includes(signalId),
+      );
+      if (learnedSignalIds.length === 0) continue;
+      emit(`belief-${agentId}`, 'belief.updated', {
+        update: this.#meetingBeliefUpdate(agentId, learnedSignalIds, occurredAt, meeting.meetingId),
+      });
+    }
+
+    const participantNames = meeting.participantAgentIds.map(
+      (id) => this.#projection.agentsById[id]?.displayName ?? id,
+    );
+    const priorRange =
+      yesProbabilities.length > 0
+        ? `${Math.round(Math.min(...yesProbabilities) * 100)}–${Math.round(
+            Math.max(...yesProbabilities) * 100,
+          )}% YES`
+        : 'unrecorded';
+    const negativeSignals = availableSignalIds.filter(
+      (id) => this.#projection.signalsById[id]?.direction === 'opposes_outcome',
+    );
+    const agreements = [
+      `All ${participantNames.length} participants now hold ${availableSignalIds.length} shared signal${availableSignalIds.length === 1 ? '' : 's'}.`,
+      ...(negativeSignals.length > 1
+        ? [
+            'Current conditions and the historical base rate both press against YES without proving NO.',
+          ]
+        : ['Evidence direction remains provisional and should not be treated as certainty.']),
+    ];
+    const disagreements = [
+      ...(disagreementTypes.includes('evidence')
+        ? ['Evidence: participants entered with different signal sets and source vantage points.']
+        : []),
+      ...(disagreementTypes.includes('model')
+        ? [
+            'Model: fresh conditions and historical cases may overlap; their independence is not yet established.',
+          ]
+        : []),
+      ...(disagreementTypes.includes('prior')
+        ? [`Prior: participant estimates spanned ${priorRange} before the exchange.`]
+        : []),
+    ];
+    emit('memo', 'meeting.memo_created', {
+      meetingId: meeting.meetingId,
+      memo: {
+        summary: `${participantNames.join(', ')} exchanged ${availableSignalIds.length} signal${availableSignalIds.length === 1 ? '' : 's'} at Lantern Square and preserved the unresolved independence question.`,
+        agreements,
+        disagreements,
+        followUpMissionProposals: [
+          {
+            agentId: meeting.participantAgentIds.includes('kestrel')
+              ? 'kestrel'
+              : meeting.participantAgentIds[0],
+            verb: 'consult_professor',
+            objective:
+              'Ask Professor Vale whether the shared weather and historical signals are independent.',
+            destinationPlaceId: 'professor',
+          },
+        ],
+      },
+    });
+    emit('ended', 'meeting.ended', { meetingId: meeting.meetingId, endedAt: occurredAt });
+    return appended;
+  }
+
+  #meetingBeliefUpdate(
+    agentId: string,
+    signalIds: readonly string[],
+    occurredAt: string,
+    meetingId: string,
+  ) {
+    const agent = this.#projection.agentsById[agentId];
+    if (!agent) throw new Error(`Cannot update belief for missing agent ${agentId}.`);
+    const previousProbabilities = structuredClone(agent.belief.probabilities);
+    const newProbabilities = { ...previousProbabilities };
+    for (const signalId of signalIds) {
+      const signal = this.#projection.signalsById[signalId];
+      const targetOutcomeId = signal?.targetOutcomeId;
+      const range = signal?.impact.probabilityPointRange;
+      if (!targetOutcomeId || !range || newProbabilities[targetOutcomeId] === undefined) continue;
+      const previousTarget = newProbabilities[targetOutcomeId];
+      const target = Math.min(0.99, Math.max(0.01, previousTarget + (range.low + range.high) / 2));
+      const previousRemainder = 1 - previousTarget;
+      const nextRemainder = 1 - target;
+      newProbabilities[targetOutcomeId] = target;
+      const otherOutcomeIds = Object.keys(newProbabilities).filter((id) => id !== targetOutcomeId);
+      for (const outcomeId of otherOutcomeIds) {
+        const weight =
+          previousRemainder > 0
+            ? (newProbabilities[outcomeId] ?? 0) / previousRemainder
+            : 1 / otherOutcomeIds.length;
+        newProbabilities[outcomeId] = nextRemainder * weight;
+      }
+    }
+    return {
+      id: `belief-${meetingId}-${agentId}`,
+      expeditionId: this.expeditionId,
+      actor: { kind: 'agent' as const, id: agentId },
+      previousProbabilities,
+      newProbabilities,
+      rationale: `Reassessed after learning ${signalIds
+        .map((id) => this.#projection.signalsById[id]?.headline ?? id)
+        .join('; ')} at Lantern Square.`,
+      evidenceSignalIds: [...signalIds],
+      assumptions: ['Shared signals remain directional evidence; independence is unreviewed.'],
+      createdAt: occurredAt,
+    };
+  }
+
   #appendSystemEvent(
     id: string,
     type: WorldEvent['type'],
@@ -653,6 +907,19 @@ export class ExpeditionRuntime {
             }),
           );
         }
+        const meetingId = this.#meetingIdByMissionId.get(task.missionId);
+        if (meetingId) {
+          events.push(
+            event(offset, 'agent.mission.completed', {
+              missionId: task.missionId,
+              completedAt: command.issuedAt,
+            }),
+          );
+          return {
+            events,
+            clearScheduledForAgentId: task.agentId,
+          };
+        }
         events.push(
           event(offset, 'agent.work.started', {
             agentId: task.agentId,
@@ -670,7 +937,71 @@ export class ExpeditionRuntime {
           ),
         };
       }
-      case 'meeting.request':
+      case 'meeting.request': {
+        const events: WorldEvent[] = [
+          event(1, 'meeting.requested', {
+            meetingId: command.payload.meetingId,
+            placeId: command.payload.placeId,
+            participantAgentIds: command.payload.participantAgentIds,
+          }),
+        ];
+        const scheduleTravels: ScheduledTravel[] = [];
+        const missionIdsByAgentId: Record<string, string> = {};
+        let offset = 2;
+        for (const agentId of command.payload.participantAgentIds) {
+          const agent = this.#projection.agentsById[agentId];
+          if (!agent || agent.placeId === command.payload.placeId) continue;
+          const routePlan = selectRoutePlan(
+            this.#projection.worldManifest,
+            agent.placeId,
+            command.payload.placeId,
+          );
+          const firstLeg = routePlan?.legs[0];
+          if (!routePlan || !firstLeg) return undefined;
+          const missionId = `meeting-mission-${command.payload.meetingId}-${agentId}`;
+          const mission = {
+            id: missionId,
+            expeditionId: this.expeditionId,
+            assignedAgentId: agentId,
+            verb: 'meet_agent' as const,
+            objective: 'Join the team evidence exchange at Lantern Square.',
+            destinationPlaceId: command.payload.placeId,
+            targetAgentIds: command.payload.participantAgentIds.filter((id) => id !== agentId),
+            budget: { maxToolCalls: 0, timeoutMs: 30_000 },
+            status: 'draft' as const,
+            createdBy: command.actor,
+            createdAt: command.issuedAt,
+          };
+          events.push(
+            event(offset++, 'agent.mission.queued', { mission }),
+            event(offset++, 'agent.mission.assigned', { missionId, agentId }),
+            event(
+              offset++,
+              'agent.travel.started',
+              this.#travelStartedPayload(agentId, missionId, firstLeg, command.issuedAt),
+            ),
+          );
+          missionIdsByAgentId[agentId] = missionId;
+          scheduleTravels.push({
+            agentId,
+            missionId,
+            plan: routePlan,
+            legIndex: 0,
+            elapsedMs: 0,
+            emittedProgressStep: 0,
+          });
+        }
+        return {
+          events,
+          scheduleTravels,
+          scheduleMeeting: {
+            meetingId: command.payload.meetingId,
+            placeId: command.payload.placeId,
+            participantAgentIds: [...command.payload.participantAgentIds],
+            missionIdsByAgentId,
+          },
+        };
+      }
       case 'professor.query':
       case 'forecast.commit':
         return undefined;

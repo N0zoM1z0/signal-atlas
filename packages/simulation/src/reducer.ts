@@ -837,8 +837,17 @@ export function reduceWorldEvent(state: WorldProjection, event: WorldEvent): Wor
     case 'meeting.started': {
       const meeting = event.payload.meeting;
       ensureNewEntity(state.meetingsById, meeting.id, 'Meeting');
+      const request = requireEntity(state.meetingRequestsById, meeting.id, 'Meeting request');
       requirePlace(state, meeting.placeId);
       requireKnownIds(state.agentsById, meeting.participantAgentIds, 'Agent');
+      if (
+        request.placeId !== meeting.placeId ||
+        !sameMembers(request.participantAgentIds, meeting.participantAgentIds)
+      ) {
+        throw new IllegalTransitionError(
+          `Meeting ${meeting.id} does not match its requested place and participants.`,
+        );
+      }
       for (const agentId of meeting.participantAgentIds) {
         const agent = requireEntity(state.agentsById, agentId, 'Agent');
         if (agent.placeId !== meeting.placeId) {
@@ -861,6 +870,20 @@ export function reduceWorldEvent(state: WorldProjection, event: WorldEvent): Wor
     }
     case 'meeting.signal_shared': {
       const meeting = requireEntity(state.meetingsById, event.payload.meetingId, 'Meeting');
+      if (meeting.endedAt) {
+        throw new IllegalTransitionError(`Meeting ${meeting.id} has already ended.`);
+      }
+      if (
+        !meeting.participantAgentIds.includes(event.payload.fromAgentId) ||
+        event.payload.toAgentIds.some(
+          (agentId) =>
+            agentId === event.payload.fromAgentId || !meeting.participantAgentIds.includes(agentId),
+        )
+      ) {
+        throw new IllegalTransitionError(
+          `Meeting ${meeting.id} can share signals only among its participants.`,
+        );
+      }
       next = appendSignalShare(state, event, {
         signalId: event.payload.signalId,
         fromAgentId: event.payload.fromAgentId,
@@ -881,6 +904,11 @@ export function reduceWorldEvent(state: WorldProjection, event: WorldEvent): Wor
     }
     case 'meeting.memo_created': {
       const meeting = requireEntity(state.meetingsById, event.payload.meetingId, 'Meeting');
+      if (meeting.endedAt || meeting.memo) {
+        throw new IllegalTransitionError(
+          `Meeting ${meeting.id} cannot accept another memo in its current state.`,
+        );
+      }
       next = {
         ...state,
         meetingsById: {
@@ -902,6 +930,12 @@ export function reduceWorldEvent(state: WorldProjection, event: WorldEvent): Wor
     }
     case 'meeting.ended': {
       const meeting = requireEntity(state.meetingsById, event.payload.meetingId, 'Meeting');
+      if (meeting.endedAt) {
+        throw new IllegalTransitionError(`Meeting ${meeting.id} has already ended.`);
+      }
+      if (!meeting.memo) {
+        throw new IllegalTransitionError(`Meeting ${meeting.id} requires a memo before ending.`);
+      }
       next = {
         ...state,
         meetingsById: {
