@@ -62,6 +62,8 @@ function safeError(code: PrefGatewayErrorCode): PrefGatewayError {
       return new PrefGatewayError(code, 'The Pref call was canceled.', true);
     case 'pref_response_too_large':
       return new PrefGatewayError(code, 'The Pref response exceeded the configured byte limit.');
+    case 'pref_upstream_error':
+      return new PrefGatewayError(code, 'The Pref provider could not return a safe result.', true);
     case 'pref_fixture_miss':
       return new PrefGatewayError(code, 'No recorded fixture matches this canonical Pref request.');
     case 'pref_invalid_response':
@@ -266,12 +268,14 @@ export class FixturePrefGateway implements PrefGateway {
         callId,
         capability,
         sources,
+        evidence: [],
         argumentsHash,
         responseHash,
         retrievedAt,
         durationMs,
         responseBytes,
         fromCache: false,
+        cache: { status: 'miss' },
       };
     } catch (error: unknown) {
       const normalized =

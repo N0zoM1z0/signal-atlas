@@ -150,16 +150,50 @@ export interface PrefGatewayHealth {
   message?: string;
 }
 
+export const PrefCacheStatusSchema = z.enum(['miss', 'fresh', 'stale']);
+
+export const PrefLocalConditionsEvidenceSchema = z.strictObject({
+  kind: z.literal('local_conditions'),
+  sourceId: EntityIdSchema,
+  provider: z.string().trim().min(1).max(256),
+  location: GeoSemanticLocationSchema,
+  observedAt: DateTimeSchema.nullable(),
+  providerRetrievedAt: DateTimeSchema,
+  temperatureC: z.number().finite().nullable(),
+  humidityPercent: z.number().finite().nullable(),
+  windSpeedKmh: z.number().finite().nullable(),
+  windDirectionDegrees: z.number().finite().nullable(),
+  weatherCode: z.number().finite().nullable(),
+  weatherDescription: z.string().trim().min(1).max(256),
+  weatherCategory: z.string().trim().min(1).max(128),
+  pressureHpa: z.number().finite().nullable(),
+});
+
+export const PrefCanonicalEvidenceSchema = z.discriminatedUnion('kind', [
+  PrefLocalConditionsEvidenceSchema,
+]);
+
+export interface PrefCacheInfo {
+  status: z.infer<typeof PrefCacheStatusSchema>;
+  storedAt?: string;
+  warning?: string;
+}
+
+export type PrefLocalConditionsEvidence = z.infer<typeof PrefLocalConditionsEvidenceSchema>;
+export type PrefCanonicalEvidence = z.infer<typeof PrefCanonicalEvidenceSchema>;
+
 export interface PrefCapabilityResult {
   callId: string;
   capability: PrefCanonicalCapability;
   sources: SourceRecord[];
+  evidence: PrefCanonicalEvidence[];
   argumentsHash: string;
   responseHash: string;
   retrievedAt: string;
   durationMs: number;
   responseBytes: number;
   fromCache: boolean;
+  cache: PrefCacheInfo;
 }
 
 interface PrefAuditBase {
@@ -203,6 +237,7 @@ export type PrefGatewayErrorCode =
   | 'pref_timeout'
   | 'pref_canceled'
   | 'pref_response_too_large'
+  | 'pref_upstream_error'
   | 'pref_fixture_miss'
   | 'pref_invalid_response';
 
@@ -232,6 +267,11 @@ export interface PrefGatewayDiagnostics {
   calls: number;
   completed: number;
   failed: number;
+  cache?: {
+    entries: number;
+    hits: number;
+    staleFallbacks: number;
+  };
   lastCallAt?: string;
   lastError?: {
     code: PrefGatewayErrorCode;
