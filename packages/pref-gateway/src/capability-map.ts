@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 
 import { z } from 'zod';
@@ -178,6 +179,12 @@ export async function loadPrefCapabilityMap(
 ): Promise<PrefCapabilityMap> {
   const contents = await readFile(fileUrl, 'utf8');
   return parsePrefCapabilityMap(JSON.parse(contents) as unknown);
+}
+
+export function loadPrefCapabilityMapSync(
+  fileUrl: URL = new URL('../config/pref-capabilities.json', import.meta.url),
+): PrefCapabilityMap {
+  return parsePrefCapabilityMap(JSON.parse(readFileSync(fileUrl, 'utf8')) as unknown);
 }
 
 export function assertAllowedPrefEndpoint(value: string, allowedHosts: readonly string[]): URL {

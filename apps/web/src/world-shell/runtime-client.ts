@@ -1,5 +1,6 @@
 import type { MissionVerb, WorldCommand, WorldEvent } from '@signal-atlas/contracts';
 import type { CodexRuntimeDiagnostics } from '@signal-atlas/codex-runtime';
+import type { PrefMcpConnectionDiagnostics } from '@signal-atlas/pref-gateway';
 import type { WorldProjection } from '@signal-atlas/simulation';
 
 import { shellModel } from './model.js';
@@ -74,6 +75,24 @@ export async function fetchExpeditionSnapshot(): Promise<WorldProjection> {
 
 export async function fetchRuntimeDiagnostics(): Promise<CodexRuntimeDiagnostics> {
   return requestJson<CodexRuntimeDiagnostics>('/api/runtime/diagnostics');
+}
+
+export async function fetchPrefDiagnostics(): Promise<PrefMcpConnectionDiagnostics> {
+  return requestJson<PrefMcpConnectionDiagnostics>('/api/runtime/pref');
+}
+
+export async function testPrefConnection(): Promise<PrefMcpConnectionDiagnostics> {
+  return requestJson<PrefMcpConnectionDiagnostics>('/api/runtime/pref/test', {
+    method: 'POST',
+    body: JSON.stringify({}),
+  });
+}
+
+export async function disconnectPrefConnection(): Promise<PrefMcpConnectionDiagnostics> {
+  return requestJson<PrefMcpConnectionDiagnostics>('/api/runtime/pref/disconnect', {
+    method: 'POST',
+    body: JSON.stringify({}),
+  });
 }
 
 export async function fetchExpeditionEvents(after = 0): Promise<{

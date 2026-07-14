@@ -97,6 +97,7 @@ export function WorldShell() {
   const [announcement, setAnnouncement] = useState('Fixture projection ready.');
   const [reducedMotion, setReducedMotion] = useState(false);
   const [runtimeState, setRuntimeState] = useState<RuntimeState>(runtimeStateFromLocation);
+  const [prefConnected, setPrefConnected] = useState(true);
   const [missionDraft, setMissionDraft] = useState<MissionDraft>();
   const [commandBusy, setCommandBusy] = useState(false);
   const [commandError, setCommandError] = useState<string>();
@@ -953,7 +954,7 @@ export function WorldShell() {
       <AgentDock
         agents={model.agents}
         collapsed={agentDockCollapsed}
-        disconnected={runtimeState === 'disconnected'}
+        disconnected={runtimeState === 'disconnected' || !prefConnected}
         mobileOpen={mobilePanel === 'agents'}
         onFollowAgent={(agentId) => {
           setFollowRequest((current) => ({
@@ -1102,6 +1103,7 @@ export function WorldShell() {
           setRuntimeDiagnosticsOpen(false);
           setAnnouncement('Runtime diagnostics closed.');
         }}
+        onPrefConnectionChange={setPrefConnected}
         open={runtimeDiagnosticsOpen}
       />
 

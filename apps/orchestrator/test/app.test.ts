@@ -67,6 +67,35 @@ describe('orchestrator health endpoint', () => {
     expect(response.body).not.toContain('secret');
   });
 
+  it('exposes safe Pref connection controls and primitive diagnostics', async () => {
+    const app = buildApp();
+    openApps.push(app);
+
+    const initial = await app.inject({ method: 'GET', url: '/api/runtime/pref' });
+    expect(initial.statusCode).toBe(200);
+    expect(initial.json()).toMatchObject({
+      mode: 'fixture',
+      state: 'connected',
+      credentialState: 'not_required',
+      inventory: {
+        tools: [{ name: 'fixture.local_conditions', readOnly: true }],
+      },
+      mappings: [{ canonicalName: 'local_conditions', status: 'valid' }],
+    });
+
+    const disconnected = await app.inject({
+      method: 'POST',
+      url: '/api/runtime/pref/disconnect',
+    });
+    expect(disconnected.statusCode).toBe(200);
+    expect(disconnected.json()).toMatchObject({ state: 'disconnected', connected: false });
+
+    const reconnected = await app.inject({ method: 'POST', url: '/api/runtime/pref/test' });
+    expect(reconnected.statusCode).toBe(200);
+    expect(reconnected.json()).toMatchObject({ state: 'connected', connected: true });
+    expect(reconnected.body).not.toMatch(/authorization|bearer|api[_-]?key|token/iu);
+  });
+
   it('selects the visible scripted fallback when local Codex is absent', async () => {
     const previousMode = process.env['SIGNAL_ATLAS_CODEX_MODE'];
     const previousExecutable = process.env['SIGNAL_ATLAS_CODEX_EXECUTABLE'];

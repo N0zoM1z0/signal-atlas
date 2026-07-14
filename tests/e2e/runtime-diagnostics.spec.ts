@@ -18,6 +18,15 @@ test('runtime diagnostics expose the scripted driver, scheduler, and persisted t
   await expect(dialog).toBeVisible();
   await expect(dialog).toContainText('fixture-scripted-codex');
   await expect(dialog).toContainText('Deterministic Helios-3 scripted mission driver.');
+  const prefConnection = dialog.getByRole('region', { name: 'Pref MCP connection' });
+  await expect(prefConnection).toContainText('connected');
+  await expect(prefConnection).toContainText('Deterministic recorded data');
+  await expect(prefConnection).toContainText('fixture.local_conditions');
+  await expect(prefConnection).toContainText('local_conditions');
+  await prefConnection.getByRole('button', { name: 'Disconnect' }).click();
+  await expect(prefConnection).toContainText('disconnected');
+  await prefConnection.getByRole('button', { name: 'Test / reconnect' }).click();
+  await expect(prefConnection).toContainText('connected');
   await expect(dialog.getByRole('region', { name: 'Agent scheduler' })).toContainText(
     'Concurrency2',
   );
@@ -46,7 +55,5 @@ test('runtime diagnostics expose the scripted driver, scheduler, and persisted t
   await expect(turns).toContainText('mission-');
   await expect(turns).toContainText('completed');
   await expect(turns).toContainText('attempt 1');
-  await expect(dialog).toContainText(
-    'No prompt text, private reasoning, source content, or secrets',
-  );
+  await expect(dialog).toContainText('No credential, prompt text, private reasoning');
 });

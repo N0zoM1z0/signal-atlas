@@ -97,6 +97,7 @@ export interface PrefMcpSdkClient {
 export interface PrefMcpSdkClientFactoryInput {
   endpoint: URL;
   credentialProvider: () => Promise<string | undefined>;
+  maxResponseBytes: number;
   onClose: () => void;
 }
 
@@ -301,6 +302,7 @@ export class StreamableHttpPrefConnection implements PrefMcpConnection {
     const client = this.#clientFactory({
       endpoint: new URL(this.#endpoint),
       credentialProvider,
+      maxResponseBytes: this.#maxDiscoveryBytes,
       onClose: () => this.#handleRemoteClose(),
     });
     this.#client = client;
@@ -508,6 +510,7 @@ export class StreamableHttpPrefConnection implements PrefMcpConnection {
 function createOfficialPrefMcpSdkClient(input: PrefMcpSdkClientFactoryInput): PrefMcpSdkClient {
   const transport = new StreamableHTTPClientTransport(input.endpoint, {
     authProvider: { token: input.credentialProvider },
+    fetch: createBoundedPrefFetch(input.maxResponseBytes),
   });
   const client = new Client(
     { name: 'signal-atlas-pref-gateway', version: '0.0.0' },
@@ -580,6 +583,58 @@ function createOfficialPrefMcpSdkClient(input: PrefMcpSdkClientFactoryInput): Pr
     callTool(name, argumentsValue, options) {
       return client.callTool({ name, arguments: argumentsValue }, requestOptions(options));
     },
+  };
+}
+
+export function createBoundedPrefFetch(
+  maximumBytes: number,
+  baseFetch: typeof fetch = fetch,
+): typeof fetch {
+  if (!Number.isInteger(maximumBytes) || maximumBytes <= 0) {
+    throw new Error('A bounded Pref fetch requires a positive integer byte limit.');
+  }
+  return async (input, init) => {
+    const response = await baseFetch(input, init);
+    const declaredLength = response.headers.get('content-length');
+    if (declaredLength !== null) {
+      const declaredBytes = Number(declaredLength);
+      if (Number.isFinite(declaredBytes) && declaredBytes > maximumBytes) {
+        await response.body?.cancel();
+        throw safeConnectionError('pref_response_too_large');
+      }
+    }
+    if (!response.body) return response;
+
+    const reader = response.body.getReader();
+    let receivedBytes = 0;
+    const boundedBody = new ReadableStream<Uint8Array>({
+      async pull(controller) {
+        try {
+          const chunk = await reader.read();
+          if (chunk.done) {
+            controller.close();
+            return;
+          }
+          receivedBytes += chunk.value.byteLength;
+          if (receivedBytes > maximumBytes) {
+            await reader.cancel();
+            controller.error(safeConnectionError('pref_response_too_large'));
+            return;
+          }
+          controller.enqueue(chunk.value);
+        } catch (error: unknown) {
+          controller.error(error);
+        }
+      },
+      cancel(reason) {
+        return reader.cancel(reason);
+      },
+    });
+    return new Response(boundedBody, {
+      status: response.status,
+      statusText: response.statusText,
+      headers: response.headers,
+    });
   };
 }
 
@@ -902,8 +957,12 @@ function safeOptionalText(value: unknown, maximumLength: number): string | undef
 }
 
 function safeText(value: string, maximumLength: number): string {
-  const normalized = value
-    .replace(/[\u0000-\u001f\u007f]/gu, ' ')
+  const normalized = [...value]
+    .map((character) => {
+      const codePoint = character.codePointAt(0) ?? 0;
+      return codePoint < 0x20 || codePoint === 0x7f ? ' ' : character;
+    })
+    .join('')
     .replace(/\s+/gu, ' ')
     .trim()
     .slice(0, maximumLength);

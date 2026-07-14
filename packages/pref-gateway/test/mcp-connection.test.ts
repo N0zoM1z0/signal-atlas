@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   PrefMcpConnectionError,
   StreamableHttpPrefConnection,
+  createBoundedPrefFetch,
   loadPrefCapabilityMap,
   type PrefMcpCallOptions,
   type PrefMcpSdkCallResult,
@@ -398,6 +399,28 @@ describe('Streamable HTTP Pref connection', () => {
       connected: false,
       lastError: { code: 'pref_response_too_large' },
       inventory: { tools: [], resources: [], resourceTemplates: [], prompts: [] },
+    });
+  });
+
+  it('caps declared and streamed HTTP response bytes before the SDK parses them', async () => {
+    const declaredFetch = createBoundedPrefFetch(
+      8,
+      async () =>
+        new Response('too large', {
+          headers: { 'content-length': '9', 'content-type': 'application/json' },
+        }),
+    );
+    await expect(declaredFetch('https://pref.trade/mcp')).rejects.toMatchObject({
+      code: 'pref_response_too_large',
+    });
+
+    const streamedFetch = createBoundedPrefFetch(
+      8,
+      async () => new Response(new TextEncoder().encode('streamed response without a length')),
+    );
+    const streamedResponse = await streamedFetch('https://pref.trade/mcp');
+    await expect(streamedResponse.text()).rejects.toMatchObject({
+      code: 'pref_response_too_large',
     });
   });
 });

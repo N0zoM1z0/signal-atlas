@@ -44,9 +44,16 @@ This log records design-package ambiguities that must be resolved without silent
 - **Implementation decision:** `SourceRecord.location` identifies the source's subject, observation, or geographic scope. Retrieval and possession locations belong to missions, events, and `AgentKnowledge.acquisition` edges.
 - **Reason:** Separating subject location from acquisition location preserves provenance and avoids rewriting a source when agents retrieve or share it through different places.
 
+## OQ-007: First Pref capability and credential boundary
+
+- **Status:** Resolved in P5-002 for the first live path.
+- **Ambiguity:** The original design examples named hypothetical Pref capabilities, while the hosted deployment exposes a catalog front door and requires authentication before discovery.
+- **Implementation decision:** Use hosted Streamable HTTP with a server-only bearer, discover exact provider contracts through `search_tools`, execute only through `call_tool`, and allow only the read-only `weather.get_current_conditions` mapping for the first mission. Do not copy the Codex OAuth credential or automatically register an agent.
+- **Reason:** The inspected weather contract is read-only, non-destructive, idempotent, and matches the Helios-3 vertical slice. The considered news-search contract currently reports an external-write side effect and therefore fails the MVP safety policy.
+
 ## Owner decisions that do not block the offline vertical slice
 
 - Initial audience priority and distribution target.
 - Final pixel-art production method.
 - Optional read-only market-price provider.
-- Pref capability selection and content-retention policy after live discovery.
+- Selection and rights review for any second Pref capability after the weather path.

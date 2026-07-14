@@ -56,6 +56,9 @@ importers:
       '@signal-atlas/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@signal-atlas/pref-gateway':
+        specifier: workspace:*
+        version: link:../../packages/pref-gateway
       '@signal-atlas/simulation':
         specifier: workspace:*
         version: link:../../packages/simulation
@@ -80,6 +83,9 @@ importers:
       '@signal-atlas/game-scene':
         specifier: workspace:*
         version: link:../../packages/game-scene
+      '@signal-atlas/pref-gateway':
+        specifier: workspace:*
+        version: link:../../packages/pref-gateway
       '@signal-atlas/simulation':
         specifier: workspace:*
         version: link:../../packages/simulation

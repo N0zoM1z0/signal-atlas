@@ -10,6 +10,7 @@ import {
   defaultCodexRuntimeRoot,
   type CodexMissionMode,
 } from './local-fixture-codex-driver.js';
+import { createConfiguredPrefRuntime, type PrefRuntime } from './pref-runtime.js';
 
 export interface HealthResponse {
   status: 'ok';
@@ -20,6 +21,7 @@ export interface HealthResponse {
 
 export interface BuildAppOptions {
   runtime?: ExpeditionRuntime;
+  prefRuntime?: PrefRuntime;
   runScheduler?: boolean;
 }
 
@@ -71,6 +73,7 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
       });
     })();
   const runScheduler = options.runScheduler ?? process.env['NODE_ENV'] !== 'test';
+  const prefRuntime = options.prefRuntime ?? createConfiguredPrefRuntime();
   let scheduler: ReturnType<typeof setInterval> | undefined;
   if (runScheduler) {
     let previousTick = Date.now();
@@ -84,6 +87,7 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   app.addHook('onClose', async () => {
     if (scheduler) clearInterval(scheduler);
     await runtime.waitForRuntimeIdle();
+    await prefRuntime.disconnect();
   });
 
   app.get<{ Reply: HealthResponse }>('/api/health', async () => ({
@@ -94,6 +98,12 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   }));
 
   app.get('/api/runtime/diagnostics', async () => runtime.runtimeDiagnostics());
+
+  app.get('/api/runtime/pref', async () => prefRuntime.diagnostics());
+
+  app.post('/api/runtime/pref/test', async () => prefRuntime.testConnection());
+
+  app.post('/api/runtime/pref/disconnect', async () => prefRuntime.disconnect());
 
   app.get<{ Params: ExpeditionParams }>('/api/expeditions/:id/snapshot', async (request, reply) => {
     if (request.params.id !== runtime.expeditionId) {

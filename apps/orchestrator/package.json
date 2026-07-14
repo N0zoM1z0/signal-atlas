@@ -15,6 +15,7 @@
   "dependencies": {
     "@signal-atlas/codex-runtime": "workspace:*",
     "@signal-atlas/contracts": "workspace:*",
+    "@signal-atlas/pref-gateway": "workspace:*",
     "@signal-atlas/simulation": "workspace:*",
     "@signal-atlas/test-fixtures": "workspace:*",
     "fastify": "5.10.0"

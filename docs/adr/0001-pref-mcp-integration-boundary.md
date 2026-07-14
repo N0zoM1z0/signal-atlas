@@ -69,9 +69,9 @@ Provider names belong in a validated, versioned capability map rather than in ga
 
 The first selected mapping is:
 
-| Canonical capability | Discovery tool | Execution tool | Provider tool ref | Provider server | Input projection |
-| --- | --- | --- | --- | --- | --- |
-| `local_conditions` | `search_tools` | `call_tool` | `weather.get_current_conditions` | `weather_toolkit` | semantic location label to `location` |
+| Canonical capability | Discovery tool | Execution tool | Provider tool ref                | Provider server   | Input projection                      |
+| -------------------- | -------------- | -------------- | -------------------------------- | ----------------- | ------------------------------------- |
+| `local_conditions`   | `search_tools` | `call_tool`    | `weather.get_current_conditions` | `weather_toolkit` | semantic location label to `location` |
 
 The exact discovered contract requires one non-empty string field, `location`. Its annotations report read-only, non-destructive, and idempotent behavior. Before execution, the loader validates the checked-in map structurally and the live connection resolves the exact `tool_ref` through `search_tools`; the returned server, input schema, and safety annotations must satisfy the mapping. A stale, missing, changed, or unknown tool fails closed.
 

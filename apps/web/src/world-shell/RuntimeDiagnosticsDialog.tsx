@@ -1,12 +1,19 @@
 import { Dialog } from '@signal-atlas/ui';
 import type { CodexRuntimeDiagnostics, RuntimeTurnRecord } from '@signal-atlas/codex-runtime';
+import type { PrefMcpConnectionDiagnostics } from '@signal-atlas/pref-gateway';
 import { useCallback, useEffect, useState } from 'react';
 
-import { fetchRuntimeDiagnostics } from './runtime-client.js';
+import {
+  disconnectPrefConnection,
+  fetchPrefDiagnostics,
+  fetchRuntimeDiagnostics,
+  testPrefConnection,
+} from './runtime-client.js';
 
 export interface RuntimeDiagnosticsDialogProps {
   open: boolean;
   onClose: () => void;
+  onPrefConnectionChange?: (connected: boolean) => void;
 }
 
 function dateLabel(value: string | undefined): string {
@@ -22,54 +29,92 @@ function statusLabel(status: RuntimeTurnRecord['status']): string {
   return status.replace('_', ' ');
 }
 
-export function RuntimeDiagnosticsDialog({ open, onClose }: RuntimeDiagnosticsDialogProps) {
+function connectionLabel(state: PrefMcpConnectionDiagnostics['state']): string {
+  return state.replaceAll('_', ' ');
+}
+
+function primitiveNames(diagnostics: PrefMcpConnectionDiagnostics): string[] {
+  return [
+    ...diagnostics.inventory.tools.map((primitive) => primitive.name),
+    ...diagnostics.inventory.resources.map((primitive) => primitive.name),
+    ...diagnostics.inventory.resourceTemplates.map((primitive) => primitive.name),
+    ...diagnostics.inventory.prompts.map((primitive) => primitive.name),
+  ];
+}
+
+export function RuntimeDiagnosticsDialog({
+  open,
+  onClose,
+  onPrefConnectionChange,
+}: RuntimeDiagnosticsDialogProps) {
   const [diagnostics, setDiagnostics] = useState<CodexRuntimeDiagnostics>();
+  const [prefDiagnostics, setPrefDiagnostics] = useState<PrefMcpConnectionDiagnostics>();
   const [loading, setLoading] = useState(true);
+  const [prefBusy, setPrefBusy] = useState(false);
   const [error, setError] = useState<string>();
+  const [prefError, setPrefError] = useState<string>();
 
   const refresh = useCallback(async () => {
     setLoading(true);
     setError(undefined);
-    try {
-      setDiagnostics(await fetchRuntimeDiagnostics());
-    } catch (diagnosticError: unknown) {
+    setPrefError(undefined);
+    const [runtimeResult, prefResult] = await Promise.allSettled([
+      fetchRuntimeDiagnostics(),
+      fetchPrefDiagnostics(),
+    ]);
+    if (runtimeResult.status === 'fulfilled') {
+      setDiagnostics(runtimeResult.value);
+    } else {
       setError(
-        diagnosticError instanceof Error
-          ? diagnosticError.message
+        runtimeResult.reason instanceof Error
+          ? runtimeResult.reason.message
           : 'Runtime diagnostics could not be loaded.',
       );
-    } finally {
-      setLoading(false);
     }
-  }, []);
+    if (prefResult.status === 'fulfilled') {
+      setPrefDiagnostics(prefResult.value);
+      onPrefConnectionChange?.(prefResult.value.connected);
+    } else {
+      setPrefError(
+        prefResult.reason instanceof Error
+          ? prefResult.reason.message
+          : 'Pref connection diagnostics could not be loaded.',
+      );
+    }
+    setLoading(false);
+  }, [onPrefConnectionChange]);
+
+  const changePrefConnection = useCallback(
+    async (action: 'test' | 'disconnect') => {
+      setPrefBusy(true);
+      setPrefError(undefined);
+      try {
+        const next =
+          action === 'test' ? await testPrefConnection() : await disconnectPrefConnection();
+        setPrefDiagnostics(next);
+        onPrefConnectionChange?.(next.connected);
+      } catch (connectionError: unknown) {
+        setPrefError(
+          connectionError instanceof Error
+            ? connectionError.message
+            : 'The Pref connection action could not be completed.',
+        );
+      } finally {
+        setPrefBusy(false);
+      }
+    },
+    [onPrefConnectionChange],
+  );
 
   useEffect(() => {
     if (!open) return undefined;
-    let active = true;
-    void fetchRuntimeDiagnostics()
-      .then((nextDiagnostics) => {
-        if (!active) return;
-        setError(undefined);
-        setDiagnostics(nextDiagnostics);
-        setLoading(false);
-      })
-      .catch((diagnosticError: unknown) => {
-        if (!active) return;
-        setError(
-          diagnosticError instanceof Error
-            ? diagnosticError.message
-            : 'Runtime diagnostics could not be loaded.',
-        );
-        setLoading(false);
-      });
-    return () => {
-      active = false;
-    };
-  }, [open]);
+    const refreshTimer = window.setTimeout(() => void refresh(), 0);
+    return () => window.clearTimeout(refreshTimer);
+  }, [open, refresh]);
 
   return (
     <Dialog
-      description="Inspect the bounded driver, scheduler capacity, and persisted turn outcomes."
+      description="Inspect the bounded agent driver, Pref source gateway, scheduler, and persisted outcomes."
       onClose={onClose}
       open={open}
       title="Codex Runtime Diagnostics"
@@ -138,6 +183,121 @@ export function RuntimeDiagnosticsDialog({ open, onClose }: RuntimeDiagnosticsDi
               </dl>
               {diagnostics.driver.lastError && (
                 <p className="atlas-runtime-driver__error">{diagnostics.driver.lastError}</p>
+              )}
+            </section>
+
+            <section className="atlas-pref-connection" aria-labelledby="pref-connection-title">
+              <header>
+                <div>
+                  <span className="atlas-kicker">Read-only source gateway</span>
+                  <h3 id="pref-connection-title">Pref MCP connection</h3>
+                </div>
+                {prefDiagnostics && (
+                  <span data-state={prefDiagnostics.state}>
+                    <i aria-hidden="true" />
+                    {connectionLabel(prefDiagnostics.state)}
+                  </span>
+                )}
+              </header>
+              {prefError ? (
+                <p className="atlas-pref-connection__error" role="alert">
+                  {prefError}
+                </p>
+              ) : prefDiagnostics ? (
+                <>
+                  <p>
+                    {prefDiagnostics.mode === 'fixture'
+                      ? 'Deterministic recorded data; no network or credential is used.'
+                      : 'Hosted Streamable HTTP; credentials remain in the orchestrator process.'}
+                  </p>
+                  <dl>
+                    <div>
+                      <dt>Mode</dt>
+                      <dd>{prefDiagnostics.mode}</dd>
+                    </div>
+                    <div>
+                      <dt>Credential</dt>
+                      <dd>{prefDiagnostics.credentialState.replaceAll('_', ' ')}</dd>
+                    </div>
+                    <div>
+                      <dt>Server</dt>
+                      <dd>{prefDiagnostics.endpointHost ?? prefDiagnostics.serverName}</dd>
+                    </div>
+                    <div>
+                      <dt>Last check</dt>
+                      <dd>{dateLabel(prefDiagnostics.lastCheckedAt)}</dd>
+                    </div>
+                  </dl>
+                  {prefDiagnostics.lastError && (
+                    <p className="atlas-pref-connection__error" role="status">
+                      <strong>{prefDiagnostics.lastError.code}</strong>{' '}
+                      {prefDiagnostics.lastError.message}
+                    </p>
+                  )}
+                  <div className="atlas-pref-inventory">
+                    <article>
+                      <span>
+                        <small>Discovered primitives</small>
+                        <strong>{primitiveNames(prefDiagnostics).length}</strong>
+                      </span>
+                      {primitiveNames(prefDiagnostics).length > 0 ? (
+                        <ul>
+                          {primitiveNames(prefDiagnostics)
+                            .slice(0, 8)
+                            .map((name) => (
+                              <li key={name}>
+                                <code>{name}</code>
+                              </li>
+                            ))}
+                        </ul>
+                      ) : (
+                        <p>No primitives have been discovered.</p>
+                      )}
+                    </article>
+                    <article>
+                      <span>
+                        <small>Capability mappings</small>
+                        <strong>
+                          {
+                            prefDiagnostics.mappings.filter((mapping) => mapping.status === 'valid')
+                              .length
+                          }
+                          /{prefDiagnostics.mappings.length}
+                        </strong>
+                      </span>
+                      {prefDiagnostics.mappings.length > 0 ? (
+                        <ul>
+                          {prefDiagnostics.mappings.map((mapping) => (
+                            <li data-status={mapping.status} key={mapping.canonicalName}>
+                              <code>{mapping.canonicalName}</code>
+                              <span>{mapping.status}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p>No approved capability mapping is available.</p>
+                      )}
+                    </article>
+                  </div>
+                  <div className="atlas-pref-connection__actions">
+                    <button
+                      disabled={prefBusy}
+                      onClick={() => void changePrefConnection('test')}
+                      type="button"
+                    >
+                      {prefBusy ? 'Checking…' : 'Test / reconnect'}
+                    </button>
+                    <button
+                      disabled={prefBusy || !prefDiagnostics.connected}
+                      onClick={() => void changePrefConnection('disconnect')}
+                      type="button"
+                    >
+                      Disconnect
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <p role="status">Reading Pref connection diagnostics…</p>
               )}
             </section>
 
@@ -224,8 +384,8 @@ export function RuntimeDiagnosticsDialog({ open, onClose }: RuntimeDiagnosticsDi
 
             <footer className="atlas-runtime-diagnostics__footer">
               <span>
-                <i aria-hidden="true">◇</i> No prompt text, private reasoning, source content, or
-                secrets are shown here.
+                <i aria-hidden="true">◇</i> No credential, prompt text, private reasoning, raw
+                source content, or secret is shown here.
               </span>
               <button onClick={onClose} type="button">
                 Done
