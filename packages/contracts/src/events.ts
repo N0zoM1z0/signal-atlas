@@ -146,6 +146,10 @@ const agentTurnCompleted = eventVariant(
     turnId: EntityIdSchema,
     sourceIds: z.array(EntityIdSchema),
     signalIds: z.array(EntityIdSchema),
+    profileId: EntityIdSchema,
+    profileVersion: z.number().int().positive(),
+    publicRationale: z.string().min(1).max(320),
+    unknowns: z.array(z.string().min(1)).min(1).max(6),
   }),
 );
 const agentTurnFailed = eventVariant(

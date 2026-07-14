@@ -1,17 +1,18 @@
+import { homedir } from 'node:os';
+import { join } from 'node:path';
+
 import agentTurnOutputSchema from '../../../schemas/agent-turn-output.codex.schema.json' with { type: 'json' };
 
-import type {
-  AgentTurnInput,
-  AgentTurnOutput,
-  ExpeditionFixture,
-  SourceRecord,
-} from '@signal-atlas/contracts';
+import type { AgentTurnInput, AgentTurnOutput, ExpeditionFixture } from '@signal-atlas/contracts';
 import {
+  buildKnowledgePacket,
   CodexUnavailableFallbackDriver,
+  getAgentRoleProfile,
+  JsonlAgentSessionRegistry,
   LocalCodexExecDriver,
+  type AgentSessionRegistry,
   type CodexDriver,
   type CodexProcessRunner,
-  type CodexPromptSource,
   type CodexTurnPromptContext,
   type LocalCodexTurnMetadata,
 } from '@signal-atlas/codex-runtime';
@@ -25,6 +26,10 @@ import {
 
 export type CodexMissionMode = 'scripted' | 'local';
 
+export function defaultCodexRuntimeRoot(): string {
+  return join(homedir(), '.local', 'state', 'signal-atlas', 'codex-runtime');
+}
+
 export interface CreateConfiguredMissionDriverOptions {
   mode?: CodexMissionMode;
   executable?: string;
@@ -33,64 +38,55 @@ export interface CreateConfiguredMissionDriverOptions {
   environment?: NodeJS.ProcessEnv;
   processRunner?: CodexProcessRunner;
   isAvailable?: (executable: string, environment: NodeJS.ProcessEnv) => boolean;
+  sessionRegistry?: AgentSessionRegistry;
 }
 
-function promptSource(source: SourceRecord): CodexPromptSource {
-  return {
-    id: source.id,
-    title: source.title,
-    sourceClass: source.sourceClass,
-    retrievedAt: source.retrievedAt,
-    ...(source.publisher ? { publisher: source.publisher } : {}),
-    ...(source.publishedAt ? { publishedAt: source.publishedAt } : {}),
-    ...(source.observedAt ? { observedAt: source.observedAt } : {}),
-    ...(source.excerpt ? { excerpt: source.excerpt } : {}),
-  };
-}
-
-function publicBehavior(role: string): string {
-  switch (role) {
-    case 'scout':
-      return 'Be concise, curious, and specific about what was directly observed.';
-    case 'archivist':
-      return 'Be concise, source-conscious, and explicit about historical comparability.';
-    case 'analyst':
-      return 'Be concise, quantitative, and careful not to overstate directional evidence.';
-    case 'skeptic':
-      return 'Be concise, challenge unsupported leaps, and name unresolved alternatives.';
-    case 'liaison':
-      return 'Be concise, preserve disagreements, and distinguish shared from private knowledge.';
-    default:
-      return 'Be concise, evidence-linked, and explicit about unknowns.';
-  }
-}
-
-function contextForTurn(fixture: ExpeditionFixture, input: AgentTurnInput): CodexTurnPromptContext {
+export function buildFixtureCodexPromptContext(
+  fixture: ExpeditionFixture,
+  input: AgentTurnInput,
+): CodexTurnPromptContext {
   const agent = fixture.agents.find((candidate) => candidate.id === input.agentId);
+  if (!agent) throw new Error(`Cannot build a Codex packet for unknown agent ${input.agentId}.`);
   const place = fixture.worldManifest.places.find(
     (candidate) => candidate.id === input.effectivePlaceId,
   );
   const scriptKey = `${input.agentId}:${input.mission.verb}:${input.effectivePlaceId}`;
   const script = fixture.scriptedMissionResults[scriptKey];
-  const sourceIds = new Set(script?.sourceIds ?? []);
-  const sources = fixture.sources.filter((source) => sourceIds.has(source.id)).map(promptSource);
-  const knownSignalIds = new Set(input.knownSignalIds);
-  const signals = fixture.signals
-    .filter((signal) => knownSignalIds.has(signal.id))
-    .map((signal) => ({
-      id: signal.id,
-      headline: signal.headline,
-      summary: signal.summary,
-      sourceIds: [...signal.sourceIds],
-      status: signal.status,
-    }));
+  const archiveAccess =
+    place?.archetype === 'archive' &&
+    (input.mission.verb === 'search_history' || input.mission.verb === 'compare_sources');
+  const archiveSourceIds = archiveAccess
+    ? fixture.sources
+        .filter((source) => source.sourceClass === 'archive')
+        .map((source) => source.id)
+    : [];
+  const archiveSourceIdSet = new Set(archiveSourceIds);
+  const archiveSignalIds = archiveAccess
+    ? fixture.signals
+        .filter((signal) => signal.sourceIds.some((sourceId) => archiveSourceIdSet.has(sourceId)))
+        .map((signal) => signal.id)
+    : [];
+  const knowledge = buildKnowledgePacket({
+    sources: fixture.sources,
+    signals: fixture.signals,
+    knownSourceIds: input.knownSourceIds,
+    knownSignalIds: input.knownSignalIds,
+    currentTurnSourceIds: script?.sourceIds ?? [],
+    ...(archiveAccess
+      ? {
+          archiveGrant: {
+            placeId: input.effectivePlaceId,
+            missionVerb: input.mission.verb,
+            sourceIds: archiveSourceIds,
+            signalIds: archiveSignalIds,
+          },
+        }
+      : {}),
+  });
 
   return {
-    role: {
-      name: agent?.displayName ?? input.agentId,
-      title: agent?.role ?? 'agent',
-      publicBehavior: publicBehavior(agent?.role ?? ''),
-    },
+    role: { name: agent.displayName },
+    profile: getAgentRoleProfile(agent.role, agent.profileVersion),
     market: {
       question: fixture.market.question,
       outcomeIds: fixture.market.outcomes.map((outcome) => outcome.id),
@@ -101,8 +97,7 @@ function contextForTurn(fixture: ExpeditionFixture, input: AgentTurnInput): Code
       name: place?.name ?? input.effectivePlaceId,
       description: place?.description ?? 'No additional place description is available.',
     },
-    sources,
-    signals,
+    knowledge,
   };
 }
 
@@ -181,11 +176,11 @@ export function createConfiguredMissionDriver(
   const local = new LocalCodexExecDriver<ScriptedFixtureTurn>({
     id: 'local-codex-cli',
     outputSchema: agentTurnOutputSchema as Record<string, unknown>,
-    promptContext: (input) => contextForTurn(fixture, input),
+    promptContext: (input) => buildFixtureCodexPromptContext(fixture, input),
     materializeArtifacts: (input, output, metadata) =>
       materializeLocalTurn(fixture, input, output, metadata),
     validateOutput: (input, output, promptContext) => {
-      if (promptContext.sources.length === 0) return [];
+      if (promptContext.knowledge.sources.length === 0) return [];
       if (output.action.type === 'wait') return [];
       return output.sourceIdsUsed.length === 0
         ? ['sourceIdsUsed: an evidence-producing fixture mission must cite a supplied source.']
@@ -197,6 +192,15 @@ export function createConfiguredMissionDriver(
     ...(options.environment ? { environment: options.environment } : {}),
     ...(options.processRunner ? { processRunner: options.processRunner } : {}),
     ...(options.isAvailable ? { isAvailable: options.isAvailable } : {}),
+    ...(options.sessionRegistry
+      ? { sessionRegistry: options.sessionRegistry }
+      : options.runtimeRoot
+        ? {
+            sessionRegistry: new JsonlAgentSessionRegistry(
+              join(options.runtimeRoot, 'agent-sessions.jsonl'),
+            ),
+          }
+        : {}),
   });
   return new CodexUnavailableFallbackDriver({ primary: local, fallback: scripted });
 }

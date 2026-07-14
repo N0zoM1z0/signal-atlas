@@ -5,11 +5,13 @@ import {
   SCHEMA_VERSION,
   type ExpeditionFixture,
   type AgentTurnInput,
+  type AgentTurnOutput,
   type WorldCommand,
   type WorldEvent,
 } from '@signal-atlas/contracts';
 import {
   CodexTurnScheduler,
+  getAgentRoleProfile,
   isPromiseLike,
   type CodexDriver,
   type CodexRuntimeDiagnostics,
@@ -69,6 +71,7 @@ interface ScheduledWork {
   remainingMs: number;
   schedulerManaged: boolean;
   turn?: ScriptedFixtureTurn;
+  output?: AgentTurnOutput;
   error?: {
     code: string;
     message: string;
@@ -537,6 +540,7 @@ export class ExpeditionRuntime {
             return;
           }
           task.turn = result.artifacts;
+          task.output = AgentTurnOutputSchema.parse(result.output);
           // The process latency has already elapsed while the world remained responsive.
           task.remainingMs = 0;
         })
@@ -580,12 +584,16 @@ export class ExpeditionRuntime {
       remainingMs: turn.latencyMs,
       schedulerManaged: false,
       turn,
+      output,
     };
   }
 
   #completeScheduledWork(task: ScheduledWork, occurredAt: string): WorldEvent[] {
-    const { turn } = task;
-    if (!turn) throw new Error(`Cannot complete unresolved turn ${task.turnId}.`);
+    const { output, turn } = task;
+    if (!turn || !output) throw new Error(`Cannot complete unresolved turn ${task.turnId}.`);
+    const agent = this.#projection.agentsById[task.agentId];
+    if (!agent) throw new Error(`Cannot complete a turn for missing agent ${task.agentId}.`);
+    const profile = getAgentRoleProfile(agent.role, agent.profileVersion);
     const appended: WorldEvent[] = [];
     const emit = (label: string, type: WorldEvent['type'], payload: unknown) => {
       const event = this.#appendSystemEvent(
@@ -702,6 +710,10 @@ export class ExpeditionRuntime {
       turnId: turn.turnId,
       sourceIds: turn.sources.map((source) => source.id),
       signalIds: turn.signals.map((signal) => signal.id),
+      profileId: profile.profileId,
+      profileVersion: profile.version,
+      publicRationale: output.rationale,
+      unknowns: [...output.unknowns],
     });
     emit('mission-completed', 'agent.mission.completed', {
       missionId: task.missionId,
@@ -742,9 +754,9 @@ export class ExpeditionRuntime {
       actor: { kind: 'agent' as const, id: task.agentId },
       previousProbabilities,
       newProbabilities,
-      rationale: `Updated from ${task.turn.signals.map((signal) => signal.headline).join('; ')}.`,
+      rationale: task.output?.rationale ?? 'Updated from validated mission evidence.',
       evidenceSignalIds: task.turn.signals.map((signal) => signal.id),
-      assumptions: ['Fixture impact ranges are directional evidence, not certainty.'],
+      assumptions: task.output?.assumptions ?? [],
       createdAt: occurredAt,
     };
   }

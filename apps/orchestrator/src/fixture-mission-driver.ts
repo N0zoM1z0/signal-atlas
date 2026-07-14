@@ -161,7 +161,7 @@ function agentTurnOutput(input: AgentTurnInput, turn: ScriptedFixtureTurn): Agen
         : [],
     unknowns:
       turn.scenario === 'success'
-        ? []
+        ? ['The authored evidence is directional and does not establish the market outcome.']
         : ['No validated evidence entered the world from this turn.'],
     ...(turn.suggestedFollowUp
       ? { suggestedFollowUp: structuredClone(turn.suggestedFollowUp) }

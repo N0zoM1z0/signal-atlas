@@ -521,6 +521,10 @@ export function reduceWorldEvent(state: WorldProjection, event: WorldEvent): Wor
         status: 'completed',
         sourceIds: [...payload.sourceIds],
         signalIds: [...payload.signalIds],
+        profileId: payload.profileId,
+        profileVersion: payload.profileVersion,
+        publicRationale: payload.publicRationale,
+        unknowns: [...payload.unknowns],
         recordedAt: event.recordedAt,
       };
       next = {

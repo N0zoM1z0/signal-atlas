@@ -143,6 +143,12 @@ describe('local Codex world integration', () => {
     expect(snapshot.claimsById['claim-crosswind']).toBeDefined();
     expect(snapshot.signalsById['sig-crosswind']).toBeDefined();
     expect(snapshot.missionsById['mission-mira-local-weather-1']?.status).toBe('completed');
+    expect(snapshot.agentTurnsById['turn-mission-mira-local-weather-1-1']).toMatchObject({
+      profileId: 'scout.v1',
+      profileVersion: 1,
+      publicRationale: 'The supplied tower source directly supports a limited negative update.',
+      unknowns: ['Conditions after the advisory interval remain unknown.'],
+    });
     expect(runtime.runtimeDiagnostics()).toMatchObject({
       driver: {
         kind: 'local_exec',

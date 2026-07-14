@@ -138,6 +138,10 @@ export interface AgentTurnProjection {
   status: 'completed' | 'failed';
   sourceIds: string[];
   signalIds: string[];
+  profileId?: string;
+  profileVersion?: number;
+  publicRationale?: string;
+  unknowns?: string[];
   code?: string;
   message?: string;
   recoverable?: boolean;

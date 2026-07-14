@@ -9,6 +9,7 @@ import {
 } from '@signal-atlas/contracts';
 
 import { parseCodexJsonl } from './jsonl.js';
+import { validateAgentProfileOutput } from './profiles.js';
 import {
   buildCodexRepairPrompt,
   buildCodexTurnPrompt,
@@ -16,6 +17,7 @@ import {
 } from './prompt.js';
 import { runCodexProcess, type CodexProcessRequest, type CodexProcessRunner } from './process.js';
 import { redactSensitiveText } from './redaction.js';
+import { InMemoryAgentSessionRegistry, type AgentSessionRegistry } from './session-registry.js';
 import {
   CodexDriverError,
   CodexTurnCanceledError,
@@ -57,6 +59,7 @@ export interface LocalCodexExecDriverOptions<TArtifacts = LocalCodexTurnMetadata
   isAvailable?: (executable: string, environment: NodeJS.ProcessEnv) => boolean;
   now?: () => Date;
   killGraceMs?: number;
+  sessionRegistry?: AgentSessionRegistry;
 }
 
 interface AttemptResult {
@@ -214,11 +217,8 @@ function validationErrors(
   context: CodexTurnPromptContext,
 ): string[] {
   const errors: string[] = [];
-  const allowedSourceIds = new Set([
-    ...input.knownSourceIds,
-    ...context.sources.map((source) => source.id),
-  ]);
-  const allowedSignalIds = new Set(input.knownSignalIds);
+  const allowedSourceIds = new Set(context.knowledge.sources.map((source) => source.id));
+  const allowedSignalIds = new Set(context.knowledge.signals.map((signal) => signal.id));
   const allowedOutcomes = new Set(context.market.outcomeIds);
 
   if (output.agentId !== input.agentId) {
@@ -263,6 +263,7 @@ function validationErrors(
       );
     }
   });
+  errors.push(...validateAgentProfileOutput(context.profile, output));
   return errors;
 }
 
@@ -336,7 +337,7 @@ export class LocalCodexExecDriver<TArtifacts = LocalCodexTurnMetadata> implement
   readonly #environment: NodeJS.ProcessEnv;
   readonly #now: () => Date;
   readonly #killGraceMs: number;
-  readonly #sessionsByAgentId = new Map<string, string>();
+  readonly #sessionRegistry: AgentSessionRegistry;
   #available: boolean;
   #runs = 0;
   #lastRunAt: string | undefined;
@@ -356,6 +357,7 @@ export class LocalCodexExecDriver<TArtifacts = LocalCodexTurnMetadata> implement
     this.#environment = codexProcessEnvironment(options.environment ?? process.env);
     this.#now = options.now ?? (() => new Date());
     this.#killGraceMs = options.killGraceMs ?? 250;
+    this.#sessionRegistry = options.sessionRegistry ?? new InMemoryAgentSessionRegistry();
     this.#available = (options.isAvailable ?? isExecutableAvailable)(
       this.#executable,
       this.#environment,
@@ -381,16 +383,23 @@ export class LocalCodexExecDriver<TArtifacts = LocalCodexTurnMetadata> implement
 
     try {
       const promptContext = await this.#promptContext(input);
+      const transientArchiveAccess = Boolean(promptContext.knowledge.access.archiveGrant);
+      const storedSession = transientArchiveAccess
+        ? undefined
+        : this.#sessionRegistry.get(input.expeditionId, input.agentId);
+      const compatibleSession =
+        storedSession?.profileId === promptContext.profile.profileId &&
+        storedSession.profileVersion === promptContext.profile.version
+          ? storedSession.sessionId
+          : undefined;
       const original = await this.#attempt(
         input,
         promptContext,
         buildCodexTurnPrompt(input, promptContext),
-        this.#sessionsByAgentId.get(input.agentId),
+        compatibleSession,
         0,
         driverContext,
       );
-      if (original.sessionId) this.#sessionsByAgentId.set(input.agentId, original.sessionId);
-
       let selected = original;
       let repairAttempts = 0;
       if (!selected.output) {
@@ -404,11 +413,22 @@ export class LocalCodexExecDriver<TArtifacts = LocalCodexTurnMetadata> implement
           input,
           promptContext,
           buildCodexRepairPrompt(selected.errors, selected.rawOutput),
-          selected.sessionId ?? this.#sessionsByAgentId.get(input.agentId),
+          selected.sessionId ?? compatibleSession,
           1,
           driverContext,
         );
-        if (selected.sessionId) this.#sessionsByAgentId.set(input.agentId, selected.sessionId);
+      }
+
+      if (selected.sessionId && !transientArchiveAccess) {
+        this.#sessionRegistry.write({
+          schemaVersion: 1,
+          expeditionId: input.expeditionId,
+          agentId: input.agentId,
+          sessionId: selected.sessionId,
+          profileId: promptContext.profile.profileId,
+          profileVersion: promptContext.profile.version,
+          updatedAt: this.#now().toISOString(),
+        });
       }
 
       const safeFallback = !selected.output;

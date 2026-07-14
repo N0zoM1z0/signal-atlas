@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -8,12 +8,15 @@ import { afterEach, describe, expect, it } from 'vitest';
 import {
   buildCodexExecArguments,
   CodexUnavailableFallbackDriver,
+  getAgentRoleProfile,
+  JsonlAgentSessionRegistry,
   LocalCodexExecDriver,
   redactSensitiveText,
   ScriptedCodexDriver,
   type CodexProcessRequest,
   type CodexProcessResult,
   type CodexTurnPromptContext,
+  type AgentSessionRegistry,
 } from '../src/index.js';
 
 const temporaryDirectories: string[] = [];
@@ -55,11 +58,8 @@ function input(turnId = 'turn-local-1'): AgentTurnInput {
 
 function context(): CodexTurnPromptContext {
   return {
-    role: {
-      name: 'Mira',
-      title: 'Field Scout',
-      publicBehavior: 'Be concise, curious, and evidence-linked.',
-    },
+    role: { name: 'Mira' },
+    profile: getAgentRoleProfile('scout', 1),
     market: {
       question: 'Will Helios-3 launch in the fictional window?',
       outcomeIds: ['yes', 'no'],
@@ -70,16 +70,24 @@ function context(): CodexTurnPromptContext {
       name: 'Galehaven Weather Tower',
       description: 'A fictional source observation point.',
     },
-    sources: [
-      {
-        id: 'src-current',
-        title: 'Fixture crosswind advisory',
-        sourceClass: 'official_primary',
-        retrievedAt: '2027-09-26T18:01:00Z',
-        excerpt: 'Crosswinds overlap part of the launch window.',
+    knowledge: {
+      access: {
+        knownSourceIds: [],
+        knownSignalIds: [],
+        currentTurnSourceIds: ['src-current'],
       },
-    ],
-    signals: [],
+      sources: [
+        {
+          id: 'src-current',
+          title: 'Fixture crosswind advisory',
+          sourceClass: 'official_primary',
+          retrievedAt: '2027-09-26T18:01:00Z',
+          excerpt: 'Crosswinds overlap part of the launch window.',
+        },
+      ],
+      signals: [],
+      omitted: { sources: 0, signals: 0 },
+    },
   };
 }
 
@@ -154,7 +162,12 @@ function successfulProcess(
   };
 }
 
-function driver(outputs: readonly string[], requests: CodexProcessRequest[], runtimeRoot: string) {
+function driver(
+  outputs: readonly string[],
+  requests: CodexProcessRequest[],
+  runtimeRoot: string,
+  sessionRegistry?: AgentSessionRegistry,
+) {
   return new LocalCodexExecDriver({
     executable: '/test/bin/codex',
     runtimeRoot,
@@ -162,6 +175,7 @@ function driver(outputs: readonly string[], requests: CodexProcessRequest[], run
     promptContext: async () => context(),
     processRunner: successfulProcess(outputs, requests),
     isAvailable: () => true,
+    ...(sessionRegistry ? { sessionRegistry } : {}),
   });
 }
 
@@ -231,6 +245,58 @@ describe('LocalCodexExecDriver', () => {
     expect(requests[1]?.args).not.toContain('-C');
   });
 
+  it('resumes an agent session after the driver and registry are reconstructed', async () => {
+    const requests: CodexProcessRequest[] = [];
+    const root = runtimeRoot();
+    const registryPath = join(root, 'agent-sessions.jsonl');
+    const first = driver(
+      [JSON.stringify(output())],
+      requests,
+      root,
+      new JsonlAgentSessionRegistry(registryPath),
+    );
+    await first.runTurn(input(), driverContext().context);
+
+    const secondOutput = { ...output(), missionId: 'mission-turn-local-2' };
+    const restarted = driver(
+      [JSON.stringify(secondOutput)],
+      requests,
+      root,
+      new JsonlAgentSessionRegistry(registryPath),
+    );
+    await restarted.runTurn(input('turn-local-2'), driverContext().context);
+
+    expect(requests[1]?.args.slice(0, 2)).toEqual(['exec', 'resume']);
+    expect(requests[1]?.args).toContain('session-mira-fixture');
+    expect(statSync(registryPath).mode & 0o777).toBe(0o600);
+  });
+
+  it('does not persist a session that received a transient archive grant', async () => {
+    const requests: CodexProcessRequest[] = [];
+    const root = runtimeRoot();
+    const registry = new JsonlAgentSessionRegistry(join(root, 'agent-sessions.jsonl'));
+    const archiveContext = context();
+    archiveContext.knowledge.access.archiveGrant = {
+      placeId: 'archive',
+      missionVerb: 'search_history',
+      sourceIds: [],
+      signalIds: [],
+    };
+    const local = new LocalCodexExecDriver({
+      executable: '/test/bin/codex',
+      runtimeRoot: root,
+      outputSchema: { type: 'object' },
+      promptContext: () => archiveContext,
+      processRunner: successfulProcess([JSON.stringify(output())], requests),
+      isAvailable: () => true,
+      sessionRegistry: registry,
+    });
+
+    await local.runTurn(input(), driverContext().context);
+
+    expect(registry.get(input().expeditionId, input().agentId)).toBeUndefined();
+  });
+
   it('repairs one invalid JSON response in the captured session', async () => {
     const requests: CodexProcessRequest[] = [];
     const local = driver(['not-json', JSON.stringify(output())], requests, runtimeRoot());
@@ -269,6 +335,23 @@ describe('LocalCodexExecDriver', () => {
     expect(emitted.details).toContainEqual(
       expect.objectContaining({ phase: 'safe_wait', evidenceAccepted: false }),
     );
+  });
+
+  it('turns an action unsupported by the active profile into a safe wait', async () => {
+    const requests: CodexProcessRequest[] = [];
+    const unsupported = JSON.stringify({
+      ...output(),
+      action: { type: 'update_belief', probabilities: { yes: 0.45, no: 0.55 } },
+    });
+    const local = driver([unsupported, unsupported], requests, runtimeRoot());
+
+    const result = await local.runTurn(input(), driverContext().context);
+
+    expect(result.output.action.type).toBe('wait');
+    expect(result.artifacts).toMatchObject({
+      safeFallback: true,
+      validationErrors: [expect.stringContaining('scout.v1 does not permit update_belief')],
+    });
   });
 
   it('redacts process failure details before exposing them', async () => {

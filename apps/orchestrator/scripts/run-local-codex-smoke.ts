@@ -1,7 +1,10 @@
 import { createHelios3ExpeditionFixture } from '@signal-atlas/test-fixtures';
 
 import { ExpeditionRuntime } from '../src/expedition-runtime.js';
-import { createConfiguredMissionDriver } from '../src/local-fixture-codex-driver.js';
+import {
+  createConfiguredMissionDriver,
+  defaultCodexRuntimeRoot,
+} from '../src/local-fixture-codex-driver.js';
 
 const fixture = createHelios3ExpeditionFixture();
 const runtime = new ExpeditionRuntime(fixture, {
@@ -14,9 +17,7 @@ const runtime = new ExpeditionRuntime(fixture, {
       ...(process.env['SIGNAL_ATLAS_CODEX_MODEL']
         ? { model: process.env['SIGNAL_ATLAS_CODEX_MODEL'] }
         : {}),
-      ...(process.env['SIGNAL_ATLAS_CODEX_RUNTIME_ROOT']
-        ? { runtimeRoot: process.env['SIGNAL_ATLAS_CODEX_RUNTIME_ROOT'] }
-        : {}),
+      runtimeRoot: process.env['SIGNAL_ATLAS_CODEX_RUNTIME_ROOT'] ?? defaultCodexRuntimeRoot(),
     }),
 });
 

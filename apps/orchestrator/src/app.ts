@@ -7,6 +7,7 @@ import { fixtureMissionScenarios, type FixtureMissionScenario } from './fixture-
 import { interpretFixtureMission } from './fixture-mission-interpreter.js';
 import {
   createConfiguredMissionDriver,
+  defaultCodexRuntimeRoot,
   type CodexMissionMode,
 } from './local-fixture-codex-driver.js';
 
@@ -64,9 +65,8 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
             ...(process.env['SIGNAL_ATLAS_CODEX_MODEL']
               ? { model: process.env['SIGNAL_ATLAS_CODEX_MODEL'] }
               : {}),
-            ...(process.env['SIGNAL_ATLAS_CODEX_RUNTIME_ROOT']
-              ? { runtimeRoot: process.env['SIGNAL_ATLAS_CODEX_RUNTIME_ROOT'] }
-              : {}),
+            runtimeRoot:
+              process.env['SIGNAL_ATLAS_CODEX_RUNTIME_ROOT'] ?? defaultCodexRuntimeRoot(),
           }),
       });
     })();
