@@ -10,6 +10,9 @@ export default defineConfig({
       '@signal-atlas/contracts': fileURLToPath(
         new URL('../../packages/contracts/src/index.ts', import.meta.url),
       ),
+      '@signal-atlas/game-scene': fileURLToPath(
+        new URL('../../packages/game-scene/src/index.ts', import.meta.url),
+      ),
       '@signal-atlas/simulation': fileURLToPath(
         new URL('../../packages/simulation/src/index.ts', import.meta.url),
       ),

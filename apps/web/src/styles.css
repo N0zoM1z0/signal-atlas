@@ -1120,6 +1120,81 @@ kbd {
   image-rendering: pixelated;
 }
 
+.atlas-react-world-layer,
+.atlas-world-canvas,
+.atlas-phaser-mount {
+  position: absolute;
+  inset: 0;
+}
+
+.atlas-react-world-layer {
+  z-index: 0;
+  opacity: 1;
+  transition: opacity var(--sa-motion-fast) ease;
+}
+
+.atlas-world-canvas {
+  z-index: 3;
+  display: grid;
+  overflow: hidden;
+  place-items: center;
+  pointer-events: none;
+}
+
+.atlas-phaser-mount {
+  display: grid;
+  place-items: center;
+  pointer-events: auto;
+}
+
+.atlas-phaser-mount canvas {
+  display: block;
+  border: var(--sa-border-hairline) solid
+    color-mix(in srgb, var(--sa-color-harbor-blue) 42%, transparent);
+  box-shadow: 0 0 var(--sa-spacing-8) color-mix(in srgb, var(--sa-color-black) 38%, transparent);
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+
+.atlas-place-mirror-layer {
+  position: absolute;
+  z-index: 5;
+  top: 50%;
+  left: 50%;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+}
+
+.atlas-place-mirror-layer .atlas-place {
+  pointer-events: auto;
+}
+
+.atlas-scene-diagnostic {
+  position: absolute;
+  z-index: 8;
+  top: var(--sa-spacing-2);
+  left: var(--sa-spacing-2);
+  padding: 3px var(--sa-spacing-2);
+  border: var(--sa-border-hairline) solid
+    color-mix(in srgb, var(--sa-color-harbor-blue) 66%, transparent);
+  border-radius: var(--sa-radius-small);
+  color: var(--sa-color-weather-cyan);
+  background: color-mix(in srgb, var(--sa-color-atlas-night) 86%, transparent);
+  font-family: var(--sa-typography-mono-family);
+  font-size: 8px;
+  letter-spacing: 0.05em;
+  pointer-events: none;
+  text-transform: uppercase;
+}
+
+.atlas-world-stage:has(.atlas-world-canvas[data-scene-ready='true']) .atlas-react-world-layer {
+  opacity: 0;
+}
+
+.atlas-world-canvas[data-scene-ready='true'] .atlas-place__building {
+  opacity: 0;
+}
+
 .atlas-sky-stars {
   position: absolute;
   inset: 0;

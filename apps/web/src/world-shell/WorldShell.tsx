@@ -38,6 +38,7 @@ export function WorldShell() {
     'Check whether the weather advisory is newer than the launch notice',
   );
   const [announcement, setAnnouncement] = useState('Fixture projection ready.');
+  const [reducedMotion, setReducedMotion] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const runtimeState = runtimeStateFromLocation();
 
@@ -45,6 +46,14 @@ export function WorldShell() {
     () => shellModel.agents.find((agent) => agent.id === selectedAgentId) ?? shellModel.agents[0],
     [selectedAgentId],
   );
+
+  useEffect(() => {
+    const media = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const updatePreference = () => setReducedMotion(media.matches);
+    updatePreference();
+    media.addEventListener('change', updatePreference);
+    return () => media.removeEventListener('change', updatePreference);
+  }, []);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -148,13 +157,21 @@ export function WorldShell() {
         agentsDrawerOpen={mobilePanel === 'agents'}
         loading={runtimeState === 'loading'}
         onOpenPanel={openPanel}
+        onSelectAgent={(agentId) => {
+          const agent = shellModel.agents.find((candidate) => candidate.id === agentId);
+          setSelectedAgentId(agentId);
+          setAnnouncement(`${agent?.name ?? 'Agent'} selected from the world.`);
+        }}
         onSelectPlace={(placeId) => {
           const place = shellModel.places.find((candidate) => candidate.id === placeId);
           setSelectedPlaceId(placeId);
           setAnnouncement(`${place?.name ?? 'Place'} selected.`);
         }}
         places={shellModel.places}
+        reducedMotion={reducedMotion}
         routes={shellModel.routes}
+        sceneDefinition={shellModel.sceneDefinition}
+        selectedAgentId={selectedAgentId}
         selectedAgentName={selectedAgent.name}
         selectedPlaceId={selectedPlaceId}
         signalsDrawerOpen={mobilePanel === 'signals'}

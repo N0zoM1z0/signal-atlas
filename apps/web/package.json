@@ -11,6 +11,7 @@
     "clean": "rm -rf dist .vite"
   },
   "dependencies": {
+    "@signal-atlas/game-scene": "workspace:*",
     "@signal-atlas/simulation": "workspace:*",
     "@signal-atlas/test-fixtures": "workspace:*",
     "@signal-atlas/ui": "workspace:*",

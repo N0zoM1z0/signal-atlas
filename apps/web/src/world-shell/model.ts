@@ -3,6 +3,7 @@ import {
   selectLatestForecast,
   type WorldProjection,
 } from '@signal-atlas/simulation';
+import { createWorldSceneDefinition } from '@signal-atlas/game-scene';
 import { helios3ExpeditionFixture } from '@signal-atlas/test-fixtures';
 
 const fixture = helios3ExpeditionFixture;
@@ -83,6 +84,10 @@ export const shellModel = {
     missionVerbs: place.missionVerbs,
   })),
   routes: projection.worldManifest.routes,
+  sceneDefinition: createWorldSceneDefinition(
+    projection.worldManifest,
+    fixture.agents.map((agent) => agentById[agent.id] ?? agent),
+  ),
   stagedSignals: fixture.signals.map((signal) => {
     const source = sourceById[signal.sourceIds[0] ?? ''];
     const discoverer = signal.discoveredByAgentId
@@ -124,6 +129,7 @@ export const shellModel = {
   agents: object[];
   places: object[];
   routes: object[];
+  sceneDefinition: object;
   stagedSignals: object[];
 };
 

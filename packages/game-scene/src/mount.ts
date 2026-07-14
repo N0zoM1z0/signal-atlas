@@ -1,0 +1,535 @@
+import {
+  calculateIntegerCanvasMetrics,
+  clampZoomStep,
+  parseCssColor,
+  pixelScaleForZoom,
+} from './geometry.js';
+import type {
+  MountedWorldScene,
+  MountWorldSceneOptions,
+  ScenePlace,
+  WorldSceneCommand,
+} from './types.js';
+
+interface ScenePalette {
+  alertCoral: number;
+  atlasNight: number;
+  deepInk: number;
+  harborBlue: number;
+  mossSignal: number;
+  mutedSteel: number;
+  paperLight: number;
+  parchment: number;
+  scholarViolet: number;
+  slateCloud: number;
+  weatherCyan: number;
+  windowGold: number;
+}
+
+const paletteProperties = {
+  alertCoral: '--sa-color-alert-coral',
+  atlasNight: '--sa-color-atlas-night',
+  deepInk: '--sa-color-deep-ink',
+  harborBlue: '--sa-color-harbor-blue',
+  mossSignal: '--sa-color-moss-signal',
+  mutedSteel: '--sa-color-muted-steel',
+  paperLight: '--sa-color-paper-light',
+  parchment: '--sa-color-parchment',
+  scholarViolet: '--sa-color-scholar-violet',
+  slateCloud: '--sa-color-slate-cloud',
+  weatherCyan: '--sa-color-weather-cyan',
+  windowGold: '--sa-color-window-gold',
+} as const;
+
+function readPalette(parent: HTMLElement): ScenePalette {
+  const styles = getComputedStyle(parent);
+  return Object.fromEntries(
+    Object.entries(paletteProperties).map(([name, property]) => [
+      name,
+      parseCssColor(styles.getPropertyValue(property)),
+    ]),
+  ) as unknown as ScenePalette;
+}
+
+function placeColor(place: ScenePlace, palette: ScenePalette): number {
+  switch (place.archetype) {
+    case 'observatory':
+    case 'professor':
+      return palette.scholarViolet;
+    case 'weather_tower':
+      return palette.weatherCyan;
+    case 'newsroom':
+      return palette.alertCoral;
+    case 'town_square':
+      return palette.windowGold;
+    case 'archive':
+    case 'exchange':
+    case 'field_site':
+      return palette.harborBlue;
+  }
+}
+
+export async function mountWorldScene(options: MountWorldSceneOptions): Promise<MountedWorldScene> {
+  const PhaserRuntime: typeof Phaser = (await import('phaser')).default;
+  if (options.signal?.aborted) return { destroy() {} };
+  const palette = readPalette(options.parent);
+  const model = options.model;
+  const initialMetrics = calculateIntegerCanvasMetrics(
+    options.parent.clientWidth || model.logicalWidth,
+    options.parent.clientHeight || model.logicalHeight,
+    model.logicalWidth,
+    model.logicalHeight,
+  );
+  let disconnectBridge: (() => void) | undefined;
+  let sceneInstance: SignalAtlasScene | undefined;
+  const registerSceneInstance = (scene: SignalAtlasScene) => {
+    sceneInstance = scene;
+  };
+
+  class SignalAtlasScene extends PhaserRuntime.Scene {
+    private readonly agentTargets = new Map<string, Phaser.GameObjects.Container>();
+    private basePixelScale = initialMetrics.pixelScale;
+    private followingAgentId: string | null = null;
+    private lastPerformanceSampleAt = 0;
+    private readonly placeHighlights = new Map<string, Phaser.GameObjects.Arc>();
+    private reducedMotion = options.reducedMotion;
+    private selectedPlaceId = options.initialSelectedPlaceId;
+    private spaceKey: Phaser.Input.Keyboard.Key | undefined;
+    private zoomStep = 0;
+
+    constructor() {
+      super({ key: 'signal-atlas-world' });
+      registerSceneInstance(this);
+    }
+
+    create() {
+      this.cameras.main
+        .setBounds(0, 0, model.logicalWidth, model.logicalHeight)
+        .setBackgroundColor(palette.atlasNight)
+        .setRoundPixels(true)
+        .setZoom(this.basePixelScale);
+
+      this.drawSky();
+      this.drawTerrain();
+      this.drawRoutes();
+      this.drawLaunchLandmark();
+      model.places.forEach((place) => this.drawPlace(place));
+      this.drawAgents();
+      this.drawWeather();
+
+      this.spaceKey = this.input.keyboard?.addKey(PhaserRuntime.Input.Keyboard.KeyCodes.SPACE);
+      this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
+        if (
+          !pointer.isDown ||
+          (!pointer.middleButtonDown() && !this.spaceKey?.isDown) ||
+          this.followingAgentId
+        ) {
+          return;
+        }
+        this.cameras.main.scrollX -= pointer.velocity.x / this.cameras.main.zoom;
+        this.cameras.main.scrollY -= pointer.velocity.y / this.cameras.main.zoom;
+        this.emitCameraChanged();
+      });
+      this.input.on(
+        'wheel',
+        (
+          _pointer: Phaser.Input.Pointer,
+          _gameObjects: Phaser.GameObjects.GameObject[],
+          _deltaX: number,
+          deltaY: number,
+        ) => this.adjustZoom(deltaY > 0 ? -1 : 1),
+      );
+
+      disconnectBridge = options.bridge.connect((command) => {
+        if (!this.scene.isActive() || !this.cameras.main) return;
+        this.handleCommand(command);
+      });
+      this.selectPlace(this.selectedPlaceId);
+      this.centerOnPlace(model.defaultSpawnPlaceId, true);
+      this.applyReducedMotion();
+      options.bridge.emit({
+        type: 'scene.ready',
+        canvasHeight: initialMetrics.height,
+        canvasWidth: initialMetrics.width,
+        pixelScale: this.basePixelScale,
+      });
+      this.emitCameraChanged();
+      this.events.once(PhaserRuntime.Scenes.Events.SHUTDOWN, () => {
+        disconnectBridge?.();
+        disconnectBridge = undefined;
+      });
+    }
+
+    override update(time: number) {
+      if (time - this.lastPerformanceSampleAt < 1_000) return;
+      this.lastPerformanceSampleAt = time;
+      options.bridge.emit({
+        type: 'performance.sample',
+        framesPerSecond: Math.round(this.game.loop.actualFps),
+      });
+    }
+
+    resizeToParent(width: number, height: number) {
+      const metrics = calculateIntegerCanvasMetrics(
+        width,
+        height,
+        model.logicalWidth,
+        model.logicalHeight,
+      );
+      if (
+        metrics.width === this.scale.width &&
+        metrics.height === this.scale.height &&
+        metrics.pixelScale === this.basePixelScale
+      ) {
+        return;
+      }
+      const previousPixelScale = this.basePixelScale;
+      this.basePixelScale = metrics.pixelScale;
+      this.scale.resize(metrics.width, metrics.height);
+      this.cameras.main.setViewport(0, 0, metrics.width, metrics.height);
+      if (this.cameras.main.zoom === pixelScaleForZoom(previousPixelScale, this.zoomStep)) {
+        this.cameras.main.setZoom(pixelScaleForZoom(this.basePixelScale, this.zoomStep));
+      }
+      options.bridge.emit({
+        type: 'scene.resized',
+        canvasHeight: metrics.height,
+        canvasWidth: metrics.width,
+        pixelScale: metrics.pixelScale,
+      });
+      this.emitCameraChanged();
+    }
+
+    private drawSky() {
+      const sky = this.add.graphics().setDepth(-30);
+      sky.fillStyle(palette.atlasNight).fillRect(0, 0, model.logicalWidth, model.logicalHeight);
+      sky.fillStyle(palette.deepInk).fillRect(0, model.logicalHeight * 0.42, model.logicalWidth, 5);
+      const pixel = 1 / this.basePixelScale;
+      for (let index = 0; index < 88; index += 1) {
+        const x = ((index * 17 + 3) % (model.logicalWidth * 10)) / 10;
+        const y = ((index * 29 + 7) % Math.floor(model.logicalHeight * 4.4)) / 10;
+        sky.fillStyle(index % 5 === 0 ? palette.windowGold : palette.paperLight, 0.8);
+        sky.fillRect(x, y, pixel, pixel);
+      }
+
+      const moon = this.add.graphics().setDepth(-28);
+      moon.fillStyle(palette.parchment).fillCircle(model.logicalWidth * 0.84, 4.8, 1.8);
+      moon.fillStyle(palette.atlasNight).fillCircle(model.logicalWidth * 0.852, 4.55, 1.55);
+
+      const clouds = [
+        { x: 5, y: 5.7, width: 8 },
+        { x: 23, y: 8.2, width: 6 },
+      ];
+      clouds.forEach((cloud, index) => {
+        const graphic = this.add.graphics({ x: cloud.x, y: cloud.y }).setDepth(-26);
+        graphic.fillStyle(palette.harborBlue, 0.58);
+        graphic.fillRect(0, 0, cloud.width, 0.7);
+        graphic.fillRect(1.4, -0.5, cloud.width * 0.42, 0.6);
+        if (!this.reducedMotion) {
+          this.tweens.add({
+            targets: graphic,
+            x: cloud.x + 2.5,
+            duration: 7_000 + index * 1_800,
+            ease: 'Sine.easeInOut',
+            yoyo: true,
+            repeat: -1,
+          });
+        }
+      });
+    }
+
+    private drawTerrain() {
+      const terrain = this.add.graphics().setDepth(-20);
+      terrain.fillStyle(palette.slateCloud, 0.88);
+      terrain.beginPath();
+      terrain.moveTo(0, 16);
+      terrain.lineTo(7, 13);
+      terrain.lineTo(14, 16);
+      terrain.lineTo(21, 12);
+      terrain.lineTo(28, 15);
+      terrain.lineTo(35, 11);
+      terrain.lineTo(model.logicalWidth, 15);
+      terrain.lineTo(model.logicalWidth, model.logicalHeight);
+      terrain.lineTo(0, model.logicalHeight);
+      terrain.closePath().fillPath();
+
+      terrain.fillStyle(palette.harborBlue, 0.46);
+      terrain.fillTriangle(0, 21, 9, 15, 16, 24);
+      terrain.fillTriangle(11, 24, 24, 14, 31, 24);
+      terrain.fillTriangle(25, 24, 37, 13, 45, 24);
+
+      const water = this.add.graphics().setDepth(-18);
+      water.fillStyle(palette.atlasNight, 0.78).fillRect(35, 18, 13, 12);
+      water.lineStyle(1 / this.basePixelScale, palette.weatherCyan, 0.52);
+      for (let y = 18.4; y < 30; y += 0.55) water.lineBetween(35, y, 48, y);
+
+      const foreground = this.add.graphics().setDepth(-17);
+      foreground.fillStyle(palette.deepInk, 0.82);
+      foreground.beginPath();
+      foreground.moveTo(0, 27);
+      foreground.lineTo(10, 25.5);
+      foreground.lineTo(19, 26.5);
+      foreground.lineTo(28, 25.8);
+      foreground.lineTo(35, 27.2);
+      foreground.lineTo(35, 30);
+      foreground.lineTo(0, 30);
+      foreground.closePath().fillPath();
+    }
+
+    private drawRoutes() {
+      const routes = this.add.graphics().setDepth(-8);
+      routes.lineStyle(2 / this.basePixelScale, palette.windowGold, 0.36);
+      model.routes.forEach((route) => {
+        routes.beginPath();
+        route.waypoints.forEach((point, index) => {
+          if (index === 0) routes.moveTo(point.x, point.y);
+          else routes.lineTo(point.x, point.y);
+        });
+        routes.strokePath();
+      });
+    }
+
+    private drawLaunchLandmark() {
+      const landmark = this.add.container(44, 10).setDepth(-6);
+      const rocket = this.add.graphics();
+      rocket.fillStyle(palette.mutedSteel, 0.65).fillRect(-0.4, -3.5, 0.8, 3.5);
+      rocket.fillStyle(palette.paperLight, 0.78).fillTriangle(-0.4, -3.5, 0, -4.5, 0.4, -3.5);
+      rocket.fillStyle(palette.alertCoral, 0.72).fillTriangle(-0.4, 0, -0.9, 0.8, 0, 0);
+      rocket.fillTriangle(0.4, 0, 0.9, 0.8, 0, 0);
+      rocket.lineStyle(2 / this.basePixelScale, palette.windowGold, 0.58);
+      rocket.lineBetween(-1.4, 0.9, 1.4, 0.9);
+      landmark.add(rocket);
+    }
+
+    private drawPlace(place: ScenePlace) {
+      const container = this.add.container(place.position.x, place.position.y).setDepth(3);
+      const shadow = this.add.graphics();
+      shadow.fillStyle(palette.atlasNight, 0.58).fillEllipse(0.3, 0.35, 4.8, 1.35);
+      const building = this.add.graphics();
+      const color = placeColor(place, palette);
+      building.lineStyle(2 / this.basePixelScale, palette.atlasNight, 1);
+
+      switch (place.archetype) {
+        case 'observatory':
+          building.fillStyle(color).fillRoundedRect(-2, -3, 4, 3, 0.8);
+          building.fillStyle(palette.slateCloud).fillTriangle(-2, -2, 0, -4.2, 2, -2);
+          building.strokeCircle(0, -2.1, 1.8);
+          break;
+        case 'weather_tower':
+          building.fillStyle(color).fillRect(-0.85, -4.7, 1.7, 4.7);
+          building.lineBetween(-2.4, -5.1, 2.4, -5.1);
+          building.lineBetween(0, -5.1, 0, -5.8);
+          break;
+        case 'newsroom':
+          building.fillStyle(color).fillRect(-2.5, -3.2, 5, 3.2);
+          building.fillStyle(palette.slateCloud).fillTriangle(-2.8, -3.2, 0, -4.2, 2.8, -3.2);
+          break;
+        case 'archive':
+          building.fillStyle(color).fillRect(-2.8, -2.5, 5.6, 2.5);
+          building.fillStyle(palette.slateCloud).fillTriangle(-3.2, -2.5, 0, -3.5, 3.2, -2.5);
+          break;
+        case 'professor':
+          building.fillStyle(color).fillRect(-2, -3.6, 4, 3.6);
+          building.fillStyle(palette.slateCloud).fillTriangle(-2.4, -3.6, 0, -4.8, 2.4, -3.6);
+          break;
+        case 'town_square':
+          building.fillStyle(color).fillRoundedRect(-0.55, -3.6, 1.1, 3.6, 0.55);
+          building.fillStyle(palette.parchment, 0.68).fillCircle(0, -3.6, 0.9);
+          break;
+        case 'exchange':
+        case 'field_site':
+          building.fillStyle(color).fillRect(-2.2, -3, 4.4, 3);
+          break;
+      }
+
+      if (place.archetype !== 'town_square') {
+        building.fillStyle(palette.windowGold);
+        for (let x = -1.4; x <= 1.4; x += 0.9) building.fillRect(x, -1.5, 0.35, 0.75);
+      }
+
+      const highlight = this.add
+        .circle(0, -1.2, 3.5)
+        .setStrokeStyle(2 / this.basePixelScale, palette.windowGold, 1)
+        .setVisible(false);
+      this.placeHighlights.set(place.id, highlight);
+      container.add([shadow, building, highlight]);
+      container
+        .setSize(6, 7)
+        .setInteractive(
+          new PhaserRuntime.Geom.Rectangle(-3, -5.5, 6, 7),
+          PhaserRuntime.Geom.Rectangle.Contains,
+        );
+      container.on('pointerdown', () => {
+        this.selectPlace(place.id);
+        options.bridge.emit({ type: 'place.selected', placeId: place.id, source: 'canvas' });
+      });
+    }
+
+    private drawAgents() {
+      const offsets = [
+        { x: 1.8, y: 0.6 },
+        { x: -1.4, y: 0.8 },
+        { x: 0.3, y: 1.5 },
+      ];
+      const colors = [palette.weatherCyan, palette.scholarViolet, palette.mossSignal];
+      model.agents.forEach((agent, index) => {
+        const place = model.places.find((candidate) => candidate.id === agent.placeId);
+        if (!place) return;
+        const offset = offsets[index % offsets.length] ?? { x: 0, y: 0 };
+        const marker = this.add
+          .container(place.position.x + offset.x, place.position.y + offset.y)
+          .setDepth(7);
+        const body = this.add.graphics();
+        body.fillStyle(colors[index % colors.length] ?? palette.weatherCyan);
+        body.fillCircle(0, -0.65, 0.42);
+        body.fillRoundedRect(-0.48, -0.2, 0.96, 1.25, 0.28);
+        body.lineStyle(2 / this.basePixelScale, palette.paperLight, 0.82);
+        body.lineBetween(-0.32, 1, -0.32, 1.55);
+        body.lineBetween(0.32, 1, 0.32, 1.55);
+        marker.add(body).setSize(2, 3).setInteractive({ useHandCursor: true });
+        marker.on('pointerdown', () => {
+          options.bridge.emit({ type: 'agent.selected', agentId: agent.id, source: 'canvas' });
+        });
+        this.agentTargets.set(agent.id, marker);
+      });
+    }
+
+    private drawWeather() {
+      const wind = this.add.container(37, 7).setDepth(1);
+      for (let index = 0; index < 5; index += 1) {
+        const streak = this.add.graphics({ x: -4 - index * 1.1, y: -3 + index * 0.8 });
+        streak.lineStyle(1 / this.basePixelScale, palette.weatherCyan, 0.58);
+        streak.lineBetween(0, 0, 2.2, 0);
+        wind.add(streak);
+        if (!this.reducedMotion) {
+          this.tweens.add({
+            targets: streak,
+            x: streak.x + 2,
+            alpha: { from: 0.3, to: 0.9 },
+            duration: 1_600 + index * 120,
+            yoyo: true,
+            repeat: -1,
+          });
+        }
+      }
+    }
+
+    private handleCommand(command: WorldSceneCommand) {
+      switch (command.type) {
+        case 'camera.home':
+          this.centerOnPlace(model.defaultSpawnPlaceId);
+          return;
+        case 'camera.pan':
+          this.stopFollowing();
+          this.cameras.main.scrollX += command.deltaX;
+          this.cameras.main.scrollY += command.deltaY;
+          this.emitCameraChanged();
+          return;
+        case 'camera.zoom':
+          this.adjustZoom(command.delta);
+          return;
+        case 'camera.follow-agent':
+          this.followAgent(command.agentId);
+          return;
+        case 'place.center':
+          this.centerOnPlace(command.placeId);
+          return;
+        case 'place.select':
+          this.selectPlace(command.placeId);
+          return;
+        case 'motion.set-reduced':
+          this.reducedMotion = command.reduced;
+          this.applyReducedMotion();
+      }
+    }
+
+    private adjustZoom(delta: -1 | 1) {
+      this.zoomStep = clampZoomStep(this.zoomStep + delta);
+      this.cameras.main.setZoom(pixelScaleForZoom(this.basePixelScale, this.zoomStep));
+      this.emitCameraChanged();
+    }
+
+    private centerOnPlace(placeId: string, immediate = false) {
+      const place = model.places.find((candidate) => candidate.id === placeId);
+      if (!place) return;
+      this.stopFollowing();
+      const duration = immediate || this.reducedMotion ? 0 : 600;
+      this.cameras.main.pan(place.position.x, place.position.y, duration, 'Sine.easeInOut', true);
+      if (duration === 0) this.cameras.main.centerOn(place.position.x, place.position.y);
+      this.time.delayedCall(duration, () => this.emitCameraChanged());
+    }
+
+    private followAgent(agentId: string) {
+      const target = this.agentTargets.get(agentId);
+      if (!target) return;
+      this.followingAgentId = agentId;
+      const lerp = this.reducedMotion ? 1 : 0.12;
+      this.cameras.main.startFollow(target, true, lerp, lerp);
+      this.emitCameraChanged();
+    }
+
+    private stopFollowing() {
+      this.cameras.main.stopFollow();
+      this.followingAgentId = null;
+    }
+
+    private selectPlace(placeId: string | undefined) {
+      this.selectedPlaceId = placeId;
+      this.placeHighlights.forEach((highlight, id) => highlight.setVisible(id === placeId));
+    }
+
+    private applyReducedMotion() {
+      if (this.reducedMotion) this.tweens.pauseAll();
+      else this.tweens.resumeAll();
+    }
+
+    private emitCameraChanged() {
+      const camera = this.cameras.main;
+      options.bridge.emit({
+        type: 'camera.changed',
+        centerX: Number(camera.midPoint.x.toFixed(2)),
+        centerY: Number(camera.midPoint.y.toFixed(2)),
+        followingAgentId: this.followingAgentId,
+        pixelScale: this.basePixelScale,
+        zoomStep: this.zoomStep,
+      });
+    }
+  }
+
+  const game = new PhaserRuntime.Game({
+    type: PhaserRuntime.CANVAS,
+    parent: options.parent,
+    width: initialMetrics.width,
+    height: initialMetrics.height,
+    backgroundColor: palette.atlasNight,
+    banner: false,
+    audio: { noAudio: true },
+    input: {
+      mouse: { preventDefaultWheel: true },
+    },
+    render: {
+      antialias: false,
+      antialiasGL: false,
+      pixelArt: true,
+      roundPixels: true,
+      transparent: false,
+    },
+    scene: SignalAtlasScene,
+  });
+
+  const resizeObserver = new ResizeObserver((entries) => {
+    const entry = entries[0];
+    if (!entry || !sceneInstance?.scene.isActive()) return;
+    sceneInstance.resizeToParent(entry.contentRect.width, entry.contentRect.height);
+  });
+  resizeObserver.observe(options.parent);
+
+  return {
+    destroy() {
+      resizeObserver.disconnect();
+      disconnectBridge?.();
+      disconnectBridge = undefined;
+      game.destroy(true);
+      sceneInstance = undefined;
+    },
+  };
+}

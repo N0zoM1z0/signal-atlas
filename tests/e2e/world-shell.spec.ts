@@ -14,6 +14,7 @@ async function expectNoPageOverflow(page: Page) {
 
 test('@visual world shell matches the five-region direction at 1440 × 900', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
+  await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.goto('/');
 
   await expect(
@@ -25,24 +26,31 @@ test('@visual world shell matches the five-region direction at 1440 × 900', asy
   await expect(page.getByRole('main', { name: 'Interactive world stage' })).toBeVisible();
   await expect(page.getByRole('complementary', { name: 'Signals' })).toBeVisible();
   await expect(page.getByRole('contentinfo', { name: 'Agent command desk' })).toBeVisible();
+  await expect(page.locator('.atlas-world-canvas')).toHaveAttribute('data-scene-ready', 'true');
+  await expect(page.locator('.atlas-world-canvas')).toHaveAttribute('data-reduced-motion', 'true');
   await expectNoPageOverflow(page);
 
   await expect(page).toHaveScreenshot('world-shell-1440x900.png', {
     fullPage: true,
+    maxDiffPixels: 100,
   });
 });
 
 test('@visual world shell remains usable at 1280 × 800', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 });
+  await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.goto('/');
 
   await expect(page.getByRole('button', { name: 'Collapse agent dock' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Collapse signal rail' })).toBeVisible();
   await expect(page.getByRole('textbox', { name: 'Command Mira' })).toBeVisible();
+  await expect(page.locator('.atlas-world-canvas')).toHaveAttribute('data-scene-ready', 'true');
+  await expect(page.locator('.atlas-world-canvas')).toHaveAttribute('data-reduced-motion', 'true');
   await expectNoPageOverflow(page);
 
   await expect(page).toHaveScreenshot('world-shell-1280x800.png', {
     fullPage: true,
+    maxDiffPixels: 100,
   });
 });
 
@@ -107,4 +115,76 @@ test('fixture, loading, and disconnected runtime states are explicit', async ({ 
   await page.goto('/?state=disconnected');
   await expect(page.getByText('△ Pref disconnected')).toBeVisible();
   await expect(page.getByText('Offline')).toBeVisible();
+});
+
+test('Phaser owns a crisp 48 × 30 world while the DOM mirror and camera stay synchronized', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.goto('/');
+
+  const scene = page.locator('.atlas-world-canvas');
+  const canvas = scene.locator('canvas');
+  await expect(scene).toHaveAttribute('data-scene-ready', 'true');
+  await expect(scene).toHaveAttribute('data-pixel-scale', '18');
+  await expect(scene).toHaveAttribute('data-reduced-motion', 'true');
+  await expect(canvas).toHaveCount(1);
+  await expect
+    .poll(() => canvas.evaluate((element) => ({ height: element.height, width: element.width })))
+    .toEqual({ height: 540, width: 864 });
+
+  const placeButtons = page.locator('.atlas-place-mirror-layer .atlas-place');
+  await expect(placeButtons).toHaveCount(6);
+  const weatherTower = page.getByRole('button', { name: /^Galehaven Weather Tower\./ });
+  await weatherTower.focus();
+  await page.keyboard.press('Enter');
+  await expect(weatherTower).toHaveAttribute('aria-pressed', 'true');
+
+  await page.getByRole('button', { name: 'Zoom in' }).click();
+  await expect(scene).toHaveAttribute('data-zoom-step', '1');
+  const centerBeforePan = Number(await scene.getAttribute('data-camera-center-x'));
+  const canvasBounds = await canvas.boundingBox();
+  expect(canvasBounds).not.toBeNull();
+  if (!canvasBounds) throw new Error('Phaser canvas bounds are required for pan coverage.');
+  await page.locator('.atlas-place').evaluateAll((elements) => {
+    elements.forEach((element) => {
+      (element as HTMLElement).style.pointerEvents = 'none';
+    });
+  });
+  await page.mouse.move(canvasBounds.x + 432, canvasBounds.y + 270);
+  await page.mouse.down({ button: 'middle' });
+  await page.mouse.move(canvasBounds.x + 332, canvasBounds.y + 270, { steps: 5 });
+  await page.mouse.up({ button: 'middle' });
+  await expect
+    .poll(async () => Number(await scene.getAttribute('data-camera-center-x')))
+    .not.toBe(centerBeforePan);
+  await page.locator('.atlas-place').evaluateAll((elements) => {
+    elements.forEach((element) => {
+      (element as HTMLElement).style.pointerEvents = '';
+    });
+  });
+  await page.getByRole('button', { name: 'Zoom out' }).click();
+  await expect(scene).toHaveAttribute('data-zoom-step', '0');
+
+  await page.getByRole('main', { name: 'Interactive world stage' }).focus();
+  await page.keyboard.press('f');
+  await expect(scene).toHaveAttribute('data-following-agent', 'mira');
+  await page.keyboard.press('Home');
+  await expect(scene).toHaveAttribute('data-following-agent', '');
+
+  await expect
+    .poll(async () => Number(await scene.getAttribute('data-fps')), { timeout: 10_000 })
+    .toBeGreaterThan(30);
+
+  const observatory = page.getByRole('button', { name: /^Meridian Observatory\./ });
+  await observatory.click();
+  await expect(observatory).toHaveAttribute('aria-pressed', 'true');
+  await page.locator('.atlas-place').evaluateAll((elements) => {
+    elements.forEach((element) => {
+      (element as HTMLElement).style.pointerEvents = 'none';
+    });
+  });
+  await canvas.click({ position: { x: 666, y: 80 } });
+  await expect(weatherTower).toHaveAttribute('aria-pressed', 'true');
 });

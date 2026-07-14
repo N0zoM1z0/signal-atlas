@@ -1,6 +1,9 @@
-import type { CSSProperties } from 'react';
+import { useRef, type CSSProperties } from 'react';
+
+import type { WorldSceneDefinition } from '@signal-atlas/game-scene';
 
 import type { ShellPlace } from './model.js';
+import { WorldCanvas, type WorldCanvasHandle } from './WorldCanvas.js';
 
 interface RouteModel {
   id: string;
@@ -11,11 +14,15 @@ export interface WorldStageHostProps {
   agentsDrawerOpen: boolean;
   loading: boolean;
   places: readonly ShellPlace[];
+  reducedMotion: boolean;
   routes: readonly RouteModel[];
+  sceneDefinition: WorldSceneDefinition;
+  selectedAgentId: string;
   selectedAgentName: string;
   selectedPlaceId: string | undefined;
   signalsDrawerOpen: boolean;
   onOpenPanel: (panel: 'agents' | 'signals' | 'archive' | 'professor') => void;
+  onSelectAgent: (agentId: string) => void;
   onSelectPlace: (placeId: string) => void;
 }
 
@@ -30,13 +37,19 @@ export function WorldStageHost({
   agentsDrawerOpen,
   loading,
   onOpenPanel,
+  onSelectAgent,
   onSelectPlace,
   places,
+  reducedMotion,
   routes,
+  sceneDefinition,
+  selectedAgentId,
   selectedAgentName,
   selectedPlaceId,
   signalsDrawerOpen,
 }: WorldStageHostProps) {
+  const canvasRef = useRef<WorldCanvasHandle>(null);
+
   return (
     <main
       aria-busy={loading}
@@ -79,76 +92,101 @@ export function WorldStageHost({
           <button onClick={() => onOpenPanel('professor')} type="button">
             Professor
           </button>
-          <button aria-label="Center map" type="button">
+          <button
+            aria-label="Center map"
+            onClick={() => canvasRef.current?.send({ type: 'camera.home' })}
+            type="button"
+          >
             ◎
           </button>
-          <button aria-label="Zoom out" type="button">
+          <button
+            aria-label="Zoom out"
+            onClick={() => canvasRef.current?.send({ type: 'camera.zoom', delta: -1 })}
+            type="button"
+          >
             −
           </button>
-          <button aria-label="Zoom in" type="button">
+          <button
+            aria-label="Zoom in"
+            onClick={() => canvasRef.current?.send({ type: 'camera.zoom', delta: 1 })}
+            type="button"
+          >
             +
           </button>
         </span>
       </nav>
 
       <section aria-label="World map" className="atlas-world-stage">
-        <div className="atlas-sky-stars" aria-hidden="true" />
-        <div className="atlas-moon" aria-hidden="true" />
-        <div className="atlas-cloud atlas-cloud--one" aria-hidden="true" />
-        <div className="atlas-cloud atlas-cloud--two" aria-hidden="true" />
-        <div className="atlas-horizon" aria-hidden="true" />
-        <div className="atlas-terrain" aria-hidden="true" />
-        <div className="atlas-water" aria-hidden="true" />
+        <div className="atlas-react-world-layer" aria-hidden="true">
+          <div className="atlas-sky-stars" />
+          <div className="atlas-moon" />
+          <div className="atlas-cloud atlas-cloud--one" />
+          <div className="atlas-cloud atlas-cloud--two" />
+          <div className="atlas-horizon" />
+          <div className="atlas-terrain" />
+          <div className="atlas-water" />
 
-        <svg
-          aria-hidden="true"
-          className="atlas-route-map"
-          preserveAspectRatio="none"
-          viewBox="0 0 48 30"
+          <svg className="atlas-route-map" preserveAspectRatio="none" viewBox="0 0 48 30">
+            {routes.map((route) => (
+              <polyline
+                key={route.id}
+                points={route.waypoints.map((point) => `${point.x},${point.y}`).join(' ')}
+              />
+            ))}
+          </svg>
+
+          <span className="atlas-world-agent atlas-world-agent--mira">
+            <i />
+            <b>Mira</b>
+          </span>
+          <span className="atlas-world-agent atlas-world-agent--orin">
+            <i />
+            <b>Orin</b>
+          </span>
+          <span className="atlas-world-agent atlas-world-agent--kestrel">
+            <i />
+            <b>Kestrel</b>
+          </span>
+        </div>
+
+        <WorldCanvas
+          model={sceneDefinition}
+          onAgentSelect={onSelectAgent}
+          onPlaceSelect={onSelectPlace}
+          reducedMotion={reducedMotion}
+          ref={canvasRef}
+          selectedAgentId={selectedAgentId}
+          selectedPlaceId={selectedPlaceId}
         >
-          {routes.map((route) => (
-            <polyline
-              key={route.id}
-              points={route.waypoints.map((point) => `${point.x},${point.y}`).join(' ')}
-            />
+          {places.map((place) => (
+            <button
+              aria-label={`${place.name}. ${place.label}. Available missions: ${place.missionVerbs.join(', ')}.`}
+              aria-pressed={place.id === selectedPlaceId}
+              className="atlas-place"
+              data-archetype={place.archetype}
+              key={place.id}
+              onClick={() => {
+                onSelectPlace(place.id);
+                canvasRef.current?.send({ type: 'place.select', placeId: place.id });
+              }}
+              onDoubleClick={() =>
+                canvasRef.current?.send({ type: 'place.center', placeId: place.id })
+              }
+              style={placeStyle(place)}
+              type="button"
+            >
+              <span className="atlas-place__building" aria-hidden="true">
+                <i />
+                <b />
+                <b />
+              </span>
+              <span className="atlas-place__label">
+                <small>{place.label}</small>
+                <strong>{place.name}</strong>
+              </span>
+            </button>
           ))}
-        </svg>
-
-        {places.map((place) => (
-          <button
-            aria-label={`${place.name}. ${place.label}. Available missions: ${place.missionVerbs.join(', ')}.`}
-            aria-pressed={place.id === selectedPlaceId}
-            className="atlas-place"
-            data-archetype={place.archetype}
-            key={place.id}
-            onClick={() => onSelectPlace(place.id)}
-            style={placeStyle(place)}
-            type="button"
-          >
-            <span className="atlas-place__building" aria-hidden="true">
-              <i />
-              <b />
-              <b />
-            </span>
-            <span className="atlas-place__label">
-              <small>{place.label}</small>
-              <strong>{place.name}</strong>
-            </span>
-          </button>
-        ))}
-
-        <span className="atlas-world-agent atlas-world-agent--mira" aria-hidden="true">
-          <i />
-          <b>Mira</b>
-        </span>
-        <span className="atlas-world-agent atlas-world-agent--orin" aria-hidden="true">
-          <i />
-          <b>Orin</b>
-        </span>
-        <span className="atlas-world-agent atlas-world-agent--kestrel" aria-hidden="true">
-          <i />
-          <b>Kestrel</b>
-        </span>
+        </WorldCanvas>
 
         {loading && (
           <div className="atlas-world-loading" role="status">
