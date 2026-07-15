@@ -10,7 +10,7 @@
     "pnpm": ">=10.0.0"
   },
   "scripts": {
-    "predev": "pnpm --filter @signal-atlas/contracts build && pnpm --filter @signal-atlas/test-fixtures build && pnpm --filter @signal-atlas/simulation build && pnpm --filter @signal-atlas/archive build",
+    "predev": "pnpm --recursive --filter './packages/**' --if-present build",
     "dev": "concurrently --kill-others-on-fail --names orchestrator,web --prefix-colors yellow,cyan \"pnpm --filter @signal-atlas/orchestrator dev\" \"pnpm --filter @signal-atlas/web dev\"",
     "build": "pnpm --recursive --if-present build",
     "typecheck": "pnpm --recursive --if-present typecheck",
