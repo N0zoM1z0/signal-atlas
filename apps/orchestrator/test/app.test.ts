@@ -63,6 +63,29 @@ describe('orchestrator health endpoint', () => {
     });
   });
 
+  it('lists safe installed scenario metadata without exposing fixture resolution content', async () => {
+    const app = buildApp();
+    openApps.push(app);
+
+    const response = await app.inject({ method: 'GET', url: '/api/scenarios' });
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({
+      scenarios: [
+        expect.objectContaining({
+          id: 'helios-3-launch-window',
+          version: 1,
+          authoredExpeditionId: 'exp-helios3-demo',
+          definitionSchemaVersion: 1,
+          available: true,
+          requiredCapabilities: ['local_conditions', 'search_sources'],
+        }),
+      ],
+    });
+    expect(response.body).not.toContain('resolutionFixture');
+    expect(response.body).not.toContain('resolvedOutcomeId');
+    expect(response.body).not.toContain('scriptedMissionResults');
+  });
+
   it('reports the configured driver and scheduler without exposing private input', async () => {
     const app = buildApp();
     openApps.push(app);
@@ -107,13 +130,15 @@ describe('orchestrator health endpoint', () => {
       open: () => {
         throw new Error('fixture fingerprint mismatch');
       },
+      listExpeditions: () => [],
+      storedScenarioDefinition: () => undefined,
       commit: () => undefined,
       saveCheckpoint: () => undefined,
       checkpointsAtOrBefore: () => [],
       diagnostics: () => ({
         mode: 'sqlite',
         state: 'ready',
-        schemaVersion: 1,
+        schemaVersion: 2,
         location: '<test>',
         eventCount: 0,
         latestSequence: 0,

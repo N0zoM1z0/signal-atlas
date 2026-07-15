@@ -6,10 +6,12 @@ import { DatabaseSync } from 'node:sqlite';
 import { parseWorldEvent } from '@signal-atlas/contracts';
 import { canonicalHash, projectionHash, replayFixture } from '@signal-atlas/simulation';
 import { createHelios3ExpeditionFixture } from '@signal-atlas/test-fixtures';
+import { createHeliosScenarioDefinition } from '@signal-atlas/world-content';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { ExpeditionRuntime } from '../src/expedition-runtime.js';
 import { SqliteWorkspaceStore } from '../src/sqlite-workspace-store.js';
+import { workspaceMigrations } from '../src/workspace-migrations.js';
 import { WorkspacePersistenceError, WorkspaceSchemaError } from '../src/workspace-store.js';
 import type {
   WorkspaceCheckpoint,
@@ -30,10 +32,13 @@ function temporaryDatabasePath(): string {
 }
 
 function openRequest(fixture = createHelios3ExpeditionFixture()) {
+  const definition = { ...createHeliosScenarioDefinition(), fixture };
   return {
     expeditionId: fixture.expedition.id,
     fixtureSeed: fixture.seed,
     fixtureHash: canonicalHash(fixture),
+    definition,
+    definitionHash: canonicalHash(definition),
     initialEvents: fixture.initialEvents,
   };
 }
@@ -97,9 +102,21 @@ class FailingCommitStore implements WorkspaceStore {
     this.#request = request;
     return {
       created: true,
+      definition: {
+        definition: structuredClone(request.definition),
+        definitionHash: request.definitionHash,
+      },
       events: [...structuredClone(request.initialEvents)],
       receipts: [],
     };
+  }
+
+  listExpeditions() {
+    return [];
+  }
+
+  storedScenarioDefinition() {
+    return undefined;
   }
 
   commit(_input: WorkspaceCommit): void {
@@ -116,7 +133,7 @@ class FailingCommitStore implements WorkspaceStore {
     return {
       mode: 'sqlite',
       state: 'ready',
-      schemaVersion: 1,
+      schemaVersion: 2,
       location: ':injected-failure:',
       eventCount: this.#request?.initialEvents.length ?? 0,
       latestSequence: this.#request?.initialEvents.at(-1)?.sequence ?? 0,
@@ -145,7 +162,7 @@ describe('SQLite workspace store', () => {
       receipts: [],
     });
     expect(first.diagnostics()).toMatchObject({
-      schemaVersion: 1,
+      schemaVersion: 2,
       eventCount: 2,
       latestSequence: 2,
       checkpointCount: 0,
@@ -162,7 +179,7 @@ describe('SQLite workspace store', () => {
     const database = new DatabaseSync(location);
     expect(
       database.prepare('SELECT version FROM schema_migrations ORDER BY version').all(),
-    ).toEqual([{ version: 1 }]);
+    ).toEqual([{ version: 1 }, { version: 2 }]);
     expect(database.prepare('PRAGMA foreign_keys').get()).toEqual({ foreign_keys: 1 });
     database.close();
   });
@@ -201,6 +218,131 @@ describe('SQLite workspace store', () => {
       }),
     ]);
     reopened.close();
+  });
+
+  it('stores the full scenario definition and rejects every later identity change', () => {
+    const location = temporaryDatabasePath();
+    const request = openRequest();
+    const store = new SqliteWorkspaceStore({ location });
+
+    const opened = store.open(request);
+    expect(opened.definition).toEqual({
+      definition: request.definition,
+      definitionHash: request.definitionHash,
+    });
+    expect(store.listExpeditions()).toEqual([
+      expect.objectContaining({
+        expeditionId: request.expeditionId,
+        scenarioId: request.definition.scenario.id,
+        scenarioVersion: request.definition.scenario.version,
+        definitionSchemaVersion: request.definition.definitionSchemaVersion,
+        definitionHash: request.definitionHash,
+        latestSequence: 2,
+      }),
+    ]);
+    expect(store.storedScenarioDefinition(request.expeditionId)).toEqual(opened.definition);
+    store.close();
+
+    const database = new DatabaseSync(location);
+    expect(() =>
+      database
+        .prepare('UPDATE expeditions SET definition_hash = ? WHERE expedition_id = ?')
+        .run('replacement-hash', request.expeditionId),
+    ).toThrow(/scenario definition is immutable/u);
+    database.close();
+
+    const changedDefinition = structuredClone(request.definition);
+    changedDefinition.scenario.title = 'A rewritten installed title';
+    const reopened = new SqliteWorkspaceStore({ location });
+    expect(() =>
+      reopened.open({
+        ...request,
+        definition: changedDefinition,
+        definitionHash: canonicalHash(changedDefinition),
+      }),
+    ).toThrow(WorkspaceSchemaError);
+    reopened.close();
+  });
+
+  it('backfills an exact schema-v1 expedition once without rewriting its event history', () => {
+    const location = temporaryDatabasePath();
+    const request = openRequest();
+    const migration = workspaceMigrations.find((candidate) => candidate.version === 1);
+    if (!migration) throw new Error('Expected the schema-v1 migration.');
+    const legacy = new DatabaseSync(location);
+    legacy.exec(`
+      CREATE TABLE schema_migrations (
+        version INTEGER PRIMARY KEY CHECK (version > 0),
+        description TEXT NOT NULL,
+        applied_at TEXT NOT NULL
+      ) STRICT;
+    `);
+    legacy.exec(migration.sql);
+    legacy
+      .prepare('INSERT INTO schema_migrations (version, description, applied_at) VALUES (?, ?, ?)')
+      .run(1, migration.description, '2027-09-26T18:00:00Z');
+    legacy
+      .prepare(
+        `INSERT INTO expeditions
+          (expedition_id, fixture_seed, fixture_hash, created_at, latest_sequence)
+         VALUES (?, ?, ?, ?, ?)`,
+      )
+      .run(
+        request.expeditionId,
+        request.fixtureSeed,
+        request.fixtureHash,
+        '2027-09-26T18:00:00Z',
+        request.initialEvents.length,
+      );
+    const insertEvent = legacy.prepare(
+      `INSERT INTO world_events
+        (expedition_id, sequence, event_id, event_type, occurred_at, recorded_at,
+         correlation_id, event_json)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    );
+    request.initialEvents.forEach((event) =>
+      insertEvent.run(
+        event.expeditionId,
+        event.sequence,
+        event.id,
+        event.type,
+        event.occurredAt,
+        event.recordedAt,
+        event.correlationId ?? null,
+        JSON.stringify(event),
+      ),
+    );
+    legacy.close();
+
+    const migrated = new SqliteWorkspaceStore({ location });
+    expect(migrated.storedScenarioDefinition(request.expeditionId)).toBeUndefined();
+    const restored = migrated.open(request);
+    expect(restored.created).toBe(false);
+    expect(restored.events).toEqual(request.initialEvents);
+    expect(restored.definition).toEqual({
+      definition: request.definition,
+      definitionHash: request.definitionHash,
+    });
+    migrated.close();
+
+    const verified = new DatabaseSync(location);
+    expect(
+      verified
+        .prepare(
+          `SELECT scenario_id, scenario_version, definition_schema_version, definition_hash
+             FROM expeditions WHERE expedition_id = ?`,
+        )
+        .get(request.expeditionId),
+    ).toEqual({
+      scenario_id: request.definition.scenario.id,
+      scenario_version: request.definition.scenario.version,
+      definition_schema_version: request.definition.definitionSchemaVersion,
+      definition_hash: request.definitionHash,
+    });
+    expect(verified.prepare('SELECT event_json FROM world_events ORDER BY sequence').all()).toEqual(
+      request.initialEvents.map((event) => ({ event_json: JSON.stringify(event) })),
+    );
+    verified.close();
   });
 
   it('rolls back the entire transaction when a later event violates append-only identity', () => {

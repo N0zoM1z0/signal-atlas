@@ -7,7 +7,10 @@ import {
   type EventStreamEnvelope,
   type WorldEvent,
 } from '@signal-atlas/contracts';
-import { createHelios3ExpeditionFixture } from '@signal-atlas/test-fixtures';
+import {
+  createHeliosScenarioDefinition,
+  installedScenarioCatalog,
+} from '@signal-atlas/world-content';
 
 import {
   ExpeditionRuntime,
@@ -155,7 +158,11 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   const runtime =
     options.runtime ??
     (() => {
-      const fixture = createHelios3ExpeditionFixture();
+      const installedDefinition = createHeliosScenarioDefinition();
+      const scenarioDefinition =
+        workspaceStore?.storedScenarioDefinition(installedDefinition.fixture.expedition.id)
+          ?.definition ?? installedDefinition;
+      const fixture = structuredClone(scenarioDefinition.fixture);
       const mode: CodexMissionMode =
         process.env['SIGNAL_ATLAS_CODEX_MODE'] === 'local' ? 'local' : 'scripted';
       const runtimeRoot =
@@ -174,6 +181,7 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
         return new ExpeditionRuntime(fixture, {
           ...(workspaceStore ? { workspaceStore } : {}),
           checkpointInterval: configuredCheckpointInterval(),
+          scenarioDefinition,
           professorDriver: createConfiguredProfessorDriver(localCodexOptions),
           missionDriverFactory: (scenario) => {
             const fallback = createConfiguredMissionDriver(fixture, scenario, localCodexOptions);
@@ -228,6 +236,17 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   }));
 
   app.get('/api/runtime/diagnostics', async () => runtime.runtimeDiagnostics());
+
+  app.get('/api/scenarios', async () => ({
+    scenarios: installedScenarioCatalog.list().map((scenario) => ({
+      ...scenario,
+      available: true,
+      availabilityReason:
+        scenario.availabilityPolicy === 'offline_ready'
+          ? 'Complete offline fixture installed.'
+          : 'Offline fixture installed; live capabilities are optional.',
+    })),
+  }));
 
   app.get('/api/expeditions', async () => {
     const projection = runtime.snapshot();

@@ -28,6 +28,41 @@ serialized projection, and creation time. It is a disposable acceleration struct
 domain event. Loading a checkpoint never advances authority: the runtime verifies it against the
 event at the same sequence and folds the remaining event tail through the same pure reducer.
 
+Every expedition row also owns the complete validated `ScenarioDefinition`, its schema version,
+scenario ID/version, and canonical hash. The definition contains the authored fixture and visual
+presentation metadata needed to rebuild sequence zero. It is copied into SQLite in the same
+transaction as the initial event log and is immutable afterward; installed catalog updates can add
+a new scenario version but cannot change an existing expedition.
+
+```ts
+interface ScenarioDefinition {
+  definitionSchemaVersion: 1;
+  scenario: {
+    id: string;
+    version: number;
+    title: string;
+    category:
+      | 'science_technology'
+      | 'climate_infrastructure'
+      | 'economics_policy'
+      | 'civic_official_records'
+      | 'other_research';
+    summary: string;
+    mode: 'fixture' | 'historical_challenge' | 'live_import';
+    requiredCapabilities: string[];
+    availabilityPolicy: 'offline_ready' | 'live_optional';
+    primaryOutcomeId: string;
+    preview: {
+      template: string;
+      assetPack: string;
+      regionLabel: string;
+      tagline: string;
+    };
+  };
+  fixture: ExpeditionFixture;
+}
+```
+
 ## 10.2 Market
 
 ```ts

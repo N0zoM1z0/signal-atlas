@@ -7,5 +7,6 @@ export * from './event-stream.js';
 export * from './fixture.js';
 export * from './information.js';
 export * from './market.js';
+export * from './scenario.js';
 export * from './social.js';
 export * from './world.js';

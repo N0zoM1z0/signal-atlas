@@ -13,6 +13,7 @@ import {
   binaryMarketOutcomes,
   type ExpeditionFixture,
   MissionSchema,
+  ScenarioDefinitionSchema,
 } from '../src/index.js';
 
 const fixturePath = new URL('../../../fixtures/helios3_expedition.json', import.meta.url);
@@ -64,6 +65,43 @@ describe('Helios-3 expedition fixture', () => {
       primary: fixture.market.outcomes[0],
       secondary: fixture.market.outcomes[1],
     });
+  });
+
+  it('validates scenario presentation and capabilities against the complete fixture', () => {
+    const fixture = cloneFixture();
+    const definition = ScenarioDefinitionSchema.parse({
+      definitionSchemaVersion: 1,
+      scenario: {
+        id: 'helios-3-launch-window',
+        version: 1,
+        title: fixture.expedition.title,
+        category: 'science_technology',
+        summary: 'A deterministic launch-window research challenge.',
+        mode: 'fixture',
+        requiredCapabilities: ['local_conditions', 'search_sources'],
+        availabilityPolicy: 'live_optional',
+        primaryOutcomeId: fixture.market.outcomes[0]?.id,
+        preview: {
+          template: fixture.worldManifest.template,
+          assetPack: fixture.worldManifest.assetPack,
+          regionLabel: 'Meridian Coast',
+          tagline: 'Separate launch evidence from correlated reports.',
+        },
+      },
+      fixture,
+    });
+
+    expect(definition.scenario.primaryOutcomeId).toBe('yes');
+    expect(() =>
+      ScenarioDefinitionSchema.parse({
+        ...definition,
+        scenario: {
+          ...definition.scenario,
+          requiredCapabilities: ['unbound_capability'],
+          preview: { ...definition.scenario.preview, assetPack: 'wrong-pack' },
+        },
+      }),
+    ).toThrow();
   });
 
   it('rejects object-prototype names at every entity identity boundary', () => {

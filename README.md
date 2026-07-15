@@ -126,6 +126,12 @@ sequence; an accepted command receipt is committed in the same transaction as th
 events. Restarting the orchestrator restores the exact projection and idempotency result instead of
 reseeding the in-memory slice.
 
+The installed catalog is available from `GET /api/scenarios` as safe metadata. Each created
+expedition copies its complete validated scenario definition, definition version, and canonical hash
+into SQLite with the genesis events. Restart uses that stored definition rather than a newer
+installed catalog entry. Scenario-definition identity is immutable at the database layer; the
+schema-v1 Helios workspace migrates only when its existing fixture fingerprint matches exactly.
+
 Verified projection checkpoints are written every 50 events and on clean shutdown. Startup uses
 the newest schema-valid, hash-valid checkpoint and folds only its event tail. A malformed checkpoint
 is ignored in favor of an older checkpoint or the complete append-only log; checkpoints never
@@ -151,7 +157,7 @@ workspace database in version control.
 
 Open **Replay** from the world toolbar or press `R` outside an editable field. The replay workspace reconstructs the world from sequence zero, exposes event-backed evidence and forecast turning points, and verifies the latest projection against the orchestrator's canonical hash.
 
-Fixture resolution is deliberately not a general outcome command. `POST /api/expeditions/:id/resolve-fixture` accepts only an empty body and copies the outcome, time, and note from the parsed Helios-3 fixture. It records the market resolution, a Brier score for each explicitly scoring-eligible forecast, and the expedition resolution. The browser cannot select an outcome.
+Fixture resolution is deliberately not a general outcome command. `POST /api/expeditions/:id/resolve-fixture` accepts only an empty body and copies the outcome, time, and note from the expedition's stored parsed scenario fixture. It records the market resolution, a Brier score for each explicitly scoring-eligible forecast, and the expedition resolution. The browser cannot select an outcome.
 
 `GET /api/expeditions/:id/replay?sequence=N` returns the exact projection at an event sequence. `GET /api/expeditions/:id/case-file` returns a deterministic public JSON case file with separate source, claim, signal, and forecast-rationale sections. Private forecast memos are excluded from both those sections and the exported event stream.
 

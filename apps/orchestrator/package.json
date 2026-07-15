@@ -20,6 +20,7 @@
     "@signal-atlas/pref-gateway": "workspace:*",
     "@signal-atlas/simulation": "workspace:*",
     "@signal-atlas/test-fixtures": "workspace:*",
+    "@signal-atlas/world-content": "workspace:*",
     "fastify": "5.10.0"
   },
   "devDependencies": {

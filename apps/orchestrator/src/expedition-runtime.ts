@@ -5,6 +5,7 @@ import {
   parseWorldEvent,
   ProfessorResponseSchema,
   SCHEMA_VERSION,
+  ScenarioDefinitionSchema,
   type ExpeditionFixture,
   type AgentTurnInput,
   type AgentTurnOutput,
@@ -12,6 +13,7 @@ import {
   type WorldEvent,
   type ProfessorQuery,
   type ProfessorResponse,
+  type ScenarioDefinition,
 } from '@signal-atlas/contracts';
 import { createSignalAtlasCaseFile, type SignalAtlasCaseFile } from '@signal-atlas/archive';
 import {
@@ -180,6 +182,7 @@ export interface ExpeditionRuntimeOptions {
   professorTimeoutMs?: number;
   workspaceStore?: WorkspaceStore;
   checkpointInterval?: number;
+  scenarioDefinition?: ScenarioDefinition;
 }
 
 export interface SignalAtlasRuntimeDiagnostics extends CodexRuntimeDiagnostics {
@@ -241,8 +244,40 @@ function parseAcceptedCommandResult(input: unknown): AcceptedCommandResult {
   };
 }
 
+function embeddedScenarioDefinition(fixture: ExpeditionFixture): ScenarioDefinition {
+  const requiredCapabilities = [
+    ...new Set(
+      fixture.worldManifest.places.flatMap((place) =>
+        place.capabilityBindings.map((binding) => binding.canonicalCapability),
+      ),
+    ),
+  ];
+  return ScenarioDefinitionSchema.parse({
+    definitionSchemaVersion: 1,
+    scenario: {
+      id: `embedded-${fixture.expedition.id}`,
+      version: 1,
+      title: fixture.expedition.title,
+      category: 'other_research',
+      summary: 'An embedded deterministic scenario definition for a local expedition fixture.',
+      mode: 'fixture',
+      requiredCapabilities,
+      availabilityPolicy: 'offline_ready',
+      primaryOutcomeId: fixture.market.outcomes[0]?.id,
+      preview: {
+        template: fixture.worldManifest.template,
+        assetPack: fixture.worldManifest.assetPack,
+        regionLabel: fixture.expedition.title,
+        tagline: 'A source-linked local research expedition.',
+      },
+    },
+    fixture,
+  });
+}
+
 export class ExpeditionRuntime {
   readonly #fixture: ExpeditionFixture;
+  readonly #scenarioDefinition: ScenarioDefinition;
   readonly #missionDriver: CodexDriver<AgentTurnInput, ScriptedFixtureTurn>;
   readonly #professorDriver: ProfessorDriver;
   readonly #maxConcurrentTurns: number;
@@ -274,6 +309,12 @@ export class ExpeditionRuntime {
 
   constructor(fixture: ExpeditionFixture, options: ExpeditionRuntimeOptions = {}) {
     this.#fixture = structuredClone(fixture);
+    this.#scenarioDefinition = ScenarioDefinitionSchema.parse(
+      options.scenarioDefinition ?? embeddedScenarioDefinition(this.#fixture),
+    );
+    if (canonicalHash(this.#scenarioDefinition.fixture) !== canonicalHash(this.#fixture)) {
+      throw new Error('Runtime fixture does not match its scenario definition.');
+    }
     this.#maxConcurrentTurns = options.maxConcurrentTurns ?? 2;
     this.#defaultTurnTimeoutMs = options.defaultTurnTimeoutMs ?? 30_000;
     this.#professorTimeoutMs = options.professorTimeoutMs ?? 90_000;
@@ -302,6 +343,8 @@ export class ExpeditionRuntime {
         expeditionId: this.#fixture.expedition.id,
         fixtureSeed: this.#fixture.seed,
         fixtureHash: canonicalHash(this.#fixture),
+        definition: this.#scenarioDefinition,
+        definitionHash: canonicalHash(this.#scenarioDefinition),
         initialEvents: this.#fixture.initialEvents,
       });
       this.#events = loaded.events;

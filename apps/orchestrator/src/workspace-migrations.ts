@@ -81,4 +81,41 @@ export const workspaceMigrations: readonly WorkspaceMigration[] = [
         ON world_checkpoints (expedition_id, sequence DESC);
     `,
   },
+  {
+    version: 2,
+    description: 'Persist immutable versioned scenario definitions with each expedition.',
+    sql: `
+      ALTER TABLE expeditions ADD COLUMN scenario_id TEXT;
+      ALTER TABLE expeditions ADD COLUMN scenario_version INTEGER
+        CHECK (scenario_version IS NULL OR scenario_version > 0);
+      ALTER TABLE expeditions ADD COLUMN definition_schema_version INTEGER
+        CHECK (definition_schema_version IS NULL OR definition_schema_version > 0);
+      ALTER TABLE expeditions ADD COLUMN definition_hash TEXT;
+      ALTER TABLE expeditions ADD COLUMN definition_json TEXT
+        CHECK (definition_json IS NULL OR json_valid(definition_json));
+
+      CREATE INDEX expeditions_scenario_version_idx
+        ON expeditions (scenario_id, scenario_version, created_at);
+
+      CREATE TRIGGER expeditions_fixture_identity_no_update
+      BEFORE UPDATE OF fixture_seed, fixture_hash ON expeditions
+      BEGIN
+        SELECT RAISE(ABORT, 'expedition fixture identity is immutable');
+      END;
+
+      CREATE TRIGGER expeditions_definition_no_update
+      BEFORE UPDATE OF scenario_id, scenario_version, definition_schema_version,
+                       definition_hash, definition_json ON expeditions
+      WHEN OLD.definition_json IS NOT NULL AND (
+        NEW.scenario_id IS NOT OLD.scenario_id OR
+        NEW.scenario_version IS NOT OLD.scenario_version OR
+        NEW.definition_schema_version IS NOT OLD.definition_schema_version OR
+        NEW.definition_hash IS NOT OLD.definition_hash OR
+        NEW.definition_json IS NOT OLD.definition_json
+      )
+      BEGIN
+        SELECT RAISE(ABORT, 'expedition scenario definition is immutable');
+      END;
+    `,
+  },
 ];

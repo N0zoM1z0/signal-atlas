@@ -74,6 +74,9 @@ importers:
       '@signal-atlas/test-fixtures':
         specifier: workspace:*
         version: link:../../packages/test-fixtures
+      '@signal-atlas/world-content':
+        specifier: workspace:*
+        version: link:../../packages/world-content
       fastify:
         specifier: 5.10.0
         version: 5.10.0
@@ -223,7 +226,14 @@ importers:
         specifier: 19.2.7
         version: 19.2.7(react@19.2.7)
 
-  packages/world-content: {}
+  packages/world-content:
+    dependencies:
+      '@signal-atlas/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@signal-atlas/simulation':
+        specifier: workspace:*
+        version: link:../simulation
 
 packages:
 

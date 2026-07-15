@@ -198,6 +198,7 @@ Recommended HTTP endpoints:
 ```text
 GET  /api/health
 GET  /api/config/public
+GET  /api/scenarios
 GET  /api/expeditions
 POST /api/expeditions
 GET  /api/expeditions/:id/snapshot
@@ -239,20 +240,27 @@ Commands return an accepted command ID. Resulting changes arrive as events.
 The implemented vertical slice keeps the append-only event stream as authority and stores four
 focused relations:
 
-- `expeditions`: fixture seed/fingerprint and the latest committed sequence;
+- `expeditions`: fixture seed/fingerprint, immutable scenario ID/version/full definition/hash, and
+  the latest committed sequence;
 - `world_events`: immutable event envelopes keyed by expedition and sequence, with globally unique
   event IDs;
 - `command_receipts`: immutable idempotency keys, command hashes, and accepted result envelopes;
 - `world_checkpoints`: rebuildable projection snapshots with schema version and canonical hash.
 
-`workspace_schema_migrations` records deterministic migrations. SQLite foreign keys, a busy
+`schema_migrations` records deterministic migrations. SQLite foreign keys, a busy
 timeout, full synchronous durability, and WAL mode are enabled for file databases. Triggers reject
-updates and deletes against authoritative events and command receipts. A command's event batch and
-receipt share one transaction; scheduler-generated batches also commit atomically before becoming
-visible in memory or over WebSocket.
+updates and deletes against authoritative events and command receipts, and reject changes to a
+stored scenario definition after its first write. A new expedition's complete validated definition
+and genesis events share one transaction. A command's event batch and receipt share one
+transaction; scheduler-generated batches also commit atomically before becoming visible in memory
+or over WebSocket.
 
-Startup verifies the fixture fingerprint and refuses unsupported newer schemas. It parses the full
-event log for continuity, then selects the newest checkpoint whose projection schema, expedition,
+Startup loads and validates the definition copied into the expedition rather than substituting the
+currently installed catalog entry. It verifies both definition and fixture canonical hashes and
+refuses unsupported newer schemas. A schema-v1 workspace may receive the exact installed Helios
+definition once only when its expedition ID, seed, and fixture hash all match; a partial or
+incompatible migration fails contextually without rewriting its event rows. Startup then parses the
+event log for continuity and selects the newest checkpoint whose projection schema, expedition,
 sequence, latest applied event, and canonical hash all agree with the log. Only the tail after that
 checkpoint is reducer-folded. Invalid checkpoints are counted and skipped; deleting every
 checkpoint still produces the same projection from the event authority.

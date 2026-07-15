@@ -4,6 +4,21 @@
 
 In progress.
 
+## Progress log
+
+- `4ee4c59` made binary outcome IDs opaque across contracts, simulation, archive, Codex transport,
+  and runtime synthesis; local runtime artifacts are expedition-namespaced.
+- `56942fc` removed the production fixture import from the web bootstrap and made the shell,
+  onboarding, missions, meetings, forecasts, agent presentation, and Phaser landmark selection
+  derive from authoritative expedition data and authored visual metadata.
+- The current persistence milestone adds the versioned `ScenarioDefinition` contract, safe installed
+  catalog metadata, SQLite schema v2 full-definition storage, canonical definition verification,
+  immutable identity triggers, and exact schema-v1 Helios backfill coverage.
+- Focused validation after the first two commits: contracts 18/18, simulation 34/34, codex-runtime
+  25/25, game-scene 13/13, archive 4/4, web 19/19, orchestrator 95/95, and repository lint with zero
+  warnings. Persistence milestone validation currently passes contracts 19/19, world-content 2/2,
+  and orchestrator 98/98; full-repository validation remains scheduled after registry integration.
+
 ## Goal
 
 Turn the Helios-3 vertical slice into a durable multi-expedition workspace. A local catalog must be

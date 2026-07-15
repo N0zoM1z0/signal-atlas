@@ -4,7 +4,13 @@ import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 
-import { parseWorldEvent, type WorldEvent } from '@signal-atlas/contracts';
+import {
+  parseScenarioDefinition,
+  parseWorldEvent,
+  type ScenarioDefinition,
+  type WorldEvent,
+} from '@signal-atlas/contracts';
+import { canonicalHash } from '@signal-atlas/simulation';
 
 import { workspaceMigrations } from './workspace-migrations.js';
 import {
@@ -12,6 +18,8 @@ import {
   WorkspacePersistenceError,
   WorkspaceSchemaError,
   type StoredCommandReceipt,
+  type StoredExpeditionRecord,
+  type StoredScenarioDefinition,
   type WorkspaceCheckpoint,
   type WorkspaceCheckpointInput,
   type WorkspaceCommit,
@@ -28,7 +36,13 @@ interface SqliteWorkspaceStoreOptions {
 interface ExpeditionRow {
   fixture_seed: string;
   fixture_hash: string;
+  created_at: string;
   latest_sequence: number;
+  scenario_id?: string;
+  scenario_version?: number;
+  definition_schema_version?: number;
+  definition_hash?: string;
+  definition_json?: string;
 }
 
 interface EventRow {
@@ -62,6 +76,32 @@ function integerField(row: Record<string, unknown>, key: string, context: string
   const value = row[key];
   if (typeof value !== 'number' || !Number.isInteger(value)) {
     throw new WorkspacePersistenceError(`SQLite ${context}.${key} must be an integer.`);
+  }
+  return value;
+}
+
+function optionalStringField(
+  row: Record<string, unknown>,
+  key: string,
+  context: string,
+): string | undefined {
+  const value = row[key];
+  if (value === null || value === undefined) return undefined;
+  if (typeof value !== 'string') {
+    throw new WorkspacePersistenceError(`SQLite ${context}.${key} must be text or null.`);
+  }
+  return value;
+}
+
+function optionalIntegerField(
+  row: Record<string, unknown>,
+  key: string,
+  context: string,
+): number | undefined {
+  const value = row[key];
+  if (value === null || value === undefined) return undefined;
+  if (typeof value !== 'number' || !Number.isInteger(value)) {
+    throw new WorkspacePersistenceError(`SQLite ${context}.${key} must be an integer or null.`);
   }
   return value;
 }
@@ -114,6 +154,7 @@ export class SqliteWorkspaceStore implements WorkspaceStore {
     }
 
     try {
+      const definition = this.#validateLoadRequest(request);
       let created = false;
       this.#transaction(() => {
         const existing = this.#expeditionRow(request.expeditionId);
@@ -126,6 +167,7 @@ export class SqliteWorkspaceStore implements WorkspaceStore {
               `Stored expedition ${request.expeditionId} was created from a different fixture revision.`,
             );
           }
+          this.#backfillOrValidateDefinition(request.expeditionId, existing, request, definition);
           return;
         }
 
@@ -133,14 +175,21 @@ export class SqliteWorkspaceStore implements WorkspaceStore {
         this.#database
           .prepare(
             `INSERT INTO expeditions
-              (expedition_id, fixture_seed, fixture_hash, created_at, latest_sequence)
-             VALUES (?, ?, ?, ?, 0)`,
+              (expedition_id, fixture_seed, fixture_hash, created_at, latest_sequence,
+               scenario_id, scenario_version, definition_schema_version,
+               definition_hash, definition_json)
+             VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?, ?)`,
           )
           .run(
             request.expeditionId,
             request.fixtureSeed,
             request.fixtureHash,
             new Date().toISOString(),
+            definition.scenario.id,
+            definition.scenario.version,
+            definition.definitionSchemaVersion,
+            request.definitionHash,
+            JSON.stringify(definition),
           );
         this.#appendEvents(request.expeditionId, 0, request.initialEvents);
       });
@@ -164,11 +213,60 @@ export class SqliteWorkspaceStore implements WorkspaceStore {
 
       return {
         created,
+        definition: this.#requiredStoredDefinition(request.expeditionId),
         events,
         receipts: this.#loadReceipts(request.expeditionId),
       };
     } catch (error: unknown) {
       throw publicPersistenceError('initialization', error);
+    }
+  }
+
+  listExpeditions(): StoredExpeditionRecord[] {
+    this.#assertOpen();
+    try {
+      const rows = this.#database
+        .prepare(
+          `SELECT expedition_id, fixture_seed, fixture_hash, created_at, latest_sequence,
+                  scenario_id, scenario_version, definition_schema_version, definition_hash
+             FROM expeditions
+            ORDER BY created_at ASC, expedition_id ASC`,
+        )
+        .all();
+      return rows.map((value): StoredExpeditionRecord => {
+        const row = asRecord(value, 'expedition listing');
+        const scenarioId = optionalStringField(row, 'scenario_id', 'expedition listing');
+        const scenarioVersion = optionalIntegerField(row, 'scenario_version', 'expedition listing');
+        const definitionSchemaVersion = optionalIntegerField(
+          row,
+          'definition_schema_version',
+          'expedition listing',
+        );
+        const definitionHash = optionalStringField(row, 'definition_hash', 'expedition listing');
+        return {
+          expeditionId: stringField(row, 'expedition_id', 'expedition listing'),
+          fixtureSeed: stringField(row, 'fixture_seed', 'expedition listing'),
+          fixtureHash: stringField(row, 'fixture_hash', 'expedition listing'),
+          createdAt: stringField(row, 'created_at', 'expedition listing'),
+          latestSequence: integerField(row, 'latest_sequence', 'expedition listing'),
+          ...(scenarioId ? { scenarioId } : {}),
+          ...(scenarioVersion === undefined ? {} : { scenarioVersion }),
+          ...(definitionSchemaVersion === undefined ? {} : { definitionSchemaVersion }),
+          ...(definitionHash ? { definitionHash } : {}),
+        };
+      });
+    } catch (error: unknown) {
+      throw publicPersistenceError('expedition listing', error);
+    }
+  }
+
+  storedScenarioDefinition(expeditionId: string): StoredScenarioDefinition | undefined {
+    this.#assertOpen();
+    try {
+      const row = this.#expeditionRow(expeditionId);
+      return row ? this.#storedDefinitionFromRow(expeditionId, row) : undefined;
+    } catch (error: unknown) {
+      throw publicPersistenceError('scenario definition read', error);
     }
   }
 
@@ -316,6 +414,132 @@ export class SqliteWorkspaceStore implements WorkspaceStore {
     }
   }
 
+  #validateLoadRequest(request: WorkspaceLoadRequest): ScenarioDefinition {
+    let definition: ScenarioDefinition;
+    try {
+      definition = parseScenarioDefinition(request.definition);
+    } catch (error: unknown) {
+      throw new WorkspaceSchemaError(
+        `Expedition ${request.expeditionId} supplied an invalid scenario definition.`,
+        { cause: error },
+      );
+    }
+    if (
+      definition.fixture.expedition.id !== request.expeditionId ||
+      definition.fixture.seed !== request.fixtureSeed
+    ) {
+      throw new WorkspaceSchemaError(
+        `Scenario definition identity does not match expedition ${request.expeditionId}.`,
+      );
+    }
+    if (canonicalHash(definition.fixture) !== request.fixtureHash) {
+      throw new WorkspaceSchemaError(
+        `Scenario definition fixture hash does not match expedition ${request.expeditionId}.`,
+      );
+    }
+    if (canonicalHash(definition) !== request.definitionHash) {
+      throw new WorkspaceSchemaError(
+        `Scenario definition hash does not match expedition ${request.expeditionId}.`,
+      );
+    }
+    return definition;
+  }
+
+  #backfillOrValidateDefinition(
+    expeditionId: string,
+    existing: ExpeditionRow,
+    request: WorkspaceLoadRequest,
+    definition: ScenarioDefinition,
+  ): void {
+    const stored = this.#storedDefinitionFromRow(expeditionId, existing);
+    if (!stored) {
+      this.#database
+        .prepare(
+          `UPDATE expeditions
+              SET scenario_id = ?, scenario_version = ?, definition_schema_version = ?,
+                  definition_hash = ?, definition_json = ?
+            WHERE expedition_id = ? AND definition_json IS NULL`,
+        )
+        .run(
+          definition.scenario.id,
+          definition.scenario.version,
+          definition.definitionSchemaVersion,
+          request.definitionHash,
+          JSON.stringify(definition),
+          expeditionId,
+        );
+      return;
+    }
+    if (
+      stored.definitionHash !== request.definitionHash ||
+      stored.definition.scenario.id !== definition.scenario.id ||
+      stored.definition.scenario.version !== definition.scenario.version ||
+      stored.definition.definitionSchemaVersion !== definition.definitionSchemaVersion
+    ) {
+      throw new WorkspaceSchemaError(
+        `Stored expedition ${expeditionId} was created from a different immutable scenario definition.`,
+      );
+    }
+  }
+
+  #requiredStoredDefinition(expeditionId: string): StoredScenarioDefinition {
+    const stored = this.storedScenarioDefinition(expeditionId);
+    if (!stored) {
+      throw new WorkspaceSchemaError(
+        `Stored expedition ${expeditionId} does not have a scenario definition.`,
+      );
+    }
+    return stored;
+  }
+
+  #storedDefinitionFromRow(
+    expeditionId: string,
+    row: ExpeditionRow,
+  ): StoredScenarioDefinition | undefined {
+    const fields = [
+      row.scenario_id,
+      row.scenario_version,
+      row.definition_schema_version,
+      row.definition_hash,
+      row.definition_json,
+    ];
+    if (fields.every((field) => field === undefined)) return undefined;
+    if (fields.some((field) => field === undefined)) {
+      throw new WorkspaceSchemaError(
+        `Stored expedition ${expeditionId} has an incomplete scenario-definition migration.`,
+      );
+    }
+
+    const scenarioId = row.scenario_id as string;
+    const scenarioVersion = row.scenario_version as number;
+    const definitionSchemaVersion = row.definition_schema_version as number;
+    const definitionHash = row.definition_hash as string;
+    const definitionJson = row.definition_json as string;
+    let definition: ScenarioDefinition;
+    try {
+      definition = parseScenarioDefinition(parseJson(definitionJson, 'definition_json'));
+    } catch (error: unknown) {
+      throw new WorkspaceSchemaError(
+        `Stored expedition ${expeditionId} contains an invalid scenario definition.`,
+        { cause: error },
+      );
+    }
+    if (
+      definition.fixture.expedition.id !== expeditionId ||
+      definition.fixture.seed !== row.fixture_seed ||
+      canonicalHash(definition.fixture) !== row.fixture_hash ||
+      definition.scenario.id !== scenarioId ||
+      definition.scenario.version !== scenarioVersion ||
+      definition.definitionSchemaVersion !== definitionSchemaVersion ||
+      canonicalHash(definition) !== definitionHash
+    ) {
+      throw new WorkspaceSchemaError(
+        `Stored expedition ${expeditionId} scenario definition failed its immutable identity check.`,
+      );
+    }
+    return { definition, definitionHash };
+  }
+
   #appendEvents(
     expeditionId: string,
     expectedSequence: number,
@@ -437,16 +661,35 @@ export class SqliteWorkspaceStore implements WorkspaceStore {
   #expeditionRow(expeditionId: string): ExpeditionRow | undefined {
     const value = this.#database
       .prepare(
-        `SELECT fixture_seed, fixture_hash, latest_sequence
+        `SELECT fixture_seed, fixture_hash, created_at, latest_sequence,
+                scenario_id, scenario_version, definition_schema_version,
+                definition_hash, definition_json
            FROM expeditions WHERE expedition_id = ?`,
       )
       .get(expeditionId);
     if (!value) return undefined;
     const row = asRecord(value, 'expedition');
+    const scenarioId = optionalStringField(row, 'scenario_id', 'expedition');
+    const scenarioVersion = optionalIntegerField(row, 'scenario_version', 'expedition');
+    const definitionSchemaVersion = optionalIntegerField(
+      row,
+      'definition_schema_version',
+      'expedition',
+    );
+    const definitionHash = optionalStringField(row, 'definition_hash', 'expedition');
+    const definitionJson = optionalStringField(row, 'definition_json', 'expedition');
     return {
       fixture_seed: stringField(row, 'fixture_seed', 'expedition'),
       fixture_hash: stringField(row, 'fixture_hash', 'expedition'),
+      created_at: stringField(row, 'created_at', 'expedition'),
       latest_sequence: integerField(row, 'latest_sequence', 'expedition'),
+      ...(scenarioId ? { scenario_id: scenarioId } : {}),
+      ...(scenarioVersion === undefined ? {} : { scenario_version: scenarioVersion }),
+      ...(definitionSchemaVersion === undefined
+        ? {}
+        : { definition_schema_version: definitionSchemaVersion }),
+      ...(definitionHash ? { definition_hash: definitionHash } : {}),
+      ...(definitionJson ? { definition_json: definitionJson } : {}),
     };
   }
 

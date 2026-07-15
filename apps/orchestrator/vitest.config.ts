@@ -24,6 +24,9 @@ export default defineConfig({
       '@signal-atlas/test-fixtures': fileURLToPath(
         new URL('../../packages/test-fixtures/src/index.ts', import.meta.url),
       ),
+      '@signal-atlas/world-content': fileURLToPath(
+        new URL('../../packages/world-content/src/index.ts', import.meta.url),
+      ),
     },
   },
 });
