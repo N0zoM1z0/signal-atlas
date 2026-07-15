@@ -68,6 +68,25 @@ export interface FixtureResolutionResponse {
   projectionHash: string;
 }
 
+export interface ProfessorRuntimeDiagnostics {
+  id: string;
+  kind: 'scripted' | 'local_exec';
+  configuredMode: 'scripted' | 'local';
+  activeMode: 'scripted' | 'local_exec' | 'scripted_fallback';
+  available: boolean;
+  description: string;
+  runs: number;
+  fallbackCount: number;
+  repairCount: number;
+  lastRunAt?: string;
+  lastError?: string;
+  command?: { executable: string; args: string[]; display: string };
+}
+
+export interface SignalAtlasRuntimeDiagnostics extends CodexRuntimeDiagnostics {
+  professor: ProfessorRuntimeDiagnostics;
+}
+
 const expeditionId = shellModel.projection.expedition.id;
 const requestTimeoutMs = 10_000;
 
@@ -126,8 +145,8 @@ export async function fetchExpeditionSnapshot(): Promise<WorldProjection> {
   return projection;
 }
 
-export async function fetchRuntimeDiagnostics(): Promise<CodexRuntimeDiagnostics> {
-  return requestJson<CodexRuntimeDiagnostics>('/api/runtime/diagnostics');
+export async function fetchRuntimeDiagnostics(): Promise<SignalAtlasRuntimeDiagnostics> {
+  return requestJson<SignalAtlasRuntimeDiagnostics>('/api/runtime/diagnostics');
 }
 
 export async function fetchPrefDiagnostics(): Promise<PrefMcpConnectionDiagnostics> {

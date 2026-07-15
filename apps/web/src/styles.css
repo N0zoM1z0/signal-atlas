@@ -4301,8 +4301,29 @@ kbd {
 .atlas-professor-response > header {
   display: grid;
   align-items: center;
-  grid-template-columns: var(--sa-spacing-10) minmax(0, 1fr);
+  grid-template-columns: var(--sa-spacing-10) minmax(0, 1fr) auto;
   gap: var(--sa-spacing-3);
+}
+
+.atlas-professor-runtime {
+  padding: var(--sa-spacing-1) var(--sa-spacing-2);
+  border: var(--sa-border-hairline) solid var(--sa-color-moss-signal);
+  border-radius: var(--sa-radius-pill);
+  color: var(--sa-color-moss-signal);
+  font-family: var(--sa-typography-mono-family);
+  font-size: 8px;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.atlas-professor-runtime[data-runtime='scripted_fallback'] {
+  border-color: var(--sa-color-window-gold);
+  color: var(--sa-color-window-gold);
+}
+
+.atlas-professor-fallback {
+  border-left-color: var(--sa-color-window-gold) !important;
+  color: var(--sa-color-window-gold) !important;
 }
 
 .atlas-professor-seal {

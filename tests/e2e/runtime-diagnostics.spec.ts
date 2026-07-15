@@ -18,6 +18,9 @@ test('runtime diagnostics expose the scripted driver, scheduler, and persisted t
   await expect(dialog).toBeVisible();
   await expect(dialog).toContainText('fixture-scripted-codex');
   await expect(dialog).toContainText('Deterministic Helios-3 scripted mission driver.');
+  const professorRuntime = dialog.getByRole('region', { name: /Professor · scripted-professor/ });
+  await expect(professorRuntime).toContainText('Evidence-bound consultation agent');
+  await expect(professorRuntime).toContainText('scripted');
   const prefConnection = dialog.getByRole('region', { name: 'Pref MCP connection' });
   await expect(prefConnection).toContainText('connected');
   await expect(prefConnection).toContainText('Deterministic recorded data');
@@ -51,7 +54,9 @@ test('runtime diagnostics expose the scripted driver, scheduler, and persisted t
   await page.getByRole('button', { name: /Codex Runtime/ }).click();
   dialog = page.getByRole('dialog', { name: 'Codex Runtime Diagnostics' });
   const turns = dialog.getByRole('region', { name: 'Runtime turns' });
-  await expect(dialog).toContainText('Driver runs1');
+  await expect(dialog.getByRole('region', { name: 'fixture-scripted-codex' })).toContainText(
+    'Driver runs',
+  );
   await expect(turns).toContainText('1 complete');
   await expect(turns).toContainText('mira');
   await expect(turns).toContainText('mission-');

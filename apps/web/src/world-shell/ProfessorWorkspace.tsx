@@ -89,6 +89,34 @@ function sourceLabel(source: SourceRecord): string {
   return `${sentenceCase(source.sourceClass)} · v${source.version}`;
 }
 
+function runtimeLabel(response: ProfessorResponse): string {
+  switch (response.runtime?.mode) {
+    case 'local_exec':
+      return 'Local Codex';
+    case 'scripted':
+      return 'Scripted fixture';
+    case 'scripted_fallback':
+      return 'Scripted fallback';
+    default:
+      return 'Runtime not recorded';
+  }
+}
+
+function fallbackReasonLabel(reason: string | undefined): string {
+  switch (reason) {
+    case 'codex_unavailable':
+      return 'Local Codex was unavailable.';
+    case 'runtime_timeout':
+      return 'The local review reached its time limit.';
+    case 'validation_failed':
+      return 'The local response remained invalid after one repair.';
+    case 'codex_process_failed':
+      return 'The local Codex process did not complete safely.';
+    default:
+      return 'The local response was not accepted by the bounded runtime.';
+  }
+}
+
 export function ProfessorWorkspace({
   caseFileEntryIds,
   onAsk,
@@ -158,7 +186,7 @@ export function ProfessorWorkspace({
         <div>
           <span className="atlas-kicker">The Atlas / Scholar's Hill</span>
           <h2>Professor Vale's Study</h2>
-          <p>Evidence-bound consultation · fixture-scripted · no hidden sources</p>
+          <p>Evidence-bound consultation · runtime-labeled · no hidden sources</p>
         </div>
         <div>
           <span className="atlas-professor-boundary">
@@ -204,7 +232,7 @@ export function ProfessorWorkspace({
                 <h3>{selectedCount} selected records</h3>
               </div>
               <button
-                disabled={selectedCount === 0}
+                disabled={busy || selectedCount === 0}
                 onClick={() => {
                   setSelectedSignalIds([]);
                   setSelectedSourceIds([]);
@@ -225,6 +253,7 @@ export function ProfessorWorkspace({
                         <label>
                           <input
                             checked={selectedSignalIds.includes(signal.id)}
+                            disabled={busy}
                             onChange={() => {
                               toggleSelection(signal.id, selectedSignalIds, setSelectedSignalIds);
                               setResponse(undefined);
@@ -255,6 +284,7 @@ export function ProfessorWorkspace({
                         <label>
                           <input
                             checked={selectedSourceIds.includes(source.id)}
+                            disabled={busy}
                             onChange={() => {
                               toggleSelection(source.id, selectedSourceIds, setSelectedSourceIds);
                               setResponse(undefined);
@@ -283,6 +313,7 @@ export function ProfessorWorkspace({
               <button
                 aria-selected={mode === item.mode}
                 data-professor-mode={item.mode}
+                disabled={busy}
                 key={item.mode}
                 onClick={() => selectMode(item.mode)}
                 onKeyDown={(event) => onModeKeyDown(event, item.mode)}
@@ -305,13 +336,14 @@ export function ProfessorWorkspace({
             <label>
               Question for Professor Vale
               <textarea
+                disabled={busy}
                 onChange={(event) => setQuestion(event.target.value)}
                 rows={2}
                 value={question}
               />
             </label>
             <button disabled={busy || question.trim().length === 0} type="submit">
-              {busy ? 'Reviewing selection…' : 'Ask Professor'}
+              {busy ? 'Professor agent reviewing…' : 'Ask Professor'}
             </button>
           </form>
 
@@ -338,7 +370,19 @@ export function ProfessorWorkspace({
                       : 'Bounded assessment'}
                   </h3>
                 </div>
+                <span
+                  className="atlas-professor-runtime"
+                  data-runtime={response.runtime?.mode ?? 'unknown'}
+                >
+                  {runtimeLabel(response)}
+                </span>
               </header>
+              {response.runtime?.mode === 'scripted_fallback' && (
+                <p className="atlas-professor-fallback" role="status">
+                  {fallbackReasonLabel(response.runtime.fallbackReason)} The authored bounded answer
+                  is shown instead.
+                </p>
+              )}
               <p>{response.answer}</p>
               <section>
                 <h4>Evidence used · {response.evidenceUsed.length}</h4>
@@ -400,6 +444,15 @@ export function ProfessorWorkspace({
                 </section>
               )}
             </article>
+          ) : busy ? (
+            <div className="atlas-professor-empty-response" role="status">
+              <span aria-hidden="true">⌛</span>
+              <strong>Professor agent is reviewing the selection</strong>
+              <p>
+                One bounded local turn may make one repair. Only the {selectedCount} selected record
+                {selectedCount === 1 ? '' : 's'} are available to it.
+              </p>
+            </div>
           ) : (
             <div className="atlas-professor-empty-response">
               <span aria-hidden="true">∴</span>

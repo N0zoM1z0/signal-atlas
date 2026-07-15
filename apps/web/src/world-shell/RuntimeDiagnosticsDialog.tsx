@@ -1,5 +1,5 @@
 import { Dialog } from '@signal-atlas/ui';
-import type { CodexRuntimeDiagnostics, RuntimeTurnRecord } from '@signal-atlas/codex-runtime';
+import type { RuntimeTurnRecord } from '@signal-atlas/codex-runtime';
 import type { PrefMcpConnectionDiagnostics } from '@signal-atlas/pref-gateway';
 import { useCallback, useEffect, useState } from 'react';
 
@@ -8,6 +8,7 @@ import {
   fetchPrefDiagnostics,
   fetchRuntimeDiagnostics,
   testPrefConnection,
+  type SignalAtlasRuntimeDiagnostics,
 } from './runtime-client.js';
 
 export interface RuntimeDiagnosticsDialogProps {
@@ -47,7 +48,7 @@ export function RuntimeDiagnosticsDialog({
   onClose,
   onPrefConnectionChange,
 }: RuntimeDiagnosticsDialogProps) {
-  const [diagnostics, setDiagnostics] = useState<CodexRuntimeDiagnostics>();
+  const [diagnostics, setDiagnostics] = useState<SignalAtlasRuntimeDiagnostics>();
   const [prefDiagnostics, setPrefDiagnostics] = useState<PrefMcpConnectionDiagnostics>();
   const [loading, setLoading] = useState(true);
   const [prefBusy, setPrefBusy] = useState(false);
@@ -188,6 +189,65 @@ export function RuntimeDiagnosticsDialog({
               {diagnostics.driver.lastError && (
                 <p className="atlas-runtime-driver__error">{diagnostics.driver.lastError}</p>
               )}
+            </section>
+
+            <section className="atlas-runtime-driver" aria-labelledby="runtime-professor-title">
+              <header>
+                <div>
+                  <span className="atlas-kicker">Evidence-bound consultation agent</span>
+                  <h3 id="runtime-professor-title">Professor · {diagnostics.professor.id}</h3>
+                </div>
+                <span data-available={diagnostics.professor.available}>
+                  <i aria-hidden="true" />
+                  {diagnostics.professor.activeMode === 'scripted_fallback'
+                    ? 'Fallback used'
+                    : diagnostics.professor.available
+                      ? 'Available'
+                      : 'Unavailable'}
+                </span>
+              </header>
+              <p>{diagnostics.professor.description}</p>
+              {diagnostics.professor.activeMode === 'scripted_fallback' && (
+                <p className="atlas-runtime-driver__fallback" role="status">
+                  <strong>Last Professor answer used the authored fallback.</strong>{' '}
+                  {diagnostics.professor.lastError ??
+                    'The local response was not accepted by the bounded runtime.'}
+                </p>
+              )}
+              <dl>
+                <div>
+                  <dt>Configured</dt>
+                  <dd>{diagnostics.professor.configuredMode}</dd>
+                </div>
+                <div>
+                  <dt>Last answer</dt>
+                  <dd>{diagnostics.professor.activeMode.replaceAll('_', ' ')}</dd>
+                </div>
+                <div>
+                  <dt>Runs / repairs</dt>
+                  <dd>
+                    {diagnostics.professor.runs} / {diagnostics.professor.repairCount}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Fallbacks</dt>
+                  <dd>{diagnostics.professor.fallbackCount}</dd>
+                </div>
+                <div>
+                  <dt>Last run</dt>
+                  <dd>{dateLabel(diagnostics.professor.lastRunAt)}</dd>
+                </div>
+                <div>
+                  <dt>Process command</dt>
+                  <dd>
+                    {diagnostics.professor.command ? (
+                      <code>{diagnostics.professor.command.display}</code>
+                    ) : (
+                      'None · scripted mode'
+                    )}
+                  </dd>
+                </div>
+              </dl>
             </section>
 
             <section className="atlas-pref-connection" aria-labelledby="pref-connection-title">

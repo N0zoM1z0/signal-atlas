@@ -517,11 +517,23 @@ export function WorldShell() {
         },
       } satisfies WorldCommand;
       await submitWorldCommand(worldCommand);
-      const nextProjection = await refreshProjection();
-      const response = nextProjection.professorResponsesByQueryId[queryId];
-      if (!response) throw new Error('Professor response was not recorded in the projection.');
-      setAnnouncement('Professor Vale recorded an evidence-bound response.');
-      return response;
+      const deadline = Date.now() + 125_000;
+      while (Date.now() < deadline) {
+        const nextProjection = await refreshProjection();
+        const response = nextProjection.professorResponsesByQueryId[queryId];
+        if (response) {
+          setAnnouncement(
+            response.runtime?.mode === 'local_exec'
+              ? 'Professor Vale completed a local Codex evidence review.'
+              : response.runtime?.mode === 'scripted_fallback'
+                ? 'Professor Vale recorded a bounded scripted fallback.'
+                : 'Professor Vale recorded a scripted evidence-bound response.',
+          );
+          return response;
+        }
+        await new Promise((resolve) => window.setTimeout(resolve, 350));
+      }
+      throw new Error('Professor agent did not finish within its bounded runtime window.');
     },
     [refreshProjection],
   );

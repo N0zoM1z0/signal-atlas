@@ -78,6 +78,7 @@ test('Professor Vale cites only selected evidence and states an insufficient sel
   await study.getByRole('button', { name: 'Ask Professor' }).click();
   const response = study.getByRole('article', { name: 'Professor response' });
   await expect(response).toContainText('The signals are related but not duplicates');
+  await expect(response).toContainText('Scripted fixture');
   await expect(response).toContainText('Evidence used · 2');
   await expect(response).toContainText(weatherHeadline);
   await expect(response).toContainText(historicalHeadline);
