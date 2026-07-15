@@ -987,20 +987,22 @@ function mappingMatchesContract(
   for (const [argumentName, expectedType] of Object.entries(mapping.expectedInput)) {
     const property = recordValue(properties[argumentName]);
     const projection = mapping.inputProjection[argumentName];
-    if (
-      !property ||
-      !projection ||
-      property['type'] !== expectedType ||
-      (projection.requiredFromCanonical && !required.includes(argumentName))
-    ) {
+    if (!property || !projection || property['type'] !== expectedType) {
       return false;
     }
+  }
+  for (const [argumentName, fixedValue] of Object.entries(mapping.fixedArguments)) {
+    const property = recordValue(properties[argumentName]);
+    if (!property || !jsonValueMatchesSchema(fixedValue, property)) return false;
   }
   if (
     required.some(
       (argumentName) =>
-        !mapping.inputProjection[argumentName]?.requiredFromCanonical ||
-        mapping.expectedInput[argumentName] === undefined,
+        !(
+          (mapping.inputProjection[argumentName]?.requiredFromCanonical &&
+            mapping.expectedInput[argumentName] !== undefined) ||
+          Object.hasOwn(mapping.fixedArguments, argumentName)
+        ),
     )
   ) {
     return false;
@@ -1053,7 +1055,154 @@ function responseAdapterMatchesContract(
         )
       );
     }
+    case 'market_search_v1': {
+      const data = recordValue(properties['data']);
+      const items = recordValue(data?.['items']);
+      const itemProperties = recordValue(items?.['properties']);
+      const itemRequired = arrayValue(items?.['required']);
+      return (
+        data?.['type'] === 'array' &&
+        items?.['additionalProperties'] === false &&
+        itemProperties !== undefined &&
+        ['id', 'slug'].every(
+          (field) => itemProperties[field] !== undefined && itemRequired.includes(field),
+        ) &&
+        properties['query'] !== undefined &&
+        properties['pagination'] !== undefined
+      );
+    }
+    case 'resolution_history_v1': {
+      const matches = recordValue(properties['matches']);
+      const items = recordValue(matches?.['items']);
+      const itemProperties = recordValue(items?.['properties']);
+      const itemRequired = arrayValue(items?.['required']);
+      const statistics = recordValue(properties['statistics']);
+      const statisticProperties = recordValue(statistics?.['properties']);
+      const statisticRequired = arrayValue(statistics?.['required']);
+      return (
+        matches?.['type'] === 'array' &&
+        items?.['additionalProperties'] === false &&
+        itemProperties !== undefined &&
+        ['market_id', 'question', 'resolution', 'resolution_date', 'reference_class', 'tags'].every(
+          (field) => itemProperties[field] !== undefined && itemRequired.includes(field),
+        ) &&
+        statistics?.['additionalProperties'] === false &&
+        statisticProperties !== undefined &&
+        ['total', 'yes_count', 'no_count', 'base_rate', 'sample_size_confidence'].every(
+          (field) => statisticProperties[field] !== undefined && statisticRequired.includes(field),
+        )
+      );
+    }
+    case 'economic_series_search_v1': {
+      const series = recordValue(properties['series']);
+      const items = recordValue(series?.['items']);
+      const itemProperties = recordValue(items?.['properties']);
+      const itemRequired = arrayValue(items?.['required']);
+      return (
+        series?.['type'] === 'array' &&
+        items?.['additionalProperties'] === false &&
+        itemProperties !== undefined &&
+        [
+          'id',
+          'title',
+          'observation_start',
+          'observation_end',
+          'frequency_short',
+          'units_short',
+        ].every((field) => itemProperties[field] !== undefined && itemRequired.includes(field))
+      );
+    }
+    case 'economic_series_read_v1': {
+      const observations = recordValue(properties['observations']);
+      const items = recordValue(observations?.['items']);
+      const variants = arrayValue(items?.['anyOf']).map(recordValue).filter(Boolean);
+      const observationVariant = variants.find((variant) => {
+        const variantProperties = recordValue(variant?.['properties']);
+        const variantRequired = arrayValue(variant?.['required']);
+        return (
+          variant?.['additionalProperties'] === false &&
+          variantProperties?.['date'] !== undefined &&
+          variantProperties['value'] !== undefined &&
+          variantRequired.includes('date') &&
+          variantRequired.includes('value')
+        );
+      });
+      return properties['scope'] !== undefined && observationVariant !== undefined;
+    }
   }
+}
+
+function jsonValueMatchesSchema(value: unknown, schema: Record<string, unknown>): boolean {
+  const variants = arrayValue(schema['anyOf'])
+    .map(recordValue)
+    .filter((variant): variant is Record<string, unknown> => variant !== undefined);
+  if (variants.length > 0) {
+    return variants.some((variant) => jsonValueMatchesSchema(value, variant));
+  }
+  const enumValues = arrayValue(schema['enum']);
+  if (enumValues.length > 0 && !enumValues.some((candidate) => deepJsonEqual(candidate, value))) {
+    return false;
+  }
+  switch (schema['type']) {
+    case 'string':
+      return typeof value === 'string' && stringMatchesSchema(value, schema);
+    case 'boolean':
+      return typeof value === 'boolean';
+    case 'number':
+      return (
+        typeof value === 'number' && Number.isFinite(value) && numberMatchesSchema(value, schema)
+      );
+    case 'integer':
+      return Number.isInteger(value) && numberMatchesSchema(value as number, schema);
+    case 'array': {
+      if (!Array.isArray(value)) return false;
+      const items = recordValue(schema['items']);
+      return !items || value.every((item) => jsonValueMatchesSchema(item, items));
+    }
+    case 'object': {
+      const record = recordValue(value);
+      const properties = recordValue(schema['properties']);
+      if (!record || !properties) return false;
+      if (
+        schema['additionalProperties'] === false &&
+        Object.keys(record).some((key) => properties[key] === undefined)
+      ) {
+        return false;
+      }
+      const required = arrayValue(schema['required']).filter(
+        (candidate): candidate is string => typeof candidate === 'string',
+      );
+      if (required.some((key) => record[key] === undefined)) return false;
+      return Object.entries(record).every(([key, item]) => {
+        const itemSchema = recordValue(properties[key]);
+        return itemSchema ? jsonValueMatchesSchema(item, itemSchema) : true;
+      });
+    }
+    default:
+      return false;
+  }
+}
+
+function stringMatchesSchema(value: string, schema: Record<string, unknown>): boolean {
+  if (typeof schema['minLength'] === 'number' && value.length < schema['minLength']) return false;
+  if (typeof schema['maxLength'] === 'number' && value.length > schema['maxLength']) return false;
+  if (typeof schema['pattern'] !== 'string') return true;
+  try {
+    return new RegExp(schema['pattern'], 'u').test(value);
+  } catch {
+    return false;
+  }
+}
+
+function numberMatchesSchema(value: number, schema: Record<string, unknown>): boolean {
+  return !(
+    (typeof schema['minimum'] === 'number' && value < schema['minimum']) ||
+    (typeof schema['maximum'] === 'number' && value > schema['maximum'])
+  );
+}
+
+function deepJsonEqual(left: unknown, right: unknown): boolean {
+  return JSON.stringify(left) === JSON.stringify(right);
 }
 
 function recordValue(value: unknown): Record<string, unknown> | undefined {

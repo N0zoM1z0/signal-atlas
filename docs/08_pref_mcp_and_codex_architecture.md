@@ -70,17 +70,27 @@ Example:
 ```
 
 The registry schema is versioned. Each provider-required argument must have a required canonical
-projection, projected types must exactly match discovery, and the selected response adapter must
-match the provider output schema. Unknown transforms, unmapped required fields, incompatible
-schemas, write-capable annotations, side effects, or task-support policies fail closed. A synchronous
-mapping accepts `task_support: forbidden` or `optional`; `required`, missing, and unknown values are
-rejected because Signal Atlas does not implement the MCP Tasks lifecycle.
+projection or a validated fixed argument, projected types must exactly match discovery, and the
+selected response adapter must match the provider output schema. Canonical requests may be stricter
+than optional provider fields. Fixed values are recursively checked against the discovered property
+schema and may not override a projected argument. Unknown transforms, unmapped provider-required
+fields, incompatible schemas, write-capable annotations, side effects, or task-support policies fail
+closed. A synchronous mapping accepts `task_support: forbidden` or `optional`; `required`, missing,
+and unknown values are rejected because Signal Atlas does not implement the MCP Tasks lifecycle.
 
 The implemented v3 registry enables `weather.get_current_conditions` for `local_conditions` and
 `gdelt.context.search_context` for `search_sources`. GDELT passed exact catalog discovery and a
 bounded synchronous live smoke; the generic article adapter retains stable URL identity and
 metadata while discarding matched sentences and context under a metadata-only rights policy. No
 provider is enabled for `read_source` until one passes the same contract and policy checks.
+
+The same registry defines provider-neutral request contracts for `search_markets`,
+`search_resolution_history`, `search_economic_series`, and `read_economic_series`. Their provider
+mappings begin disabled. Polymarket discovery has a loose catalog output schema; resolution history
+still needs a bounded hosted execution smoke; and hosted FRED requires an undeclared provider key.
+FRED discovery defaults to 20 results and caps at 50. Full-series reads always project descending
+order plus a canonical limit that defaults to 250 and cannot exceed 500, so a provider default of
+100,000 observations is never the normal path.
 
 ## 8.5 Dual access pattern
 

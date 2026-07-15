@@ -5,9 +5,13 @@ import { z } from 'zod';
 
 import {
   PrefCanonicalCapabilitySchema,
+  PrefEconomicSeriesReadRequestSchema,
+  PrefEconomicSeriesSearchRequestSchema,
   PrefGatewayError,
   PrefLocalConditionsRequestSchema,
+  PrefMarketSearchRequestSchema,
   PrefReadRequestSchema,
+  PrefResolutionHistoryRequestSchema,
   PrefSearchRequestSchema,
   type PrefCanonicalCapability,
 } from './types.js';
@@ -43,9 +47,17 @@ export const PrefInputProjectionSelectorSchema = z.enum([
   'since',
   'until',
   'limit',
+  'referenceClass',
+  'outcome',
+  'minSampleSize',
+  'seriesId',
 ]);
 
-export const PrefInputTransformSchema = z.enum(['identity', 'iso_to_gdelt_datetime']);
+export const PrefInputTransformSchema = z.enum([
+  'identity',
+  'iso_to_gdelt_datetime',
+  'iso_to_date',
+]);
 
 export const PrefInputProjectionSchema = z.strictObject({
   selector: PrefInputProjectionSelectorSchema,
@@ -62,8 +74,19 @@ export const PrefCapabilityMappingSchema = z.strictObject({
   providerServer: SafeNameSchema,
   executionMode: z.literal('synchronous'),
   inputProjection: z.record(SafeNameSchema, PrefInputProjectionSchema),
-  expectedInput: z.record(SafeNameSchema, z.enum(['string', 'number', 'boolean'])),
-  responseAdapter: z.enum(['local_conditions_v1', 'article_search_v1']),
+  fixedArguments: z.record(SafeNameSchema, z.json()).default({}),
+  expectedInput: z.record(
+    SafeNameSchema,
+    z.enum(['string', 'number', 'integer', 'boolean', 'object']),
+  ),
+  responseAdapter: z.enum([
+    'local_conditions_v1',
+    'article_search_v1',
+    'market_search_v1',
+    'resolution_history_v1',
+    'economic_series_search_v1',
+    'economic_series_read_v1',
+  ]),
   requiredAnnotations: z.strictObject({
     readOnlyHint: z.literal(true),
     destructiveHint: z.literal(false),
@@ -173,6 +196,13 @@ export const PrefCapabilityMapSchema = z
         });
       }
       for (const argumentName of Object.keys(mapping.inputProjection)) {
+        if (argumentName in mapping.fixedArguments) {
+          context.addIssue({
+            code: 'custom',
+            path: ['mappings', index, 'fixedArguments', argumentName],
+            message: `Pref argument ${argumentName} cannot be both projected and fixed.`,
+          });
+        }
         if (!(argumentName in mapping.expectedInput)) {
           context.addIssue({
             code: 'custom',
@@ -190,24 +220,19 @@ export const PrefCapabilityMapSchema = z
           });
         }
       }
-      if (
-        (mapping.canonicalName === 'local_conditions') !==
-        (mapping.responseAdapter === 'local_conditions_v1')
-      ) {
+      const adapterCapability = {
+        local_conditions_v1: 'local_conditions',
+        article_search_v1: 'search_sources',
+        market_search_v1: 'search_markets',
+        resolution_history_v1: 'search_resolution_history',
+        economic_series_search_v1: 'search_economic_series',
+        economic_series_read_v1: 'read_economic_series',
+      } as const;
+      if (mapping.canonicalName !== adapterCapability[mapping.responseAdapter]) {
         context.addIssue({
           code: 'custom',
           path: ['mappings', index, 'responseAdapter'],
           message: 'The response adapter does not match the canonical Pref capability.',
-        });
-      }
-      if (
-        mapping.responseAdapter === 'article_search_v1' &&
-        mapping.canonicalName !== 'search_sources'
-      ) {
-        context.addIssue({
-          code: 'custom',
-          path: ['mappings', index, 'responseAdapter'],
-          message: 'The article search adapter is only valid for search_sources.',
         });
       }
     }
@@ -251,7 +276,7 @@ export function projectPrefCapabilityInput(
   inputValue: unknown,
 ): Record<string, unknown> {
   const input = parseCanonicalInput(mapping.canonicalName, inputValue);
-  return Object.fromEntries(
+  const projected = Object.fromEntries(
     Object.entries(mapping.inputProjection).flatMap(([argumentName, projection]) => {
       const selected = projectedValue(projection.selector, input);
       if (selected === undefined) {
@@ -263,6 +288,7 @@ export function projectPrefCapabilityInput(
       return [[argumentName, transformedValue(projection.transform, selected)]];
     }),
   );
+  return { ...structuredClone(mapping.fixedArguments), ...projected };
 }
 
 function safeUrl(value: string): URL | undefined {
@@ -297,6 +323,14 @@ function parseCanonicalInput(
       return PrefReadRequestSchema.parse(input);
     case 'local_conditions':
       return PrefLocalConditionsRequestSchema.parse(input);
+    case 'search_markets':
+      return PrefMarketSearchRequestSchema.parse(input);
+    case 'search_resolution_history':
+      return PrefResolutionHistoryRequestSchema.parse(input);
+    case 'search_economic_series':
+      return PrefEconomicSeriesSearchRequestSchema.parse(input);
+    case 'read_economic_series':
+      return PrefEconomicSeriesReadRequestSchema.parse(input);
   }
 }
 
@@ -312,6 +346,10 @@ function projectedValue(
     case 'since':
     case 'until':
     case 'limit':
+    case 'referenceClass':
+    case 'outcome':
+    case 'minSampleSize':
+    case 'seriesId':
       return input[selector];
     case 'location.query': {
       const location = input['location'];
@@ -340,6 +378,12 @@ function transformedValue(transform: PrefInputTransform, value: unknown): unknow
         .toISOString()
         .replace(/\.\d{3}Z$/u, '')
         .replace(/[-:T]/gu, '');
+    }
+    case 'iso_to_date': {
+      if (typeof value !== 'string') throw new Error('An ISO date transform requires text.');
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) throw new Error('The canonical Pref datetime is invalid.');
+      return date.toISOString().slice(0, 10);
     }
   }
 }

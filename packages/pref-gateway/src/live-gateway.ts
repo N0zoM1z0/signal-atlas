@@ -12,10 +12,14 @@ import { normalizePrefRawResult } from './normalize.js';
 import {
   PrefCallContextSchema,
   PrefCanonicalCapabilitySchema,
+  PrefEconomicSeriesReadRequestSchema,
+  PrefEconomicSeriesSearchRequestSchema,
   PrefGatewayConfigSchema,
   PrefLocalConditionsEvidenceSchema,
   PrefLocalConditionsRequestSchema,
+  PrefMarketSearchRequestSchema,
   PrefReadRequestSchema,
+  PrefResolutionHistoryRequestSchema,
   PrefSearchRequestSchema,
   PrefGatewayError,
   PrefMcpConnectionError,
@@ -85,7 +89,13 @@ const ArticleSearchPayloadSchema = z.strictObject({
 });
 
 type LiveCanonicalInput =
-  ReturnType<typeof PrefLocalConditionsRequestSchema.parse> | PrefSearchRequest | PrefReadRequest;
+  | ReturnType<typeof PrefLocalConditionsRequestSchema.parse>
+  | PrefSearchRequest
+  | PrefReadRequest
+  | ReturnType<typeof PrefMarketSearchRequestSchema.parse>
+  | ReturnType<typeof PrefResolutionHistoryRequestSchema.parse>
+  | ReturnType<typeof PrefEconomicSeriesSearchRequestSchema.parse>
+  | ReturnType<typeof PrefEconomicSeriesReadRequestSchema.parse>;
 
 interface LiveCacheEntry {
   storedAt: string;
@@ -304,7 +314,10 @@ export class LivePrefGateway implements PrefGateway {
       primitiveName: mapping.toolRef,
       readOnly: true as const,
       locationAware: mapping.canonicalName === 'local_conditions',
-      temporal: mapping.canonicalName === 'local_conditions',
+      temporal:
+        mapping.canonicalName === 'local_conditions' ||
+        mapping.canonicalName === 'search_sources' ||
+        mapping.canonicalName === 'read_economic_series',
     }));
   }
 
@@ -533,6 +546,14 @@ export class LivePrefGateway implements PrefGateway {
         return PrefReadRequestSchema.parse(input);
       case 'local_conditions':
         return PrefLocalConditionsRequestSchema.parse(input);
+      case 'search_markets':
+        return PrefMarketSearchRequestSchema.parse(input);
+      case 'search_resolution_history':
+        return PrefResolutionHistoryRequestSchema.parse(input);
+      case 'search_economic_series':
+        return PrefEconomicSeriesSearchRequestSchema.parse(input);
+      case 'read_economic_series':
+        return PrefEconomicSeriesReadRequestSchema.parse(input);
     }
   }
 
@@ -575,6 +596,11 @@ export class LivePrefGateway implements PrefGateway {
           ),
           evidence: [],
         };
+      case 'market_search_v1':
+      case 'resolution_history_v1':
+      case 'economic_series_search_v1':
+      case 'economic_series_read_v1':
+        throw safeError('pref_invalid_response');
     }
   }
 

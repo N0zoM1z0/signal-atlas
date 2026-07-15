@@ -14,7 +14,14 @@
     "promptListTool": "onboard",
     "allowedDirectTools": ["help", "onboard", "search_tools", "call_tool", "list_resources"]
   },
-  "allowedProviderTools": ["weather.get_current_conditions", "gdelt.context.search_context"],
+  "allowedProviderTools": [
+    "weather.get_current_conditions",
+    "gdelt.context.search_context",
+    "polymarket.discovery.search_markets",
+    "resolution.search_historical_resolutions",
+    "fred.search_series",
+    "fred.get_series"
+  ],
   "mappings": [
     {
       "mappingId": "weather-current-conditions-v1",
@@ -81,6 +88,173 @@
         "enddatetime": "string"
       },
       "responseAdapter": "article_search_v1",
+      "requiredAnnotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true
+      },
+      "requiredSecurityHints": {
+        "sideEffect": "read_only"
+      }
+    },
+    {
+      "mappingId": "polymarket-discovery-markets-v1",
+      "canonicalName": "search_markets",
+      "enabled": false,
+      "priority": 100,
+      "toolRef": "polymarket.discovery.search_markets",
+      "providerServer": "polymarket_market_discovery",
+      "executionMode": "synchronous",
+      "inputProjection": {
+        "query": {
+          "selector": "query",
+          "requiredFromCanonical": true,
+          "transform": "identity"
+        },
+        "limit": {
+          "selector": "limit",
+          "requiredFromCanonical": false,
+          "transform": "identity"
+        }
+      },
+      "fixedArguments": {
+        "active": true,
+        "closed": false,
+        "fields": {
+          "question": true,
+          "outcomes": true,
+          "active": true
+        }
+      },
+      "expectedInput": {
+        "query": "string",
+        "limit": "integer"
+      },
+      "responseAdapter": "market_search_v1",
+      "requiredAnnotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true
+      },
+      "requiredSecurityHints": {
+        "sideEffect": "read_only"
+      }
+    },
+    {
+      "mappingId": "resolution-history-v1",
+      "canonicalName": "search_resolution_history",
+      "enabled": false,
+      "priority": 100,
+      "toolRef": "resolution.search_historical_resolutions",
+      "providerServer": "resolution_tracker",
+      "executionMode": "synchronous",
+      "inputProjection": {
+        "reference_class": {
+          "selector": "referenceClass",
+          "requiredFromCanonical": true,
+          "transform": "identity"
+        },
+        "outcome": {
+          "selector": "outcome",
+          "requiredFromCanonical": false,
+          "transform": "identity"
+        },
+        "min_sample_size": {
+          "selector": "minSampleSize",
+          "requiredFromCanonical": false,
+          "transform": "identity"
+        }
+      },
+      "expectedInput": {
+        "reference_class": "string",
+        "outcome": "string",
+        "min_sample_size": "number"
+      },
+      "responseAdapter": "resolution_history_v1",
+      "requiredAnnotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true
+      },
+      "requiredSecurityHints": {
+        "sideEffect": "read_only"
+      }
+    },
+    {
+      "mappingId": "fred-series-search-v1",
+      "canonicalName": "search_economic_series",
+      "enabled": false,
+      "priority": 100,
+      "toolRef": "fred.search_series",
+      "providerServer": "fred",
+      "executionMode": "synchronous",
+      "inputProjection": {
+        "search_text": {
+          "selector": "query",
+          "requiredFromCanonical": true,
+          "transform": "identity"
+        },
+        "limit": {
+          "selector": "limit",
+          "requiredFromCanonical": true,
+          "transform": "identity"
+        }
+      },
+      "expectedInput": {
+        "search_text": "string",
+        "limit": "integer"
+      },
+      "responseAdapter": "economic_series_search_v1",
+      "requiredAnnotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true
+      },
+      "requiredSecurityHints": {
+        "sideEffect": "read_only"
+      }
+    },
+    {
+      "mappingId": "fred-series-read-v1",
+      "canonicalName": "read_economic_series",
+      "enabled": false,
+      "priority": 100,
+      "toolRef": "fred.get_series",
+      "providerServer": "fred",
+      "executionMode": "synchronous",
+      "inputProjection": {
+        "series_id": {
+          "selector": "seriesId",
+          "requiredFromCanonical": true,
+          "transform": "identity"
+        },
+        "observation_start": {
+          "selector": "since",
+          "requiredFromCanonical": false,
+          "transform": "iso_to_date"
+        },
+        "observation_end": {
+          "selector": "until",
+          "requiredFromCanonical": false,
+          "transform": "iso_to_date"
+        },
+        "limit": {
+          "selector": "limit",
+          "requiredFromCanonical": true,
+          "transform": "identity"
+        }
+      },
+      "fixedArguments": {
+        "scope": "full",
+        "sort_order": "desc"
+      },
+      "expectedInput": {
+        "series_id": "string",
+        "observation_start": "string",
+        "observation_end": "string",
+        "limit": "integer"
+      },
+      "responseAdapter": "economic_series_read_v1",
       "requiredAnnotations": {
         "readOnlyHint": true,
         "destructiveHint": false,

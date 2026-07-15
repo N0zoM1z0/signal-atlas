@@ -33,6 +33,12 @@ In progress.
   failed safely with `pref_timeout`; a single 30-second retry completed in about 19 seconds with one
   unique metadata-only source, no retained excerpt, and exact GDELT provenance. The mapping is now
   enabled as canonical `search_sources` with the same bounded normalization and rights policy.
+- `e3698f4` committed bounded GDELT source search. The current adapter-foundation change adds strict
+  canonical requests for market discovery, resolution history, economic-series discovery, and
+  bounded series reads; recursively validated fixed arguments; provider-optional/canonical-required
+  projection semantics; and disabled mappings for every candidate that has not passed its own live
+  gate. FRED full reads default to 250 observations and cap at 500 instead of inheriting the
+  provider's 100,000-observation ceiling.
 - Focused validation after the first two commits: contracts 18/18, simulation 34/34, codex-runtime
   25/25, game-scene 13/13, archive 4/4, web 19/19, orchestrator 95/95, and repository lint with zero
   warnings. Persistence milestone validation currently passes contracts 19/19, world-content 2/2,
@@ -43,6 +49,8 @@ In progress.
   passes web 25/25 and two focused Playwright flows including WCAG serious/critical scanning and a
   new 1440 x 900 baseline. Pref policy validation currently passes typecheck and 43/43 gateway
   tests, including both synchronous-compatible task policies and fail-closed task-policy drift.
+  GDELT enablement keeps the complete gateway suite green; the canonical adapter foundation
+  currently passes 46 focused gateway tests, package typecheck, and focused lint.
 
 ## Goal
 

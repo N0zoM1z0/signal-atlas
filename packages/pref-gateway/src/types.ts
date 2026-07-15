@@ -14,6 +14,10 @@ export const PrefCanonicalCapabilitySchema = z.enum([
   'search_sources',
   'read_source',
   'local_conditions',
+  'search_markets',
+  'search_resolution_history',
+  'search_economic_series',
+  'read_economic_series',
 ]);
 
 export const PrefGatewayConfigSchema = z.strictObject({
@@ -74,6 +78,49 @@ export const PrefLocalConditionsRequestSchema = z.strictObject({
   at: DateTimeSchema.optional(),
 });
 
+export const PrefMarketSearchRequestSchema = z.strictObject({
+  query: z.string().trim().min(1).max(1_000),
+  limit: z.number().int().positive().max(25).optional(),
+});
+
+export const PrefResolutionHistoryRequestSchema = z.strictObject({
+  referenceClass: z.string().trim().min(1).max(256),
+  outcome: z.enum(['YES', 'NO']).optional(),
+  minSampleSize: z.number().int().positive().max(10_000).optional(),
+  limit: z.number().int().positive().max(50).optional(),
+});
+
+export const PrefEconomicSeriesSearchRequestSchema = z.strictObject({
+  query: z.string().trim().min(1).max(1_000),
+  limit: z.number().int().positive().max(50).default(20),
+});
+
+export const PrefEconomicSeriesReadRequestSchema = z
+  .strictObject({
+    seriesId: z
+      .string()
+      .trim()
+      .min(1)
+      .max(100)
+      .regex(/^[A-Za-z0-9._-]+$/u),
+    since: DateTimeSchema.optional(),
+    until: DateTimeSchema.optional(),
+    limit: z.number().int().positive().max(500).default(250),
+  })
+  .superRefine((request, context) => {
+    if (
+      request.since &&
+      request.until &&
+      new Date(request.since).getTime() > new Date(request.until).getTime()
+    ) {
+      context.addIssue({
+        code: 'custom',
+        path: ['since'],
+        message: 'Economic-series since must not be later than until.',
+      });
+    }
+  });
+
 export const PrefCallContextSchema = z.strictObject({
   expeditionId: EntityIdSchema,
   missionId: EntityIdSchema.optional(),
@@ -129,6 +176,10 @@ export type PrefGatewayConfig = z.infer<typeof PrefGatewayConfigSchema>;
 export type PrefSearchRequest = z.infer<typeof PrefSearchRequestSchema>;
 export type PrefReadRequest = z.infer<typeof PrefReadRequestSchema>;
 export type PrefLocalConditionsRequest = z.infer<typeof PrefLocalConditionsRequestSchema>;
+export type PrefMarketSearchRequest = z.infer<typeof PrefMarketSearchRequestSchema>;
+export type PrefResolutionHistoryRequest = z.infer<typeof PrefResolutionHistoryRequestSchema>;
+export type PrefEconomicSeriesSearchRequest = z.infer<typeof PrefEconomicSeriesSearchRequestSchema>;
+export type PrefEconomicSeriesReadRequest = z.infer<typeof PrefEconomicSeriesReadRequestSchema>;
 export type PrefRawResult = z.infer<typeof PrefRawResultSchema>;
 export type FixturePrefResponse = z.infer<typeof FixturePrefResponseSchema>;
 export type PrefCallContext = z.infer<typeof PrefCallContextSchema> & { signal?: AbortSignal };

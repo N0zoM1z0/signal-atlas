@@ -22,7 +22,14 @@ describe('Pref capability map', () => {
         catalogTool: 'search_tools',
         executionTool: 'call_tool',
       },
-      allowedProviderTools: ['weather.get_current_conditions', 'gdelt.context.search_context'],
+      allowedProviderTools: [
+        'weather.get_current_conditions',
+        'gdelt.context.search_context',
+        'polymarket.discovery.search_markets',
+        'resolution.search_historical_resolutions',
+        'fred.search_series',
+        'fred.get_series',
+      ],
       mappings: [
         {
           mappingId: 'weather-current-conditions-v1',
@@ -41,7 +48,96 @@ describe('Pref capability map', () => {
           executionMode: 'synchronous',
           responseAdapter: 'article_search_v1',
         },
+        {
+          canonicalName: 'search_markets',
+          enabled: false,
+          toolRef: 'polymarket.discovery.search_markets',
+          responseAdapter: 'market_search_v1',
+        },
+        {
+          canonicalName: 'search_resolution_history',
+          enabled: false,
+          toolRef: 'resolution.search_historical_resolutions',
+          responseAdapter: 'resolution_history_v1',
+        },
+        {
+          canonicalName: 'search_economic_series',
+          enabled: false,
+          toolRef: 'fred.search_series',
+          responseAdapter: 'economic_series_search_v1',
+        },
+        {
+          canonicalName: 'read_economic_series',
+          enabled: false,
+          toolRef: 'fred.get_series',
+          responseAdapter: 'economic_series_read_v1',
+        },
       ],
+    });
+  });
+
+  it('projects fixed provider policy and canonical research inputs without leaking provider refs', async () => {
+    const map = await loadPrefCapabilityMap();
+    const marketMapping = map.mappings.find(
+      (candidate) => candidate.canonicalName === 'search_markets',
+    );
+    const historyMapping = map.mappings.find(
+      (candidate) => candidate.canonicalName === 'search_resolution_history',
+    );
+    const seriesMapping = map.mappings.find(
+      (candidate) => candidate.canonicalName === 'read_economic_series',
+    );
+    const seriesSearchMapping = map.mappings.find(
+      (candidate) => candidate.canonicalName === 'search_economic_series',
+    );
+    expect(marketMapping).toBeDefined();
+    expect(historyMapping).toBeDefined();
+    expect(seriesMapping).toBeDefined();
+    expect(seriesSearchMapping).toBeDefined();
+
+    expect(projectPrefCapabilityInput(marketMapping!, { query: 'rate cut', limit: 5 })).toEqual({
+      active: true,
+      closed: false,
+      fields: { question: true, outcomes: true, active: true },
+      query: 'rate cut',
+      limit: 5,
+    });
+    expect(
+      projectPrefCapabilityInput(historyMapping!, {
+        referenceClass: 'central-bank-rate-cuts',
+        outcome: 'YES',
+        minSampleSize: 4,
+        limit: 8,
+      }),
+    ).toEqual({
+      reference_class: 'central-bank-rate-cuts',
+      outcome: 'YES',
+      min_sample_size: 4,
+    });
+    expect(
+      projectPrefCapabilityInput(seriesMapping!, {
+        seriesId: 'CPIAUCSL',
+        since: '2026-01-15T12:30:00Z',
+        until: '2026-07-15T23:45:00Z',
+        limit: 120,
+      }),
+    ).toEqual({
+      scope: 'full',
+      sort_order: 'desc',
+      series_id: 'CPIAUCSL',
+      observation_start: '2026-01-15',
+      observation_end: '2026-07-15',
+      limit: 120,
+    });
+    expect(projectPrefCapabilityInput(seriesMapping!, { seriesId: 'UNRATE' })).toEqual({
+      scope: 'full',
+      sort_order: 'desc',
+      series_id: 'UNRATE',
+      limit: 250,
+    });
+    expect(projectPrefCapabilityInput(seriesSearchMapping!, { query: 'consumer prices' })).toEqual({
+      search_text: 'consumer prices',
+      limit: 20,
     });
   });
 
@@ -105,6 +201,12 @@ describe('Pref capability map', () => {
     };
     unsafe.mappings[0]!.requiredAnnotations.readOnlyHint = false;
     expect(() => parsePrefCapabilityMap(unsafe)).toThrow();
+
+    const overlappingInput = structuredClone(baseline);
+    overlappingInput.mappings[2]!.fixedArguments['query'] = 'hidden override';
+    expect(() => parsePrefCapabilityMap(overlappingInput)).toThrow(
+      'cannot be both projected and fixed',
+    );
   });
 
   it('denies arbitrary hosts and direct helper expansion', async () => {

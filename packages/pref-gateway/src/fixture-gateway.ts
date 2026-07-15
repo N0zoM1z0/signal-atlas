@@ -6,9 +6,13 @@ import {
   FixturePrefResponseSchema,
   PrefCallContextSchema,
   PrefCanonicalCapabilitySchema,
+  PrefEconomicSeriesReadRequestSchema,
+  PrefEconomicSeriesSearchRequestSchema,
   PrefGatewayConfigSchema,
   PrefLocalConditionsRequestSchema,
+  PrefMarketSearchRequestSchema,
   PrefReadRequestSchema,
+  PrefResolutionHistoryRequestSchema,
   PrefSearchRequestSchema,
   PrefGatewayError,
   type FixturePrefResponse,
@@ -38,6 +42,10 @@ const inputSchemas: Record<PrefCanonicalCapability, z.ZodType> = {
   search_sources: PrefSearchRequestSchema,
   read_source: PrefReadRequestSchema,
   local_conditions: PrefLocalConditionsRequestSchema,
+  search_markets: PrefMarketSearchRequestSchema,
+  search_resolution_history: PrefResolutionHistoryRequestSchema,
+  search_economic_series: PrefEconomicSeriesSearchRequestSchema,
+  read_economic_series: PrefEconomicSeriesReadRequestSchema,
 };
 
 function responseKey(capability: PrefCanonicalCapability, input: unknown): string {
@@ -155,7 +163,10 @@ export class FixturePrefGateway implements PrefGateway {
         primitiveName: response.results[0]?.primitiveName ?? `fixture.${capability}`,
         readOnly: true as const,
         locationAware: capability === 'search_sources' || capability === 'local_conditions',
-        temporal: capability === 'search_sources' || capability === 'local_conditions',
+        temporal:
+          capability === 'search_sources' ||
+          capability === 'local_conditions' ||
+          capability === 'read_economic_series',
       }));
   }
 

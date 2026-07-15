@@ -19,6 +19,7 @@ interface FakeClientOptions {
   securityTaskSupport?: string;
   omitSecurityTaskSupport?: boolean;
   extraRequiredArgument?: boolean;
+  providerOptionalLocation?: boolean;
   oversized?: boolean;
   nativePrimitives?: boolean;
   credentialEcho?: 'server_version' | 'provider_payload';
@@ -193,7 +194,7 @@ class FakeSdkClient implements PrefMcpSdkClient {
                       maxrecords: { type: 'number' },
                       startdatetime: { type: 'string' },
                       enddatetime: { type: 'string' },
-                      format: { type: 'string' },
+                      format: { type: 'string', enum: ['json', 'csv', 'rss'] },
                       searchlang: { type: 'string' },
                       sort: { type: 'string' },
                       timespan: { type: 'string' },
@@ -259,7 +260,7 @@ class FakeSdkClient implements PrefMcpSdkClient {
                       : {}),
                   },
                   required: [
-                    'location',
+                    ...(this.#options.providerOptionalLocation ? [] : ['location']),
                     ...(this.#options.extraRequiredArgument ? ['undocumented_required'] : []),
                   ],
                 },
@@ -316,6 +317,7 @@ async function connectionFixture(
     credentialConfigured?: boolean;
     enableSearchMapping?: boolean;
     maxDiscoveryBytes?: number;
+    searchFixedFormat?: string;
     token?: () => string | undefined;
   } = {},
 ): Promise<{
@@ -326,6 +328,9 @@ async function connectionFixture(
   const capabilityMap = await loadPrefCapabilityMap();
   if (connectionOverrides.enableSearchMapping) {
     capabilityMap.mappings[1]!.enabled = true;
+  }
+  if (connectionOverrides.searchFixedFormat) {
+    capabilityMap.mappings[1]!.fixedArguments['format'] = connectionOverrides.searchFixedFormat;
   }
   const clients: FakeSdkClient[] = [];
   let factoryCalls = 0;
@@ -383,6 +388,26 @@ describe('Streamable HTTP Pref connection', () => {
           canonicalName: 'search_sources',
           toolRef: 'gdelt.context.search_context',
           status: 'valid',
+        },
+        {
+          canonicalName: 'search_markets',
+          toolRef: 'polymarket.discovery.search_markets',
+          status: 'disabled',
+        },
+        {
+          canonicalName: 'search_resolution_history',
+          toolRef: 'resolution.search_historical_resolutions',
+          status: 'disabled',
+        },
+        {
+          canonicalName: 'search_economic_series',
+          toolRef: 'fred.search_series',
+          status: 'disabled',
+        },
+        {
+          canonicalName: 'read_economic_series',
+          toolRef: 'fred.get_series',
+          status: 'disabled',
         },
       ],
     });
@@ -482,6 +507,12 @@ describe('Streamable HTTP Pref connection', () => {
     },
   );
 
+  it('allows a canonical-required projection to target a provider-optional field', async () => {
+    const fixture = await connectionFixture({ providerOptionalLocation: true });
+
+    expect((await fixture.connection.connect()).mappings[0]).toMatchObject({ status: 'valid' });
+  });
+
   it('validates the exact GDELT catalog contract with synchronous task support forbidden', async () => {
     const fixture = await connectionFixture({}, { enableSearchMapping: true });
 
@@ -497,6 +528,20 @@ describe('Streamable HTTP Pref connection', () => {
         .filter((call) => call.name === 'search_tools')
         .map((call) => call.argumentsValue['tool_ref']),
     ).toEqual(['weather.get_current_conditions', 'gdelt.context.search_context']);
+  });
+
+  it('validates fixed arguments against the discovered provider property schema', async () => {
+    const valid = await connectionFixture(
+      {},
+      { enableSearchMapping: true, searchFixedFormat: 'json' },
+    );
+    const invalid = await connectionFixture(
+      {},
+      { enableSearchMapping: true, searchFixedFormat: 'jsonfeed' },
+    );
+
+    expect((await valid.connection.connect()).mappings[1]).toMatchObject({ status: 'valid' });
+    expect((await invalid.connection.connect()).mappings[1]).toMatchObject({ status: 'invalid' });
   });
 
   it.each([
