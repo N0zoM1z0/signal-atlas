@@ -19,6 +19,9 @@ import type {
   SceneAgent,
   ScenePlace,
   WorldSceneCommand,
+  WorldPresentationCue,
+  WorldWeatherPresentation,
+  WorldWeatherState,
 } from './types.js';
 
 interface ScenePalette {
@@ -102,13 +105,17 @@ export async function mountWorldScene(options: MountWorldSceneOptions): Promise<
     private readonly agentSprites = new Map<string, Phaser.GameObjects.Sprite>();
     private readonly agentTargets = new Map<string, Phaser.GameObjects.Sprite>();
     private basePixelScale = initialMetrics.pixelScale;
+    private currentWeather = model.weather;
     private followingAgentId: string | null = null;
+    private followReleaseTimer: Phaser.Time.TimerEvent | undefined;
     private lastPerformanceSampleAt = 0;
+    private readonly placeContainers = new Map<string, Phaser.GameObjects.Container>();
     private readonly placeHighlights = new Map<string, Phaser.GameObjects.Arc>();
     private reducedMotion = options.reducedMotion;
     private selectedAgentId = options.initialSelectedAgentId;
     private selectedPlaceId = options.initialSelectedPlaceId;
     private spaceKey: Phaser.Input.Keyboard.Key | undefined;
+    private readonly weatherLayers = new Map<WorldWeatherState, Phaser.GameObjects.Container>();
     private zoomStep = 0;
 
     constructor() {
@@ -130,6 +137,7 @@ export async function mountWorldScene(options: MountWorldSceneOptions): Promise<
       model.places.forEach((place) => this.drawPlace(place));
       this.drawAgents();
       this.drawWeather();
+      this.setWeather(model.weather, true);
 
       this.spaceKey = this.input.keyboard?.addKey(PhaserRuntime.Input.Keyboard.KeyCodes.SPACE);
       this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
@@ -289,6 +297,18 @@ export async function mountWorldScene(options: MountWorldSceneOptions): Promise<
       foreground.lineTo(35, 30);
       foreground.lineTo(0, 30);
       foreground.closePath().fillPath();
+
+      const cityDetails = this.add.graphics().setDepth(-5);
+      cityDetails.fillStyle(palette.deepInk, 0.72);
+      for (let index = 0; index < 36; index += 1) {
+        const x = 2 + ((index * 11) % 42);
+        const y = 17 + ((index * 7) % 10);
+        cityDetails.fillRect(x, y, 0.16, 0.16);
+      }
+      cityDetails.fillStyle(palette.windowGold, 0.22);
+      model.places.forEach((place) =>
+        cityDetails.fillEllipse(place.position.x, place.position.y + 0.6, 6.2, 2.2),
+      );
     }
 
     private drawRoutes() {
@@ -318,38 +338,64 @@ export async function mountWorldScene(options: MountWorldSceneOptions): Promise<
 
     private drawPlace(place: ScenePlace) {
       const container = this.add.container(place.position.x, place.position.y).setDepth(3);
+      this.placeContainers.set(place.id, container);
+      const light = this.add.graphics();
+      light.fillStyle(palette.windowGold, 0.12).fillEllipse(0, 0.25, 6.4, 2.2);
       const shadow = this.add.graphics();
       shadow.fillStyle(palette.atlasNight, 0.58).fillEllipse(0.3, 0.35, 4.8, 1.35);
       const building = this.add.graphics();
+      const detail = this.add.graphics();
       const color = placeColor(place, palette);
       building.lineStyle(2 / this.basePixelScale, palette.atlasNight, 1);
+      detail.lineStyle(2 / this.basePixelScale, palette.atlasNight, 0.9);
 
       switch (place.archetype) {
         case 'observatory':
-          building.fillStyle(color).fillRoundedRect(-2, -3, 4, 3, 0.8);
-          building.fillStyle(palette.slateCloud).fillTriangle(-2, -2, 0, -4.2, 2, -2);
-          building.strokeCircle(0, -2.1, 1.8);
+          building.fillStyle(color).fillRoundedRect(-2.2, -2.8, 4.4, 2.8, 0.7);
+          building.fillStyle(palette.slateCloud).fillCircle(0, -2.8, 2.05);
+          building.fillStyle(palette.atlasNight).fillRect(-2.2, -2.8, 4.4, 2.1);
+          detail.lineBetween(0.1, -3.7, 2.65, -4.9);
+          detail.fillStyle(palette.weatherCyan).fillRect(2.35, -5.1, 0.8, 0.45);
+          detail.fillStyle(palette.windowGold).fillCircle(0, -2.75, 0.48);
           break;
         case 'weather_tower':
-          building.fillStyle(color).fillRect(-0.85, -4.7, 1.7, 4.7);
-          building.lineBetween(-2.4, -5.1, 2.4, -5.1);
-          building.lineBetween(0, -5.1, 0, -5.8);
+          building.fillStyle(color).fillRect(-0.9, -4.6, 1.8, 4.6);
+          building.fillStyle(palette.deepInk).fillTriangle(-1.65, 0, 0, -4.6, 1.65, 0);
+          building.fillStyle(color).fillTriangle(-1.08, 0, 0, -3.7, 1.08, 0);
+          detail.lineBetween(-2.5, -5.05, 2.5, -5.05);
+          detail.lineBetween(0, -5.05, 0, -6);
+          detail.fillStyle(palette.windowGold).fillCircle(-2.5, -5.05, 0.24);
+          detail.fillCircle(2.5, -5.05, 0.24);
+          detail.fillCircle(0, -6, 0.24);
           break;
         case 'newsroom':
           building.fillStyle(color).fillRect(-2.5, -3.2, 5, 3.2);
           building.fillStyle(palette.slateCloud).fillTriangle(-2.8, -3.2, 0, -4.2, 2.8, -3.2);
+          detail.fillStyle(palette.paperLight).fillRect(-2.1, -0.72, 4.2, 0.34);
+          detail.lineBetween(1.45, -4, 2.15, -5.45);
+          detail.lineBetween(2.15, -5.45, 2.8, -4.9);
           break;
         case 'archive':
-          building.fillStyle(color).fillRect(-2.8, -2.5, 5.6, 2.5);
-          building.fillStyle(palette.slateCloud).fillTriangle(-3.2, -2.5, 0, -3.5, 3.2, -2.5);
+          building.fillStyle(color).fillRect(-3, -2.5, 6, 2.5);
+          building.fillStyle(palette.slateCloud).fillTriangle(-3.3, -2.5, 0, -3.65, 3.3, -2.5);
+          detail.fillStyle(palette.parchment);
+          [-2.2, -0.75, 0.75, 2.2].forEach((x) => detail.fillRect(x, -2.2, 0.28, 2.1));
+          detail.fillRect(-2.65, -0.34, 5.3, 0.3);
           break;
         case 'professor':
           building.fillStyle(color).fillRect(-2, -3.6, 4, 3.6);
-          building.fillStyle(palette.slateCloud).fillTriangle(-2.4, -3.6, 0, -4.8, 2.4, -3.6);
+          building.fillStyle(palette.slateCloud).fillTriangle(-2.5, -3.6, 0, -5, 2.5, -3.6);
+          detail.fillStyle(palette.windowGold).fillCircle(0, -2.7, 0.72);
+          detail.lineBetween(-0.72, -2.7, 0.72, -2.7);
+          detail.lineBetween(0, -3.42, 0, -1.98);
+          detail.fillStyle(palette.deepInk).fillRect(1.2, -5.15, 0.55, 1.6);
           break;
         case 'town_square':
-          building.fillStyle(color).fillRoundedRect(-0.55, -3.6, 1.1, 3.6, 0.55);
-          building.fillStyle(palette.parchment, 0.68).fillCircle(0, -3.6, 0.9);
+          building.fillStyle(color).fillRoundedRect(-0.48, -3.45, 0.96, 3.45, 0.45);
+          building.fillStyle(palette.parchment, 0.9).fillCircle(0, -3.65, 0.92);
+          detail.fillStyle(palette.deepInk).fillRect(-2.4, -0.3, 1.35, 0.28);
+          detail.fillRect(1.05, -0.3, 1.35, 0.28);
+          detail.fillStyle(palette.windowGold, 0.32).fillCircle(0, -3.65, 1.55);
           break;
         case 'exchange':
         case 'field_site':
@@ -367,7 +413,7 @@ export async function mountWorldScene(options: MountWorldSceneOptions): Promise<
         .setStrokeStyle(2 / this.basePixelScale, palette.windowGold, 1)
         .setVisible(false);
       this.placeHighlights.set(place.id, highlight);
-      container.add([shadow, building, highlight]);
+      container.add([light, shadow, building, detail, highlight]);
       container
         .setSize(6, 7)
         .setInteractive(
@@ -548,23 +594,149 @@ export async function mountWorldScene(options: MountWorldSceneOptions): Promise<
     }
 
     private drawWeather() {
-      const wind = this.add.container(37, 7).setDepth(1);
-      for (let index = 0; index < 5; index += 1) {
-        const streak = this.add.graphics({ x: -4 - index * 1.1, y: -3 + index * 0.8 });
-        streak.lineStyle(1 / this.basePixelScale, palette.weatherCyan, 0.58);
-        streak.lineBetween(0, 0, 2.2, 0);
+      const clear = this.add.container(0, 0).setDepth(1).setAlpha(0);
+      this.weatherLayers.set('clear', clear);
+
+      const breeze = this.createWindLayer(5, 2.2, 0.5);
+      const crosswind = this.createWindLayer(10, 3.4, 0.82);
+      this.weatherLayers.set('breezy', breeze);
+      this.weatherLayers.set('crosswind', crosswind);
+
+      const rain = this.add.container(0, 0).setDepth(1).setAlpha(0);
+      for (let index = 0; index < 34; index += 1) {
+        const drop = this.add.graphics({
+          x: ((index * 17 + 5) % 47) + 0.5,
+          y: ((index * 11 + 2) % 27) + 0.5,
+        });
+        drop.lineStyle(1 / this.basePixelScale, palette.weatherCyan, 0.64);
+        drop.lineBetween(0, 0, -0.36, 1.05);
+        rain.add(drop);
+        this.tweens.add({
+          targets: drop,
+          x: drop.x - 1.8,
+          y: drop.y + 5,
+          duration: 1_000 + (index % 5) * 90,
+          repeat: -1,
+        });
+      }
+      this.weatherLayers.set('rain', rain);
+
+      const fog = this.add.container(0, 0).setDepth(2).setAlpha(0);
+      for (let index = 0; index < 4; index += 1) {
+        const band = this.add.graphics({ x: -5 - index * 2, y: 10 + index * 4.4 });
+        band.fillStyle(palette.mutedSteel, 0.13).fillRect(0, 0, 58, 2.2);
+        fog.add(band);
+        this.tweens.add({
+          targets: band,
+          x: band.x + 4,
+          duration: 8_000 + index * 1_200,
+          ease: 'Sine.easeInOut',
+          yoyo: true,
+          repeat: -1,
+        });
+      }
+      this.weatherLayers.set('fog', fog);
+    }
+
+    private createWindLayer(count: number, length: number, opacity: number) {
+      const wind = this.add.container(0, 0).setDepth(1).setAlpha(0);
+      for (let index = 0; index < count; index += 1) {
+        const streak = this.add.graphics({
+          x: ((index * 13 + 4) % 46) - 2,
+          y: 3 + ((index * 7) % 22),
+        });
+        streak.lineStyle(1 / this.basePixelScale, palette.weatherCyan, opacity);
+        streak.lineBetween(0, 0, length, 0);
         wind.add(streak);
-        if (!this.reducedMotion) {
+        this.tweens.add({
+          targets: streak,
+          x: streak.x + 3.2,
+          alpha: { from: 0.25, to: 0.92 },
+          duration: 1_400 + (index % 4) * 170,
+          yoyo: true,
+          repeat: -1,
+        });
+      }
+      return wind;
+    }
+
+    private setWeather(weather: WorldWeatherPresentation, immediate = false) {
+      this.currentWeather = structuredClone(weather);
+      const transitionMs = immediate || this.reducedMotion ? 0 : 2_200;
+      const intensity = Math.min(1, Math.max(0, weather.intensity));
+      this.weatherLayers.forEach((layer, state) => {
+        const targetAlpha = state === weather.state && state !== 'clear' ? intensity : 0;
+        this.tweens.killTweensOf(layer);
+        if (transitionMs === 0) layer.setAlpha(targetAlpha);
+        else {
           this.tweens.add({
-            targets: streak,
-            x: streak.x + 2,
-            alpha: { from: 0.3, to: 0.9 },
-            duration: 1_600 + index * 120,
-            yoyo: true,
-            repeat: -1,
+            targets: layer,
+            alpha: targetAlpha,
+            duration: transitionMs,
+            ease: 'Sine.easeInOut',
           });
         }
+      });
+      options.bridge.emit({ type: 'weather.changed', state: weather.state, transitionMs });
+    }
+
+    private playPresentationCue(cue: WorldPresentationCue) {
+      const place = cue.placeId
+        ? model.places.find((candidate) => candidate.id === cue.placeId)
+        : undefined;
+      const agent = cue.agentId ? this.agentSprites.get(cue.agentId) : undefined;
+      const x = place?.position.x ?? agent?.x ?? model.logicalWidth / 2;
+      const y = (place?.position.y ?? agent?.y ?? model.logicalHeight / 2) - 3;
+      const marker = this.add.container(x, y).setDepth(14);
+      const icon = this.add.graphics();
+
+      if (cue.kind === 'arrival') {
+        icon.lineStyle(2 / this.basePixelScale, palette.weatherCyan, 1).strokeCircle(0, 0, 0.9);
+        icon.fillStyle(palette.paperLight).fillTriangle(-0.35, 0.1, 0, -0.48, 0.35, 0.1);
+      } else if (cue.kind === 'work') {
+        icon.fillStyle(palette.parchment).fillRect(-0.9, -0.6, 1.8, 1.2);
+        icon.fillStyle(palette.harborBlue).fillRect(-0.65, -0.3, 1.2, 0.14);
+        icon.fillRect(-0.65, 0.05, 0.85, 0.14);
+      } else if (cue.kind === 'signal') {
+        icon.fillStyle(palette.windowGold).fillTriangle(0, -0.95, 0.85, 0, 0, 0.95);
+        icon.fillTriangle(0, -0.95, -0.85, 0, 0, 0.95);
+        icon.fillStyle(palette.paperLight).fillCircle(0, 0, 0.22);
+      } else if (cue.kind === 'complete') {
+        icon.fillStyle(palette.mossSignal).fillCircle(0, 0, 0.85);
+        icon.lineStyle(2 / this.basePixelScale, palette.atlasNight, 1);
+        icon.lineBetween(-0.38, 0, -0.08, 0.32);
+        icon.lineBetween(-0.08, 0.32, 0.48, -0.38);
+      } else {
+        icon.fillStyle(palette.alertCoral).fillTriangle(0, -0.95, 0.9, 0.75, -0.9, 0.75);
+        icon.fillStyle(palette.atlasNight).fillRect(-0.08, -0.42, 0.16, 0.7);
       }
+      marker.add(icon);
+
+      const duration = this.reducedMotion ? 0 : cue.kind === 'signal' ? 720 : 560;
+      const target = this.placeContainers.get(cue.placeId ?? '');
+      if (target && !this.reducedMotion) {
+        this.tweens.add({
+          targets: target,
+          scaleX: 1.035,
+          scaleY: 1.035,
+          duration: 160,
+          yoyo: true,
+        });
+      }
+      if (duration > 0) {
+        this.tweens.add({
+          targets: marker,
+          x: cue.kind === 'signal' ? model.logicalWidth - 1.5 : x,
+          y: cue.kind === 'signal' ? 8 : y - 1.5,
+          alpha: 0,
+          duration,
+          ease: 'Sine.easeInOut',
+          onComplete: () => marker.destroy(true),
+        });
+      } else {
+        this.time.delayedCall(240, () => marker.destroy(true));
+      }
+      options.bridge.emit({ type: 'presentation.rendered', cueId: cue.id, kind: cue.kind });
     }
 
     private handleCommand(command: WorldSceneCommand) {
@@ -602,6 +774,12 @@ export async function mountWorldScene(options: MountWorldSceneOptions): Promise<
         case 'motion.set-reduced':
           this.reducedMotion = command.reduced;
           this.applyReducedMotion();
+          return;
+        case 'presentation.play':
+          this.playPresentationCue(command.cue);
+          return;
+        case 'weather.set':
+          this.setWeather(command.weather);
       }
     }
 
@@ -624,13 +802,20 @@ export async function mountWorldScene(options: MountWorldSceneOptions): Promise<
     private followAgent(agentId: string) {
       const target = this.agentTargets.get(agentId);
       if (!target) return;
+      this.followReleaseTimer?.remove(false);
       this.followingAgentId = agentId;
       const lerp = this.reducedMotion ? 1 : 0.12;
       this.cameras.main.startFollow(target, true, lerp, lerp);
       this.emitCameraChanged();
+      this.followReleaseTimer = this.time.delayedCall(2_000, () => {
+        this.stopFollowing();
+        this.emitCameraChanged();
+      });
     }
 
     private stopFollowing() {
+      this.followReleaseTimer?.remove(false);
+      this.followReleaseTimer = undefined;
       this.cameras.main.stopFollow();
       this.followingAgentId = null;
     }
@@ -658,6 +843,7 @@ export async function mountWorldScene(options: MountWorldSceneOptions): Promise<
       if (this.reducedMotion) {
         this.tweens.pauseAll();
         this.agentSprites.forEach((sprite) => sprite.anims.pause());
+        this.setWeather(this.currentWeather, true);
       } else {
         this.tweens.resumeAll();
         this.agentSprites.forEach((sprite) => sprite.anims.resume());

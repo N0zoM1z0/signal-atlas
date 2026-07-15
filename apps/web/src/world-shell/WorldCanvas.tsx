@@ -12,6 +12,7 @@ import {
   createWorldSceneBridge,
   mountWorldScene,
   type MountedWorldScene,
+  type WorldPresentationCue,
   type WorldSceneCommand,
   type WorldSceneDefinition,
 } from '@signal-atlas/game-scene';
@@ -30,6 +31,7 @@ export interface WorldCanvasProps {
   children: ReactNode;
   followRequest: CameraFollowRequest | undefined;
   model: WorldSceneDefinition;
+  presentationCue?: WorldPresentationCue;
   reducedMotion: boolean;
   selectedAgentId: string;
   selectedPlaceId: string | undefined;
@@ -59,6 +61,7 @@ export const WorldCanvas = forwardRef<WorldCanvasHandle, WorldCanvasProps>(funct
     model,
     onAgentSelect,
     onPlaceSelect,
+    presentationCue,
     reducedMotion,
     selectedAgentId,
     selectedPlaceId,
@@ -81,6 +84,9 @@ export const WorldCanvas = forwardRef<WorldCanvasHandle, WorldCanvasProps>(funct
   const bridge = useMemo(() => createWorldSceneBridge(), []);
   const [metrics, setMetrics] = useState<CanvasMetrics>();
   const [framesPerSecond, setFramesPerSecond] = useState<number>();
+  const [renderedCueId, setRenderedCueId] = useState<string>();
+  const [renderedWeather, setRenderedWeather] = useState(model.weather.state);
+  const [weatherTransitionMs, setWeatherTransitionMs] = useState(0);
   const [followingAgentId, setFollowingAgentId] = useState<string>();
   const [renderedAgentId, setRenderedAgentId] = useState<string>();
   const [agentAnimationPaused, setAgentAnimationPaused] = useState(false);
@@ -143,6 +149,13 @@ export const WorldCanvas = forwardRef<WorldCanvasHandle, WorldCanvasProps>(funct
           return;
         case 'performance.sample':
           setFramesPerSecond(event.framesPerSecond);
+          return;
+        case 'presentation.rendered':
+          setRenderedCueId(event.cueId);
+          return;
+        case 'weather.changed':
+          setRenderedWeather(event.state);
+          setWeatherTransitionMs(event.transitionMs);
           return;
         case 'camera.changed':
           setCameraCenter({ x: event.centerX, y: event.centerY });
@@ -237,6 +250,14 @@ export const WorldCanvas = forwardRef<WorldCanvasHandle, WorldCanvasProps>(funct
   }, [bridge, reducedMotion]);
 
   useEffect(() => {
+    bridge.send({ type: 'weather.set', weather: model.weather });
+  }, [bridge, model.weather]);
+
+  useEffect(() => {
+    if (presentationCue) bridge.send({ type: 'presentation.play', cue: presentationCue });
+  }, [bridge, presentationCue]);
+
+  useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (isEditableTarget(event.target)) return;
       if (event.key === 'Home') {
@@ -274,6 +295,9 @@ export const WorldCanvas = forwardRef<WorldCanvasHandle, WorldCanvasProps>(funct
       data-scene-ready={ready}
       data-reduced-motion={reducedMotion}
       data-rendered-agent={renderedAgentId ?? ''}
+      data-rendered-cue={renderedCueId ?? ''}
+      data-weather-state={renderedWeather}
+      data-weather-transition-ms={weatherTransitionMs}
       data-zoom-step={zoomStep}
     >
       <div aria-hidden="true" className="atlas-phaser-mount" ref={parentRef} />

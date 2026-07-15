@@ -2,7 +2,7 @@ import { replayFixture } from '@signal-atlas/simulation';
 import { createHelios3ExpeditionFixture } from '@signal-atlas/test-fixtures';
 import { describe, expect, it } from 'vitest';
 
-import { createShellModel } from './model.js';
+import { createShellModel, weatherPresentationForProjection } from './model.js';
 
 function evidenceProjection() {
   const fixture = createHelios3ExpeditionFixture();
@@ -16,6 +16,47 @@ function evidenceProjection() {
 }
 
 describe('signal presentation model', () => {
+  it('derives calm authored weather before evidence and a sourced advisory afterward', () => {
+    const fixture = createHelios3ExpeditionFixture();
+    const initialProjection = replayFixture(fixture).projection;
+    expect(weatherPresentationForProjection(initialProjection)).toEqual({
+      intensity: 0.42,
+      label: 'Breezy night',
+      state: 'breezy',
+    });
+
+    const { projection } = evidenceProjection();
+    expect(weatherPresentationForProjection(projection)).toMatchObject({
+      intensity: 0.92,
+      label: 'Crosswind advisory',
+      observedAt: '2027-09-26T18:10:00Z',
+      sourceTitle: 'Galehaven Crosswind Advisory 18:10Z',
+      state: 'crosswind',
+    });
+    expect(createShellModel(projection).sceneDefinition.weather.state).toBe('crosswind');
+  });
+
+  it('never projects a real-world proxy observation into fictional Galehaven weather', () => {
+    const fixture = createHelios3ExpeditionFixture();
+    const projection = replayFixture(fixture).projection;
+    const source = fixture.sources.find((candidate) => candidate.id === 'src-weather-bulletin-1');
+    if (!source) throw new Error('Expected the authored weather source.');
+    projection.sourcesById['src-live-proxy-rain'] = {
+      ...structuredClone(source),
+      id: 'src-live-proxy-rain',
+      title: 'Cape Canaveral live proxy conditions — Heavy rain',
+      excerpt: 'Heavy rain at the real-world interface-testing proxy.',
+      observedAt: '2027-09-26T19:10:00Z',
+      tags: ['weather', 'rain', 'context-only', 'real-world-proxy'],
+    };
+
+    expect(weatherPresentationForProjection(projection)).toEqual({
+      intensity: 0.42,
+      label: 'Breezy night',
+      state: 'breezy',
+    });
+  });
+
   it('preserves source, claim, knowledge, status, and correlation boundaries', () => {
     const { projection } = evidenceProjection();
     const crosswind = projection.signalsById['sig-crosswind'];

@@ -466,7 +466,7 @@
     ],
     "cameraZones": [],
     "defaultSpawnPlaceId": "observatory",
-    "assetPack": "helios3-placeholder-v1"
+    "assetPack": "helios3-programmatic-pilot-v1"
   },
   "agents": [
     {

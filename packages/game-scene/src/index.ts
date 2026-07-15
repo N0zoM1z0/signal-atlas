@@ -27,4 +27,11 @@ export {
   type WorldSceneCommand,
   type WorldSceneDefinition,
   type WorldSceneEvent,
+  type WorldPresentationCue,
+  type WorldPresentationCueKind,
+  type WorldWeatherPresentation,
+  type WorldWeatherState,
+  weatherFromAmbientLayers,
+  worldPresentationCueKinds,
+  worldWeatherStates,
 } from './types.js';

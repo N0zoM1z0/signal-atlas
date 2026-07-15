@@ -11,6 +11,34 @@ export type SceneAgent = Pick<
   'displayName' | 'id' | 'movement' | 'placeId' | 'publicState' | 'role'
 >;
 
+export const worldWeatherStates = ['clear', 'breezy', 'crosswind', 'rain', 'fog'] as const;
+export type WorldWeatherState = (typeof worldWeatherStates)[number];
+
+export interface WorldWeatherPresentation {
+  intensity: number;
+  label: string;
+  observedAt?: string;
+  sourceTitle?: string;
+  state: WorldWeatherState;
+}
+
+export const worldPresentationCueKinds = [
+  'arrival',
+  'work',
+  'signal',
+  'complete',
+  'error',
+] as const;
+export type WorldPresentationCueKind = (typeof worldPresentationCueKinds)[number];
+
+export interface WorldPresentationCue {
+  agentId?: string;
+  id: string;
+  kind: WorldPresentationCueKind;
+  label: string;
+  placeId?: string;
+}
+
 export interface WorldSceneDefinition {
   agents: SceneAgent[];
   ambientLayers: WorldManifest['ambientLayers'];
@@ -20,6 +48,7 @@ export interface WorldSceneDefinition {
   places: ScenePlace[];
   routes: SceneRoute[];
   tileSize: number;
+  weather: WorldWeatherPresentation;
 }
 
 export type WorldSceneCommand =
@@ -32,7 +61,9 @@ export type WorldSceneCommand =
   | { type: 'agent.set-animation'; agentId: string; state: AgentSpriteState }
   | { type: 'place.center'; placeId: string }
   | { type: 'place.select'; placeId: string }
-  | { type: 'motion.set-reduced'; reduced: boolean };
+  | { type: 'motion.set-reduced'; reduced: boolean }
+  | { type: 'presentation.play'; cue: WorldPresentationCue }
+  | { type: 'weather.set'; weather: WorldWeatherPresentation };
 
 export type WorldSceneEvent =
   | {
@@ -67,6 +98,12 @@ export type WorldSceneEvent =
       zoomStep: number;
     }
   | { type: 'motion.changed'; agentAnimationsPaused: boolean; reduced: boolean }
+  | {
+      type: 'presentation.rendered';
+      cueId: string;
+      kind: WorldPresentationCueKind;
+    }
+  | { type: 'weather.changed'; state: WorldWeatherState; transitionMs: number }
   | { type: 'performance.sample'; framesPerSecond: number };
 
 export interface MountedWorldScene {
@@ -93,6 +130,7 @@ export interface WorldSceneBridge {
 export function createWorldSceneDefinition(
   manifest: WorldManifest,
   agents: readonly Agent[],
+  weather: WorldWeatherPresentation = weatherFromAmbientLayers(manifest),
 ): WorldSceneDefinition {
   return {
     agents: agents.map(({ displayName, id, movement, placeId, publicState, role }) => ({
@@ -121,5 +159,15 @@ export function createWorldSceneDefinition(
       waypoints: waypoints.map((point) => ({ ...point })),
     })),
     tileSize: manifest.tileSize,
+    weather: structuredClone(weather),
   };
+}
+
+export function weatherFromAmbientLayers(manifest: WorldManifest): WorldWeatherPresentation {
+  const state = manifest.ambientLayers
+    .map((layer) => layer.state.toLowerCase())
+    .find((candidate) => candidate.includes('wind'));
+  return state
+    ? { intensity: 0.42, label: 'Breezy night', state: 'breezy' }
+    : { intensity: 0, label: 'Clear night', state: 'clear' };
 }

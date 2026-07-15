@@ -4,7 +4,12 @@ import {
   selectLatestForecast,
   type WorldProjection,
 } from '@signal-atlas/simulation';
-import { createWorldSceneDefinition } from '@signal-atlas/game-scene';
+import {
+  createWorldSceneDefinition,
+  weatherFromAmbientLayers,
+  type WorldWeatherPresentation,
+  type WorldWeatherState,
+} from '@signal-atlas/game-scene';
 import { helios3ExpeditionFixture } from '@signal-atlas/test-fixtures';
 
 const fixture = helios3ExpeditionFixture;
@@ -47,6 +52,70 @@ function signedPercentagePoints(value: number): string {
   return '0';
 }
 
+function weatherStateFromText(value: string): WorldWeatherState {
+  if (value.includes('heavy rain') || value.includes('rain')) return 'rain';
+  if (value.includes('fog') || value.includes('mist')) return 'fog';
+  if (value.includes('crosswind') || value.includes('gust') || value.includes('wind')) {
+    return 'crosswind';
+  }
+  if (value.includes('clear')) return 'clear';
+  return 'breezy';
+}
+
+export function weatherPresentationForProjection(
+  projection: WorldProjection,
+): WorldWeatherPresentation {
+  const latestWeatherSource = Object.values(projection.sourcesById)
+    .filter(
+      (source) =>
+        source.tags.some((tag) => tag.toLowerCase().includes('weather')) &&
+        source.location?.placeId === 'weather-tower' &&
+        source.sourceClass === 'official_primary' &&
+        !source.tags.some((tag) =>
+          ['context-only', 'real-world-proxy'].includes(tag.toLowerCase()),
+        ),
+    )
+    .sort((left, right) => {
+      const leftTime = left.observedAt ?? left.publishedAt ?? left.retrievedAt;
+      const rightTime = right.observedAt ?? right.publishedAt ?? right.retrievedAt;
+      return rightTime.localeCompare(leftTime);
+    })[0];
+  if (!latestWeatherSource) return weatherFromAmbientLayers(projection.worldManifest);
+
+  const searchable = [
+    latestWeatherSource.title,
+    latestWeatherSource.excerpt,
+    ...latestWeatherSource.tags,
+  ]
+    .join(' ')
+    .toLowerCase();
+  const state = weatherStateFromText(searchable);
+  const intensityByState: Record<WorldWeatherState, number> = {
+    clear: 0,
+    breezy: 0.42,
+    crosswind: 0.92,
+    rain: 0.78,
+    fog: 0.68,
+  };
+  const labelByState: Record<WorldWeatherState, string> = {
+    clear: 'Clear conditions',
+    breezy: 'Breezy conditions',
+    crosswind: 'Crosswind advisory',
+    rain: 'Rain over Meridian Coast',
+    fog: 'Fog over Meridian Coast',
+  };
+  return {
+    intensity: intensityByState[state],
+    label: labelByState[state],
+    observedAt:
+      latestWeatherSource.observedAt ??
+      latestWeatherSource.publishedAt ??
+      latestWeatherSource.retrievedAt,
+    sourceTitle: latestWeatherSource.title,
+    state,
+  };
+}
+
 export function createShellModel(projection: WorldProjection) {
   const latestForecast = selectLatestForecast(projection);
   const latestTeamForecast = [...projection.forecasts]
@@ -75,6 +144,7 @@ export function createShellModel(projection: WorldProjection) {
       .sort((left, right) => left.sequence - right.sequence)
       .map((turn) => [turn.missionId, turn]),
   );
+  const weather = weatherPresentationForProjection(projection);
 
   return {
     fixture,
@@ -172,7 +242,9 @@ export function createShellModel(projection: WorldProjection) {
     sceneDefinition: createWorldSceneDefinition(
       projection.worldManifest,
       fixture.agents.map((agent) => agentById[agent.id] ?? agent),
+      weather,
     ),
+    weather,
     signals: Object.values(projection.signalsById).map((signal) => {
       const sources = signal.sourceIds.flatMap((id) => {
         const source = projection.sourcesById[id];

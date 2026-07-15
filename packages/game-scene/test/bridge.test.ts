@@ -34,4 +34,28 @@ describe('world scene bridge', () => {
     expect(commandHandler).toHaveBeenCalledTimes(1);
     expect(eventHandler).toHaveBeenCalledTimes(1);
   });
+
+  it('keeps weather and choreography commands ordered as presentation-only messages', () => {
+    const bridge = createWorldSceneBridge();
+    const handler = vi.fn();
+    bridge.send({
+      type: 'weather.set',
+      weather: { intensity: 0.92, label: 'Crosswind advisory', state: 'crosswind' },
+    });
+    bridge.send({
+      type: 'presentation.play',
+      cue: {
+        id: 'cue-signal-1',
+        kind: 'signal',
+        label: 'Crosswind advisory overlaps launch window',
+        placeId: 'weather-tower',
+      },
+    });
+    bridge.connect(handler);
+
+    expect(handler.mock.calls.map(([command]) => command.type)).toEqual([
+      'weather.set',
+      'presentation.play',
+    ]);
+  });
 });
