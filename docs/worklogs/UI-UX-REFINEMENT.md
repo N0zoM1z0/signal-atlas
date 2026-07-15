@@ -2,7 +2,7 @@
 
 ## Status
 
-In progress on `feat/ui-ux-refinement`.
+Complete on `feat/ui-ux-refinement`.
 
 ## Goal
 
@@ -238,3 +238,42 @@ unstaged.
   all five changed workspaces; four non-visual Playwright journeys for Meeting, Forecast,
   Professor, and Source Inspector exited successfully. Full repository gates remain for
   completion.
+
+### Final simulated-user regression
+
+- Repeated the first-time, active-research, and keyboard/responsive journeys after integration.
+  Lobby entry, authored mission drafting, Archive and Replay at 200 percent reflow, Forecast
+  revision and duplicate prevention, Meeting exchange language, Professor history, and Source
+  Inspector disclosure all remained understandable and reachable.
+- The final review found two stale boundaries: the authored Professor fixture displayed four
+  selected records but cited only its two authored signals, and a desktop collapse test still ran
+  at the new 1280 px drawer boundary. The fixture now cites only explicitly selected sources linked
+  to its authored signals, and the default reference browser runs at 1440 x 900 while explicit
+  responsive tests continue to own 1280, 1024, 720, and zoom behavior.
+- Manually reviewed all changed visual states before accepting baselines: Lobby, the three authored
+  worlds, Archive, Meeting, Professor, Forecast Commit, Replay, Source Inspector, and the 1280 px
+  drawer layout. The world remains the dominant surface, primary actions are visible, and no new
+  clipping or overflow was accepted.
+
+## Completion validation
+
+- `pnpm format:check` - passed; all matched files use Prettier style.
+- `pnpm typecheck` - passed across all 11 workspace projects.
+- `pnpm lint` - passed with zero warnings.
+- `pnpm test` - passed; 57 test files and 308 tests.
+- `pnpm build` - passed; 24 schemas generated and both applications built. Vite retained its
+  existing advisory for chunks larger than 500 kB.
+- `pnpm test:e2e` - passed; 36 non-visual browser journeys in 3.7 minutes.
+- `pnpm test:visual` - passed independently after the reviewed baseline update; 12 visual journeys
+  in 1.2 minutes.
+- The long-running `@soak` profile was not run; it is excluded from the standard complete E2E gate
+  and this milestone did not change scheduler or stream longevity behavior.
+
+Reviewed reference images are stored in `tests/visual`, including
+`expedition-lobby-1440x900.png`, `world-shell-1440x900.png`, `world-shell-1280x800.png`,
+`archive-quarter-1440x900.png`, `lantern-square-meeting-1440x900.png`,
+`professor-study-1440x900.png`, `forecast-commit-1440x900.png`,
+`case-file-replay-1440x900.png`, and `signal-source-inspector-1440x900.png`.
+
+Fixture mode remains complete without Pref or Codex. No real-money trading, order placement,
+wallet, relayer, hosted authentication, telemetry, or write-capable Pref path was added.
