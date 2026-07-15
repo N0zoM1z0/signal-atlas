@@ -647,7 +647,16 @@ export class ExpeditionRuntime {
       task.remainingMs -= elapsedRealMs * speed;
       if (task.remainingMs > 0) continue;
       this.#workByAgentId.delete(task.agentId);
-      appended.push(...this.#completeScheduledWork(task, occurredAt));
+      try {
+        appended.push(...this.#completeScheduledWork(task, occurredAt));
+      } catch {
+        task.error = {
+          code: 'runtime_invalid_result',
+          message: 'The runtime rejected an invalid mission result before accepting evidence.',
+          recoverable: true,
+        };
+        appended.push(...this.#completeFailedScheduledWork(task, occurredAt));
+      }
     }
 
     this.#publishEvents(appended);
@@ -767,15 +776,28 @@ export class ExpeditionRuntime {
     if (!agent) throw new Error(`Cannot complete a turn for missing agent ${task.agentId}.`);
     const profile = getAgentRoleProfile(agent.role, agent.profileVersion);
     const appended: WorldEvent[] = [];
+    let plannedProjection = this.#projection;
     const emit = (label: string, type: WorldEvent['type'], payload: unknown) => {
-      const event = this.#appendSystemEvent(
-        `evt-${turn.turnId}-${label}`,
+      const event = parseWorldEvent({
+        id: `evt-${turn.turnId}-${label}`,
+        expeditionId: this.expeditionId,
+        sequence: plannedProjection.sequence + 1,
         type,
-        payload,
         occurredAt,
-        task.missionId,
-      );
+        recordedAt: occurredAt,
+        actor: { kind: 'system' },
+        causationId: task.missionId,
+        correlationId: task.missionId,
+        schemaVersion: SCHEMA_VERSION,
+        payload,
+      });
+      plannedProjection = reduceWorldEvent(plannedProjection, event);
       appended.push(event);
+    };
+    const commit = (): WorldEvent[] => {
+      this.#projection = plannedProjection;
+      this.#events = [...this.#events, ...appended];
+      return appended;
     };
 
     emit('pref-started', 'pref.call.started', {
@@ -817,15 +839,15 @@ export class ExpeditionRuntime {
         code,
         message,
       });
-      return appended;
+      return commit();
     }
 
     for (const source of turn.sources) {
-      if (!this.#projection.sourcesById[source.id]) {
+      if (!plannedProjection.sourcesById[source.id]) {
         const previousSourceId = source.supersedesSourceId;
-        if (previousSourceId && this.#projection.sourcesById[previousSourceId]) {
+        if (previousSourceId && plannedProjection.sourcesById[previousSourceId]) {
           emit(`source-${source.id}`, 'source.superseded', { previousSourceId, source });
-          for (const previousSignal of Object.values(this.#projection.signalsById)) {
+          for (const previousSignal of Object.values(plannedProjection.signalsById)) {
             if (
               previousSignal.status === 'stale' ||
               !previousSignal.sourceIds.includes(previousSourceId)
@@ -855,7 +877,7 @@ export class ExpeditionRuntime {
     }
     for (const signal of turn.signals) {
       if (signal.status === 'stale') {
-        for (const previousSignal of Object.values(this.#projection.signalsById)) {
+        for (const previousSignal of Object.values(plannedProjection.signalsById)) {
           if (
             previousSignal.id === signal.id ||
             previousSignal.status === 'stale' ||
@@ -869,7 +891,7 @@ export class ExpeditionRuntime {
           });
         }
       }
-      const existing = this.#projection.signalsById[signal.id];
+      const existing = plannedProjection.signalsById[signal.id];
       if (!existing) {
         emit(`signal-${signal.id}`, 'signal.created', { signal });
       } else if (signal.status === 'stale' && existing.status !== 'stale') {
@@ -884,7 +906,7 @@ export class ExpeditionRuntime {
       (signal) =>
         signal.direction !== 'context' &&
         signal.impact.probabilityPointRange !== undefined &&
-        !this.#projection.knowledgeByKey[knowledgeKey(task.agentId, 'signal', signal.id)],
+        !plannedProjection.knowledgeByKey[knowledgeKey(task.agentId, 'signal', signal.id)],
     );
     for (const [objectType, values] of [
       ['source', turn.sources],
@@ -892,7 +914,7 @@ export class ExpeditionRuntime {
       ['signal', turn.signals],
     ] as const) {
       for (const value of values) {
-        if (this.#projection.knowledgeByKey[knowledgeKey(task.agentId, objectType, value.id)]) {
+        if (plannedProjection.knowledgeByKey[knowledgeKey(task.agentId, objectType, value.id)]) {
           continue;
         }
         emit(`knowledge-${objectType}-${value.id}`, 'agent.knowledge.acquired', {
@@ -933,7 +955,7 @@ export class ExpeditionRuntime {
       missionId: task.missionId,
       completedAt: occurredAt,
     });
-    return appended;
+    return commit();
   }
 
   #beliefUpdate(task: ScheduledWork, occurredAt: string) {

@@ -112,9 +112,9 @@ export const AgentTurnOutputSchema = z
     sourceIdsUsed: z.array(EntityIdSchema),
     proposedClaims: z.array(ProposedClaimSchema),
     proposedSignals: z.array(ProposedSignalSchema),
-    rationale: z.string().min(1),
+    rationale: z.string().min(1).max(320),
     assumptions: z.array(z.string().min(1)),
-    unknowns: z.array(z.string().min(1)),
+    unknowns: z.array(z.string().min(1)).min(1).max(6),
     suggestedFollowUp: z
       .strictObject({
         verb: MissionVerbSchema,

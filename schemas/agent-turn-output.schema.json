@@ -12,6 +12,7 @@
       "type": "string"
     },
     "__schema10": {
+      "maxLength": 320,
       "minLength": 1,
       "type": "string"
     },
@@ -24,12 +25,17 @@
     },
     "__schema12": {
       "items": {
-        "minLength": 1,
-        "type": "string"
+        "$ref": "#/$defs/__schema13"
       },
+      "maxItems": 6,
+      "minItems": 1,
       "type": "array"
     },
     "__schema13": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "__schema14": {
       "additionalProperties": false,
       "properties": {
         "destinationPlaceId": {
@@ -369,7 +375,7 @@
       "$ref": "#/$defs/__schema6"
     },
     "suggestedFollowUp": {
-      "$ref": "#/$defs/__schema13"
+      "$ref": "#/$defs/__schema14"
     },
     "unknowns": {
       "$ref": "#/$defs/__schema12"

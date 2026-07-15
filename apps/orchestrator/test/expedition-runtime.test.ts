@@ -1,3 +1,5 @@
+import type { AgentTurnInput } from '@signal-atlas/contracts';
+import type { CodexDriver } from '@signal-atlas/codex-runtime';
 import { createHelios3ExpeditionFixture } from '@signal-atlas/test-fixtures';
 import { describe, expect, it } from 'vitest';
 
@@ -7,6 +9,10 @@ import {
   ReplaySequenceError,
 } from '../src/expedition-runtime.js';
 import { interpretFixtureMission } from '../src/fixture-mission-interpreter.js';
+import {
+  createScriptedFixtureTurn,
+  type ScriptedFixtureTurn,
+} from '../src/fixture-mission-driver.js';
 
 const issuedAt = '2027-09-26T18:32:00Z';
 
@@ -871,5 +877,79 @@ describe('ExpeditionRuntime commands', () => {
       'agent.mission.completed',
     ]);
     expect(runtime.snapshot().signalsById).toEqual({});
+  });
+
+  it('commits no partial evidence when a late event in an async turn is invalid', async () => {
+    const fixture = createHelios3ExpeditionFixture();
+    const missionDriver: CodexDriver<AgentTurnInput, ScriptedFixtureTurn> = {
+      id: 'invalid-late-artifact-driver',
+      kind: 'local_exec',
+      async runTurn(input) {
+        const turn = createScriptedFixtureTurn(fixture, {
+          mission: input.mission,
+          effectivePlaceId: input.effectivePlaceId,
+          attempt: input.attempt,
+          scenario: 'success',
+          turnId: input.turnId,
+        });
+        turn.dialogue = 'x'.repeat(401);
+        return {
+          output: {
+            schemaVersion: 1,
+            agentId: input.agentId,
+            missionId: input.mission.id,
+            action: { type: 'wait', reason: 'The test driver returns a bounded action.' },
+            publicDialogue: 'The public output is valid before artifact materialization.',
+            sourceIdsUsed: [],
+            proposedClaims: [],
+            proposedSignals: [],
+            rationale: 'Exercise atomic validation of a late dialogue event.',
+            assumptions: [],
+            unknowns: ['The invalid artifact must never partially commit.'],
+          },
+          artifacts: turn,
+        };
+      },
+      diagnostics() {
+        return {
+          id: this.id,
+          kind: this.kind,
+          available: true,
+          description: 'Test driver with an invalid late artifact.',
+          runs: 1,
+        };
+      },
+    };
+    const runtime = new ExpeditionRuntime(fixture, { missionDriver });
+    runtime.submit(assignmentCommand());
+    runtime.submit(skipWeatherCommand());
+    await runtime.waitForRuntimeIdle();
+    const beforeSequence = runtime.snapshot().sequence;
+
+    const events = runtime.advance(1, '2027-09-26T18:32:03.400Z');
+    const projection = runtime.snapshot();
+
+    expect(events.map((event) => event.type)).toEqual([
+      'agent.dialogue.emitted',
+      'agent.turn.failed',
+      'agent.mission.failed',
+    ]);
+    expect(projection.sequence).toBe(beforeSequence + 3);
+    expect(projection.sourcesById).toEqual({});
+    expect(projection.claimsById).toEqual({});
+    expect(projection.signalsById).toEqual({});
+    expect(Object.keys(projection.knowledgeByKey)).toEqual([]);
+    expect(projection.missionsById['mission-mira-weather-1']).toMatchObject({
+      status: 'failed',
+    });
+    expect(projection.agentTurnsById['turn-mission-mira-weather-1-1']).toMatchObject({
+      status: 'failed',
+      code: 'runtime_invalid_result',
+    });
+    const serialized = JSON.stringify({
+      events: runtime.eventsAfter(0),
+      caseFile: runtime.caseFile(),
+    });
+    expect(serialized).not.toContain('x'.repeat(401));
   });
 });
