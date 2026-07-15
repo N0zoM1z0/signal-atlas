@@ -62,7 +62,7 @@ async function reachResolvedReplay(page: Page) {
 
 test('resolved replay scrubs to evidence entry, verifies score, and exports public provenance', async ({
   page,
-}) => {
+}, testInfo) => {
   const replay = await reachResolvedReplay(page);
   const projection = replay.getByRole('region', { name: 'Selected world projection' });
   const forecastPath = replay.getByRole('region', { name: 'Forecast and score timeline' });
@@ -70,6 +70,12 @@ test('resolved replay scrubs to evidence entry, verifies score, and exports publ
 
   await expect(projection).toContainText('Final projection hash · verified');
   await expect(projection.locator('code')).toContainText(/^sha256:/u);
+  const verifiedProjectionHash = (await projection.locator('code').textContent())?.trim();
+  expect(verifiedProjectionHash).toMatch(/^sha256:[a-f0-9]{64}$/u);
+  await testInfo.attach('authoritative-replay-hash.txt', {
+    body: `${verifiedProjectionHash}\n`,
+    contentType: 'text/plain',
+  });
   await expect(forecastPath).toContainText('0.4608 Brier score');
   await expect(forecastPath).toContainText(publicRationale);
 
@@ -107,8 +113,16 @@ test('resolved replay scrubs to evidence entry, verifies score, and exports publ
   };
   expect(exported).toMatchObject({
     kind: 'signal-atlas.case-file',
-    finalProjectionHash: expect.stringMatching(/^sha256:/u),
+    finalProjectionHash: expect.stringMatching(/^sha256:[a-f0-9]{64}$/u),
   });
+  expect(exported.finalProjectionHash).not.toBe(verifiedProjectionHash);
+  await testInfo.attach('public-export-replay-hash.txt', {
+    body: `${exported.finalProjectionHash}\n`,
+    contentType: 'text/plain',
+  });
+  process.stdout.write(
+    `REPLAY_HASHES ${JSON.stringify({ authoritative: verifiedProjectionHash, publicExport: exported.finalProjectionHash })}\n`,
+  );
   expect(exported.sources).toHaveLength(1);
   expect(exported.claims).toHaveLength(1);
   expect(exported.signals).toHaveLength(1);
