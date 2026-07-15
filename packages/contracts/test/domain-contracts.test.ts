@@ -328,6 +328,92 @@ describe('event, command, and agent-turn envelopes', () => {
     ).toBe(false);
   });
 
+  it('accepts only bounded source-linked current-turn evidence at an allowed place capability', () => {
+    const mission = {
+      id: 'mission-current-evidence',
+      expeditionId: canonicalFixture.expedition.id,
+      assignedAgentId: 'mira',
+      verb: 'investigate' as const,
+      objective: 'Inspect the current bounded source result.',
+      destinationPlaceId: 'newsroom',
+      budget: { maxToolCalls: 1, timeoutMs: 30_000 },
+      status: 'running' as const,
+      createdBy: { kind: 'player' as const },
+      createdAt: '2027-09-26T18:00:00Z',
+      startedAt: '2027-09-26T18:00:01Z',
+    };
+    const source = structuredClone(canonicalFixture.sources[0]!);
+    delete source.structuredData;
+    if (source.excerpt) source.excerpt = source.excerpt.slice(0, 1_200);
+    const input = {
+      schemaVersion: 1 as const,
+      turnId: 'turn-current-evidence',
+      expeditionId: mission.expeditionId,
+      agentId: mission.assignedAgentId,
+      mission,
+      effectivePlaceId: 'newsroom',
+      attempt: 1,
+      knownSourceIds: [],
+      knownSignalIds: [],
+      allowedCapabilities: ['search_sources'],
+      currentTurnEvidence: {
+        capability: 'search_sources',
+        callId: 'pref-current-evidence',
+        argumentsHash: 'a'.repeat(64),
+        retrievedAt: '2027-09-26T18:00:02Z',
+        durationMs: 120,
+        cacheStatus: 'miss' as const,
+        sources: [source],
+        facts: [
+          {
+            kind: 'article_match',
+            sourceIds: [source.id],
+            statement: 'The bounded current-turn record reports a relevant update.',
+            attributes: { publishedAt: source.publishedAt ?? null },
+          },
+        ],
+      },
+      requestedAt: mission.startedAt,
+      timeoutMs: mission.budget.timeoutMs,
+    };
+
+    expect(AgentTurnInputSchema.safeParse(input).success).toBe(true);
+    expect(
+      AgentTurnInputSchema.safeParse({
+        ...input,
+        currentTurnEvidence: {
+          ...input.currentTurnEvidence,
+          facts: [
+            {
+              ...input.currentTurnEvidence.facts[0],
+              sourceIds: ['src-not-in-packet'],
+            },
+          ],
+        },
+      }).success,
+    ).toBe(false);
+    expect(
+      AgentTurnInputSchema.safeParse({
+        ...input,
+        allowedCapabilities: ['local_conditions'],
+      }).success,
+    ).toBe(false);
+    expect(
+      AgentTurnInputSchema.safeParse({
+        ...input,
+        currentTurnEvidence: {
+          ...input.currentTurnEvidence,
+          sources: [
+            {
+              ...source,
+              rights: { display: 'metadata_only' as const },
+            },
+          ],
+        },
+      }).success,
+    ).toBe(false);
+  });
+
   it('requires event-stream batches to remain contiguous and expedition-scoped', () => {
     const events = canonicalFixture.initialEvents;
     const valid = {

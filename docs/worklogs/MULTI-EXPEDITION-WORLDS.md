@@ -45,6 +45,12 @@ In progress.
   distinguish strict Resolution/FRED schemas from Polymarket's open output. A proxy-enabled hosted
   Resolution call then passed in about 10.2 seconds with three unique metadata-only sources and a
   50-sample aggregate, so only `search_resolution_history` advances to enabled status.
+- `c5b06d4` committed the provider-neutral result adapters, enabled the live-gated Resolution
+  candidate, deduplicated canonical capability diagnostics, and recorded the remaining provider
+  deployment/contract gaps. The current agent-routing milestone adds an optional bounded
+  current-turn evidence packet, explicit place/verb route policy, canonical evidence-fact
+  projection, real local-Codex synthesis, deterministic claim/signal materialization, and an honest
+  retrieval-only fallback when no validated agent interpretation cites the retrieved sources.
 - Focused validation after the first two commits: contracts 18/18, simulation 34/34, codex-runtime
   25/25, game-scene 13/13, archive 4/4, web 19/19, orchestrator 95/95, and repository lint with zero
   warnings. Persistence milestone validation currently passes contracts 19/19, world-content 2/2,
@@ -57,7 +63,14 @@ In progress.
   tests, including both synchronous-compatible task policies and fail-closed task-policy drift.
   GDELT enablement keeps the complete gateway suite green; the canonical adapter foundation
   currently passes 54 focused gateway tests, orchestrator 106/106, full-workspace typecheck, and
-  repository lint with zero warnings.
+  repository lint with zero warnings. Current-turn evidence routing passes 20 contract tests, 27
+  Codex-runtime tests, 16 focused orchestrator routing/local-agent tests, and the orchestrator
+  typecheck after rebuilding its workspace dependencies.
+- A bounded live end-to-end smoke used the ignored local credential through the already
+  proxy-enabled demo process. The authoritative mission completed with one fresh metadata-only
+  `local_conditions` source, one real resumed `scout.v1` Codex turn, one accepted deterministic
+  claim/signal pair, and no runtime failure or belief/forecast mutation. Public audit events retained
+  only the canonical capability; the provider primitive remained confined to source provenance.
 
 ## Goal
 

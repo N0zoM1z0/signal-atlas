@@ -122,6 +122,66 @@ describe('bounded knowledge packets', () => {
     expect(JSON.stringify(packet)).not.toContain('sig-archive');
   });
 
+  it('includes bounded current-turn facts only when every cited source is present', () => {
+    const packet = buildKnowledgePacket({
+      sources: [currentSource, archiveSource],
+      signals: [],
+      knownSourceIds: [],
+      knownSignalIds: [],
+      currentTurnSourceIds: [currentSource.id],
+      currentTurnEvidenceFacts: [
+        {
+          kind: 'article_match',
+          sourceIds: [currentSource.id],
+          statement: 'A bounded current-turn sentence.',
+          attributes: { language: 'English' },
+        },
+        {
+          kind: 'ungranted_fact',
+          sourceIds: [archiveSource.id],
+          statement: 'This fact must not leave the knowledge boundary.',
+          attributes: {},
+        },
+      ],
+    });
+
+    expect(packet.evidenceFacts).toEqual([
+      {
+        kind: 'article_match',
+        sourceIds: [currentSource.id],
+        statement: 'A bounded current-turn sentence.',
+        attributes: { language: 'English' },
+      },
+    ]);
+    expect(JSON.stringify(packet)).not.toContain('ungranted_fact');
+  });
+
+  it('prioritizes a complete bounded current-turn source set over older known records', () => {
+    const currentSources = Array.from({ length: 13 }, (_, index) =>
+      source(`src-current-${index.toString().padStart(2, '0')}`, 'secondary'),
+    );
+    const olderKnownSource = source('src-known-older', 'secondary');
+    const packet = buildKnowledgePacket({
+      sources: [olderKnownSource, ...currentSources],
+      signals: [],
+      knownSourceIds: [olderKnownSource.id],
+      knownSignalIds: [],
+      currentTurnSourceIds: currentSources.map(({ id }) => id),
+      currentTurnEvidenceFacts: [
+        {
+          kind: 'resolution_history',
+          sourceIds: currentSources.map(({ id }) => id),
+          statement: 'One bounded aggregate linked to every current reference-class source.',
+          attributes: { total: currentSources.length },
+        },
+      ],
+    });
+
+    expect(packet.sources.map(({ id }) => id)).toEqual(currentSources.map(({ id }) => id));
+    expect(packet.evidenceFacts).toHaveLength(1);
+    expect(packet.omitted.sources).toBe(1);
+  });
+
   it('reveals archive evidence only through an explicit, inspectable grant', () => {
     const packet = buildKnowledgePacket({
       sources: [currentSource, archiveSource],

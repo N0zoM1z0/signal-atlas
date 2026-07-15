@@ -1,11 +1,12 @@
 import { writeFileSync } from 'node:fs';
 
-import type { AgentTurnOutput } from '@signal-atlas/contracts';
+import type { AgentTurnInput, AgentTurnOutput } from '@signal-atlas/contracts';
 import {
   CodexDriverError,
   type CodexProcessRequest,
   type CodexProcessResult,
 } from '@signal-atlas/codex-runtime';
+import { normalizePrefRawResult } from '@signal-atlas/pref-gateway';
 import { createHelios3ExpeditionFixture } from '@signal-atlas/test-fixtures';
 import { describe, expect, it } from 'vitest';
 
@@ -160,6 +161,151 @@ describe('local Codex world integration', () => {
     });
     expect(JSON.stringify(schema)).not.toContain('"yes"');
     expect(JSON.stringify(schema)).not.toContain('"no"');
+  });
+
+  it('materializes current-turn Pref evidence through the real local-agent boundary', async () => {
+    const fixture = createHelios3ExpeditionFixture();
+    const source = normalizePrefRawResult(
+      {
+        primitive: 'tool',
+        primitiveName: 'gdelt.gdelt_search',
+        externalId: 'https://example.test/readiness-review',
+        uri: 'https://example.test/readiness-review',
+        title: 'Readiness review remains scheduled',
+        publisher: 'Example Newswire',
+        sourceClass: 'secondary',
+        publishedAt: '2026-07-14T23:00:00.000Z',
+        mediaType: 'text/html',
+        payload: { privateProviderShape: 'must-not-enter-the-prompt' },
+        rights: { display: 'metadata_only' },
+        tags: ['article-search', 'gdelt'],
+      },
+      {
+        config: {
+          serverName: 'pref',
+          transport: 'streamable_http',
+          readOnly: true,
+          allowCapabilities: ['search_sources'],
+          timeoutMs: 10_000,
+          maxResponseBytes: 100_000,
+          maxCallsPerMission: 3,
+          cacheMode: 'metadata_only',
+        },
+        callId: 'call-current-turn-1',
+        argumentsHash: 'a'.repeat(64),
+        responseHash: 'b'.repeat(64),
+        retrievedAt: '2026-07-15T00:00:00.000Z',
+      },
+    );
+    const input: AgentTurnInput = {
+      schemaVersion: 1,
+      turnId: 'turn-current-pref-1',
+      expeditionId: fixture.expedition.id,
+      agentId: 'mira',
+      mission: {
+        id: 'mission-mira-local-weather-1',
+        expeditionId: fixture.expedition.id,
+        assignedAgentId: 'mira',
+        verb: 'investigate',
+        objective: 'Review recent reporting about operational readiness.',
+        destinationPlaceId: 'newsroom',
+        budget: { maxToolCalls: 1, timeoutMs: 10_000 },
+        status: 'running',
+        createdBy: { kind: 'player' },
+        createdAt: '2026-07-15T00:00:00.000Z',
+        startedAt: '2026-07-15T00:00:01.000Z',
+      },
+      effectivePlaceId: 'newsroom',
+      attempt: 1,
+      knownSourceIds: [],
+      knownSignalIds: [],
+      allowedCapabilities: ['search_sources'],
+      requestedAt: '2026-07-15T00:00:01.000Z',
+      timeoutMs: 10_000,
+      currentTurnEvidence: {
+        capability: 'search_sources',
+        callId: 'call-current-turn-1',
+        argumentsHash: 'a'.repeat(64),
+        retrievedAt: '2026-07-15T00:00:00.000Z',
+        durationMs: 17,
+        cacheStatus: 'miss',
+        sources: [source],
+        facts: [
+          {
+            kind: 'article_match',
+            sourceIds: [source.id],
+            statement: 'The operator said the readiness review remains scheduled for Friday.',
+            attributes: { publishedAt: '2026-07-14T23:00:00.000Z' },
+          },
+        ],
+      },
+    };
+    const modelOutput: AgentTurnOutput = {
+      ...validOutput(source.id),
+      action: {
+        type: 'investigate',
+        capability: 'search_sources',
+        query: input.mission.objective,
+      },
+      proposedClaims: [
+        {
+          text: 'A current report says the readiness review remains scheduled.',
+          sourceIds: [source.id],
+          qualifiers: ['single secondary report'],
+        },
+      ],
+      proposedSignals: [
+        {
+          headline: 'Readiness review remains scheduled',
+          summary: 'One recent report describes the review as still scheduled.',
+          claimIndexes: [0],
+          sourceIds: [source.id],
+          direction: 'context',
+          impactLabel: 'small',
+        },
+      ],
+    };
+    const requests: CodexProcessRequest[] = [];
+    const driver = createConfiguredMissionDriver(fixture, () => 'success', {
+      mode: 'local',
+      executable: '/test/bin/codex',
+      processRunner: processRunner([JSON.stringify(modelOutput)], requests),
+      isAvailable: () => true,
+    });
+
+    const turn = await driver.runTurn(input, {
+      signal: new AbortController().signal,
+      deadlineAt: '2026-07-15T00:00:11.000Z',
+      emit: () => undefined,
+    });
+
+    expect(requests).toHaveLength(1);
+    expect(requests[0]?.stdin).toContain(source.id);
+    expect(requests[0]?.stdin).toContain(
+      'The operator said the readiness review remains scheduled for Friday.',
+    );
+    expect(requests[0]?.stdin).not.toContain('must-not-enter-the-prompt');
+    expect(turn.artifacts).toMatchObject({
+      scenario: 'success',
+      capability: 'search_sources',
+      callId: 'call-current-turn-1',
+      sources: [{ id: source.id }],
+      claims: [{ sourceIds: [source.id] }],
+      signals: [
+        {
+          sourceIds: [source.id],
+          direction: 'context',
+          impact: { label: 'small' },
+          reliability: {
+            reasons: expect.arrayContaining([
+              'No deterministic impact range was assigned from model output.',
+            ]),
+          },
+        },
+      ],
+    });
+    expect(turn.artifacts?.signals[0]?.impact).not.toHaveProperty('probabilityPointRange');
+    expect(turn.artifacts?.claims[0]?.id).toMatch(/^claim-codex-[a-f0-9]{24}$/u);
   });
 
   it('lets Mira complete a bounded fixture mission through asynchronous local Codex', async () => {

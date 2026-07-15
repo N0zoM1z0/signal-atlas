@@ -1,13 +1,15 @@
 import type {
   AgentTurnInput,
+  AgentTurnOutput,
   ExpeditionFixture,
   Mission,
   SourceRecord,
 } from '@signal-atlas/contracts';
-import type { CodexDriverContext } from '@signal-atlas/codex-runtime';
+import type { CodexDriver, CodexDriverContext } from '@signal-atlas/codex-runtime';
 import {
   normalizePrefRawResult,
   type PrefCallContext,
+  type PrefCanonicalCapability,
   type PrefCapabilityDescriptor,
   type PrefCapabilityResult,
   type PrefGateway,
@@ -21,9 +23,13 @@ import { createHelios3ExpeditionFixture } from '@signal-atlas/test-fixtures';
 import { describe, expect, it } from 'vitest';
 
 import { ExpeditionRuntime } from '../src/expedition-runtime.js';
-import { createFixtureCodexDriver } from '../src/fixture-mission-driver.js';
+import {
+  createFixtureCodexDriver,
+  type ScriptedFixtureTurn,
+} from '../src/fixture-mission-driver.js';
 import {
   createPrefAgentProxyDriver,
+  resolvePrefMissionRoute,
   resolvePrefWeatherProxyConfiguration,
 } from '../src/pref-agent-proxy-driver.js';
 
@@ -130,10 +136,15 @@ function capabilityResult(
 class QueueGateway implements PrefGateway {
   readonly calls: Array<{ capability: string; input: unknown; context: PrefCallContext }> = [];
   readonly #results: PrefCapabilityResult[];
+  readonly #allowCapabilities: PrefCanonicalCapability[];
   #connected = false;
 
-  constructor(results: PrefCapabilityResult[]) {
+  constructor(
+    results: PrefCapabilityResult[],
+    allowCapabilities: PrefCanonicalCapability[] = ['local_conditions'],
+  ) {
     this.#results = [...results];
+    this.#allowCapabilities = [...allowCapabilities];
   }
 
   async connect(): Promise<void> {
@@ -186,13 +197,66 @@ class QueueGateway implements PrefGateway {
       transport: 'streamable_http',
       connected: this.#connected,
       readOnly: true,
-      allowCapabilities: ['local_conditions'],
+      allowCapabilities: [...this.#allowCapabilities],
       limits: { timeoutMs: 10_000, maxResponseBytes: 100_000, maxCallsPerMission: 3 },
       calls: this.calls.length,
       completed: this.calls.length,
       failed: 0,
     };
   }
+}
+
+function articleResult(callId = 'call-gdelt-1'): PrefCapabilityResult {
+  const retrievedAt = '2026-07-15T00:00:00.000Z';
+  const source = normalizePrefRawResult(
+    {
+      primitive: 'tool',
+      primitiveName: 'gdelt.gdelt_search',
+      externalId: 'https://example.test/helios-readiness-review',
+      uri: 'https://example.test/helios-readiness-review',
+      title: 'Helios readiness review remains scheduled',
+      publisher: 'Example Newswire',
+      sourceClass: 'secondary',
+      publishedAt: '2026-07-14T23:00:00.000Z',
+      mediaType: 'text/html',
+      payload: { result: 'bounded search match' },
+      rights: {
+        display: 'metadata_only',
+        notes: 'Article content display rights were not asserted.',
+      },
+      tags: ['article-search', 'gdelt', 'live'],
+    },
+    {
+      config: {
+        ...sourceConfig,
+        allowCapabilities: ['search_sources'],
+      },
+      callId,
+      argumentsHash: 'd'.repeat(64),
+      responseHash: 'e'.repeat(64),
+      retrievedAt,
+    },
+  );
+  return {
+    callId,
+    capability: 'search_sources',
+    sources: [source],
+    evidence: [
+      {
+        kind: 'article_match',
+        sourceId: source.id,
+        matchedSentence: 'The operator said the readiness review remains scheduled for Friday.',
+        publishedAt: '2026-07-14T23:00:00.000Z',
+      },
+    ],
+    argumentsHash: 'd'.repeat(64),
+    responseHash: 'e'.repeat(64),
+    retrievedAt,
+    durationMs: 18,
+    responseBytes: 768,
+    fromCache: false,
+    cache: { status: 'miss' },
+  };
 }
 
 function mission(id = 'mission-live-pref-1', agentId = 'mira'): Mission {
@@ -277,6 +341,204 @@ async function finishAsyncTurn(runtime: ExpeditionRuntime, occurredAt: string): 
 }
 
 describe('Pref agent proxy driver', () => {
+  it('selects only explicitly authored provider-neutral mission routes', () => {
+    const fixture = createHelios3ExpeditionFixture();
+    const input = turnInput(fixture);
+    input.effectivePlaceId = 'newsroom';
+    input.mission.verb = 'investigate';
+    input.mission.objective = 'Find recent reporting about the Helios readiness review.';
+    input.mission.destinationPlaceId = 'newsroom';
+    input.allowedCapabilities = ['search_sources'];
+
+    expect(resolvePrefMissionRoute(fixture, input, ['search_sources'])).toBeUndefined();
+
+    const newsroom = fixture.worldManifest.places.find(({ id }) => id === 'newsroom');
+    const searchBinding = newsroom?.capabilityBindings.find(
+      ({ canonicalCapability }) => canonicalCapability === 'search_sources',
+    );
+    if (!searchBinding) throw new Error('The fixture newsroom search binding is missing.');
+    searchBinding.configuration = {
+      missionVerbs: ['investigate'],
+      queryMode: 'mission_objective',
+      limit: 2,
+    };
+
+    expect(resolvePrefMissionRoute(fixture, input, ['search_sources'])).toEqual({
+      capability: 'search_sources',
+      input: {
+        query: 'Find recent reporting about the Helios readiness review.',
+        limit: 2,
+      },
+    });
+
+    const archive = fixture.worldManifest.places.find(({ id }) => id === 'archive');
+    archive?.capabilityBindings.push({
+      canonicalCapability: 'search_resolution_history',
+      configuration: {
+        missionVerbs: ['search_history'],
+        referenceClass: 'rocket_maiden_flight',
+        outcome: 'NO',
+        limit: 3,
+      },
+    });
+    input.effectivePlaceId = 'archive';
+    input.mission.verb = 'search_history';
+    input.mission.destinationPlaceId = 'archive';
+    input.allowedCapabilities = ['search_resolution_history'];
+
+    expect(resolvePrefMissionRoute(fixture, input, ['search_resolution_history'])).toEqual({
+      capability: 'search_resolution_history',
+      input: { referenceClass: 'rocket_maiden_flight', outcome: 'NO', limit: 3 },
+    });
+  });
+
+  it('delegates bounded canonical Pref evidence to an agent turn', async () => {
+    const fixture = createHelios3ExpeditionFixture();
+    const newsroom = fixture.worldManifest.places.find(({ id }) => id === 'newsroom');
+    const searchBinding = newsroom?.capabilityBindings.find(
+      ({ canonicalCapability }) => canonicalCapability === 'search_sources',
+    );
+    if (!searchBinding) throw new Error('The fixture newsroom search binding is missing.');
+    searchBinding.configuration = {
+      missionVerbs: ['investigate'],
+      queryMode: 'mission_objective',
+      limit: 2,
+    };
+    const input = turnInput(fixture);
+    input.effectivePlaceId = 'newsroom';
+    input.mission.verb = 'investigate';
+    input.mission.objective = 'Find recent reporting about the Helios readiness review.';
+    input.mission.destinationPlaceId = 'newsroom';
+    input.allowedCapabilities = ['search_sources'];
+    const result = articleResult();
+    const source = result.sources[0];
+    if (!source) throw new Error('The article fixture did not produce a source.');
+    const receivedInputs: AgentTurnInput[] = [];
+    const output: AgentTurnOutput = {
+      schemaVersion: 1,
+      agentId: input.agentId,
+      missionId: input.mission.id,
+      action: {
+        type: 'investigate',
+        capability: 'search_sources',
+        query: input.mission.objective,
+      },
+      publicDialogue: 'The current report says the readiness review remains scheduled.',
+      sourceIdsUsed: [source.id],
+      proposedClaims: [
+        {
+          text: 'A current report says the readiness review remains scheduled.',
+          sourceIds: [source.id],
+          qualifiers: ['single secondary report'],
+        },
+      ],
+      proposedSignals: [
+        {
+          headline: 'Readiness review remains scheduled',
+          summary: 'One recent report describes the review as still scheduled.',
+          claimIndexes: [0],
+          sourceIds: [source.id],
+          direction: 'context',
+          impactLabel: 'unknown',
+        },
+      ],
+      rationale: 'Used only the bounded current-turn article match.',
+      assumptions: [],
+      unknowns: ['The report does not establish the market outcome.'],
+    };
+    const fallback: CodexDriver<AgentTurnInput, ScriptedFixtureTurn> = {
+      id: 'recording-local-agent',
+      kind: 'local_exec',
+      diagnostics: () => ({
+        id: 'recording-local-agent',
+        kind: 'local_exec',
+        available: true,
+        description: 'Test agent boundary.',
+        runs: receivedInputs.length,
+      }),
+      runTurn: (delegatedInput) => {
+        receivedInputs.push(structuredClone(delegatedInput));
+        return {
+          output,
+          artifacts: {
+            scenario: 'success',
+            scriptKey: 'mira:pref:search_sources:newsroom',
+            attempt: input.attempt,
+            latencyMs: 24,
+            callId: result.callId,
+            turnId: input.turnId,
+            capability: 'search_sources',
+            argumentsHash: result.argumentsHash,
+            sources: [source],
+            claims: [],
+            signals: [],
+            dialogue: output.publicDialogue,
+          },
+        };
+      },
+    };
+    const gateway = new QueueGateway([result], ['search_sources']);
+    const driver = createPrefAgentProxyDriver({ fixture, gateway, fallback });
+
+    const turn = await driver.runTurn(input, driverContext());
+
+    expect(gateway.calls[0]).toMatchObject({
+      capability: 'search_sources',
+      input: { query: input.mission.objective, limit: 2 },
+    });
+    expect(receivedInputs).toHaveLength(1);
+    expect(receivedInputs[0]?.currentTurnEvidence).toMatchObject({
+      capability: 'search_sources',
+      callId: result.callId,
+      sources: [{ id: source.id }],
+      facts: [
+        {
+          kind: 'article_match',
+          sourceIds: [source.id],
+          statement: 'The operator said the readiness review remains scheduled for Friday.',
+        },
+      ],
+    });
+    expect(turn.output.sourceIdsUsed).toEqual([source.id]);
+    expect(turn.artifacts?.capability).toBe('search_sources');
+  });
+
+  it('records retrieved sources without accepting an unrelated scripted answer', async () => {
+    const fixture = createHelios3ExpeditionFixture();
+    const newsroom = fixture.worldManifest.places.find(({ id }) => id === 'newsroom');
+    const searchBinding = newsroom?.capabilityBindings.find(
+      ({ canonicalCapability }) => canonicalCapability === 'search_sources',
+    );
+    if (!searchBinding) throw new Error('The fixture newsroom search binding is missing.');
+    searchBinding.configuration = {
+      missionVerbs: ['investigate'],
+      queryMode: 'mission_objective',
+      limit: 1,
+    };
+    const input = turnInput(fixture);
+    input.effectivePlaceId = 'newsroom';
+    input.mission.verb = 'investigate';
+    input.mission.destinationPlaceId = 'newsroom';
+    input.allowedCapabilities = ['search_sources'];
+    const result = articleResult('call-gdelt-retrieval-only');
+    const driver = createPrefAgentProxyDriver({
+      fixture,
+      gateway: new QueueGateway([result], ['search_sources']),
+      fallback: createFixtureCodexDriver(fixture, () => 'success'),
+    });
+
+    const turn = await driver.runTurn(input, driverContext());
+
+    expect(turn.output.action.type).toBe('wait');
+    expect(turn.output.sourceIdsUsed).toEqual([]);
+    expect(turn.artifacts).toMatchObject({
+      capability: 'search_sources',
+      sources: [{ id: result.sources[0]?.id }],
+      claims: [],
+      signals: [],
+    });
+  });
+
   it('materializes a live source, claim, and non-directional signal through the agent boundary', async () => {
     const fixture = createHelios3ExpeditionFixture();
     const source = liveSource('call-live-pref-1', 'Heavy rain', 24.1);
@@ -311,7 +573,7 @@ describe('Pref agent proxy driver', () => {
       ],
     });
     expect(turn.artifacts).toMatchObject({
-      capability: 'weather.get_current_conditions',
+      capability: 'local_conditions',
       sources: [{ id: source.id }],
       claims: [
         {
@@ -454,7 +716,7 @@ describe('Pref agent proxy driver', () => {
         expect.objectContaining({
           type: 'pref.call.started',
           payload: expect.objectContaining({
-            capability: 'weather.get_current_conditions',
+            capability: 'local_conditions',
           }),
         }),
       ]),

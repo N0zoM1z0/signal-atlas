@@ -74,9 +74,44 @@
       "type": "string"
     },
     "__schema19": {
-      "exclusiveMinimum": 0,
-      "maximum": 120000,
-      "type": "integer"
+      "additionalProperties": false,
+      "properties": {
+        "argumentsHash": {
+          "$ref": "#/$defs/__schema21"
+        },
+        "cacheStatus": {
+          "$ref": "#/$defs/__schema23"
+        },
+        "callId": {
+          "$ref": "#/$defs/__schema1"
+        },
+        "capability": {
+          "$ref": "#/$defs/__schema20"
+        },
+        "durationMs": {
+          "$ref": "#/$defs/__schema22"
+        },
+        "facts": {
+          "$ref": "#/$defs/__schema42"
+        },
+        "retrievedAt": {
+          "$ref": "#/$defs/__schema11"
+        },
+        "sources": {
+          "$ref": "#/$defs/__schema24"
+        }
+      },
+      "required": [
+        "capability",
+        "callId",
+        "argumentsHash",
+        "retrievedAt",
+        "durationMs",
+        "cacheStatus",
+        "sources",
+        "facts"
+      ],
+      "type": "object"
     },
     "__schema2": {
       "enum": [
@@ -93,13 +128,289 @@
       ],
       "type": "string"
     },
+    "__schema20": {
+      "maxLength": 120,
+      "minLength": 1,
+      "type": "string"
+    },
+    "__schema21": {
+      "pattern": "^[a-f0-9]{64}$",
+      "type": "string"
+    },
+    "__schema22": {
+      "maximum": 120000,
+      "minimum": 0,
+      "type": "integer"
+    },
+    "__schema23": {
+      "enum": [
+        "miss",
+        "fresh",
+        "stale"
+      ],
+      "type": "string"
+    },
+    "__schema24": {
+      "items": {
+        "$ref": "#/$defs/https://signal-atlas.local/schemas/source-record.schema.json"
+      },
+      "maxItems": 20,
+      "type": "array"
+    },
+    "__schema25": {
+      "exclusiveMinimum": 0,
+      "maximum": 9007199254740991,
+      "type": "integer"
+    },
+    "__schema26": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "__schema27": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "__schema28": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "__schema29": {
+      "minLength": 1,
+      "type": "string"
+    },
     "__schema3": {
       "maxLength": 1000,
       "minLength": 1,
       "type": "string"
     },
+    "__schema30": {
+      "enum": [
+        "official_primary",
+        "primary",
+        "secondary",
+        "commentary",
+        "sensor",
+        "market",
+        "archive",
+        "user_supplied"
+      ],
+      "type": "string"
+    },
+    "__schema31": {
+      "$ref": "#/$defs/__schema11"
+    },
+    "__schema32": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/__schema11"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "__schema33": {
+      "additionalProperties": false,
+      "properties": {
+        "label": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "latitude": {
+          "maximum": 90,
+          "minimum": -90,
+          "type": "number"
+        },
+        "longitude": {
+          "maximum": 180,
+          "minimum": -180,
+          "type": "number"
+        },
+        "placeId": {
+          "$ref": "#/$defs/__schema1"
+        }
+      },
+      "type": "object"
+    },
+    "__schema34": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "__schema35": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "__schema36": {},
+    "__schema37": {
+      "pattern": "^[a-f0-9]{64}$",
+      "type": "string"
+    },
+    "__schema38": {
+      "additionalProperties": false,
+      "properties": {
+        "argumentsHash": {
+          "$ref": "#/$defs/__schema37"
+        },
+        "callId": {
+          "$ref": "#/$defs/__schema1"
+        },
+        "primitive": {
+          "enum": [
+            "tool",
+            "resource",
+            "prompt",
+            "fixture"
+          ],
+          "type": "string"
+        },
+        "primitiveName": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "responseHash": {
+          "$ref": "#/$defs/__schema37"
+        },
+        "serverName": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "transport": {
+          "enum": [
+            "stdio",
+            "streamable_http",
+            "fixture"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "serverName",
+        "transport",
+        "primitive",
+        "primitiveName",
+        "responseHash"
+      ],
+      "type": "object"
+    },
+    "__schema39": {
+      "additionalProperties": false,
+      "properties": {
+        "display": {
+          "enum": [
+            "full",
+            "excerpt",
+            "metadata_only",
+            "link_only"
+          ],
+          "type": "string"
+        },
+        "license": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "notes": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "display"
+      ],
+      "type": "object"
+    },
     "__schema4": {
       "$ref": "#/$defs/__schema1"
+    },
+    "__schema40": {
+      "$ref": "#/$defs/__schema1"
+    },
+    "__schema41": {
+      "items": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "__schema42": {
+      "items": {
+        "$ref": "#/$defs/__schema43"
+      },
+      "maxItems": 20,
+      "type": "array"
+    },
+    "__schema43": {
+      "additionalProperties": false,
+      "properties": {
+        "attributes": {
+          "$ref": "#/$defs/__schema47"
+        },
+        "kind": {
+          "$ref": "#/$defs/__schema44"
+        },
+        "sourceIds": {
+          "$ref": "#/$defs/__schema45"
+        },
+        "statement": {
+          "$ref": "#/$defs/__schema46"
+        }
+      },
+      "required": [
+        "kind",
+        "sourceIds",
+        "statement",
+        "attributes"
+      ],
+      "type": "object"
+    },
+    "__schema44": {
+      "maxLength": 80,
+      "minLength": 1,
+      "pattern": "^[a-z][a-z0-9_]*$",
+      "type": "string"
+    },
+    "__schema45": {
+      "items": {
+        "$ref": "#/$defs/__schema1"
+      },
+      "maxItems": 20,
+      "minItems": 1,
+      "type": "array"
+    },
+    "__schema46": {
+      "maxLength": 1200,
+      "minLength": 1,
+      "type": "string"
+    },
+    "__schema47": {
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "maxLength": 1000,
+            "minLength": 1,
+            "type": "string"
+          },
+          {
+            "type": "number"
+          },
+          {
+            "type": "boolean"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "propertyNames": {
+        "maxLength": 80,
+        "minLength": 1,
+        "type": "string"
+      },
+      "type": "object"
+    },
+    "__schema48": {
+      "exclusiveMinimum": 0,
+      "maximum": 120000,
+      "type": "integer"
     },
     "__schema5": {
       "items": {
@@ -216,6 +527,80 @@
       ],
       "title": "Signal Atlas Mission",
       "type": "object"
+    },
+    "https://signal-atlas.local/schemas/source-record.schema.json": {
+      "additionalProperties": false,
+      "properties": {
+        "author": {
+          "$ref": "#/$defs/__schema29"
+        },
+        "contentHash": {
+          "$ref": "#/$defs/__schema37"
+        },
+        "excerpt": {
+          "$ref": "#/$defs/__schema35"
+        },
+        "externalUri": {
+          "$ref": "#/$defs/__schema26"
+        },
+        "id": {
+          "$ref": "#/$defs/__schema1"
+        },
+        "location": {
+          "$ref": "#/$defs/__schema33"
+        },
+        "mediaType": {
+          "$ref": "#/$defs/__schema34"
+        },
+        "observedAt": {
+          "$ref": "#/$defs/__schema32"
+        },
+        "provenance": {
+          "$ref": "#/$defs/__schema38"
+        },
+        "publishedAt": {
+          "$ref": "#/$defs/__schema31"
+        },
+        "publisher": {
+          "$ref": "#/$defs/__schema28"
+        },
+        "retrievedAt": {
+          "$ref": "#/$defs/__schema11"
+        },
+        "rights": {
+          "$ref": "#/$defs/__schema39"
+        },
+        "sourceClass": {
+          "$ref": "#/$defs/__schema30"
+        },
+        "structuredData": {
+          "$ref": "#/$defs/__schema36"
+        },
+        "supersedesSourceId": {
+          "$ref": "#/$defs/__schema40"
+        },
+        "tags": {
+          "$ref": "#/$defs/__schema41"
+        },
+        "title": {
+          "$ref": "#/$defs/__schema27"
+        },
+        "version": {
+          "$ref": "#/$defs/__schema25"
+        }
+      },
+      "required": [
+        "id",
+        "version",
+        "title",
+        "sourceClass",
+        "retrievedAt",
+        "contentHash",
+        "provenance",
+        "tags"
+      ],
+      "title": "Signal Atlas Source Record",
+      "type": "object"
     }
   },
   "$id": "https://signal-atlas.local/schemas/agent-turn-input.schema.json",
@@ -230,6 +615,9 @@
     },
     "attempt": {
       "$ref": "#/$defs/__schema14"
+    },
+    "currentTurnEvidence": {
+      "$ref": "#/$defs/__schema19"
     },
     "effectivePlaceId": {
       "$ref": "#/$defs/__schema1"
@@ -253,7 +641,7 @@
       "$ref": "#/$defs/__schema0"
     },
     "timeoutMs": {
-      "$ref": "#/$defs/__schema19"
+      "$ref": "#/$defs/__schema48"
     },
     "turnId": {
       "$ref": "#/$defs/__schema1"

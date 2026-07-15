@@ -235,7 +235,7 @@ describe('recorded live Pref application mission', () => {
         expect.objectContaining({
           type: 'pref.call.started',
           payload: expect.objectContaining({
-            capability: 'weather.get_current_conditions',
+            capability: 'local_conditions',
           }),
         }),
         expect.objectContaining({

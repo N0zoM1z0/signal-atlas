@@ -285,12 +285,14 @@ workspace handle before returning a failing process status.
 2. Orchestrator validates and emits `agent.mission.assigned`.
 3. Simulation emits `agent.travel.started` and later `agent.arrived`.
 4. Scheduler builds a turn packet.
-5. Codex Runtime starts or resumes the agent session.
-6. Agent calls Pref Gateway tools.
-7. Pref Gateway stores source records and returns canonical IDs.
-8. Codex returns a structured action result.
-9. Runtime validates output.
-10. Orchestrator emits source, claim, signal, dialogue, and belief events.
+5. Orchestrator resolves one explicitly authored, provider-neutral capability route.
+6. Pref Gateway validates the bounded request, stores canonical source records, and returns linked
+   evidence facts.
+7. Codex Runtime starts or resumes the agent session with only the bounded current-turn packet.
+8. Codex returns a structured action result citing packet source IDs.
+9. Runtime validates output and materializes deterministic candidate artifacts.
+10. Orchestrator emits source, claim, signal, dialogue, and permitted belief events. Model output
+    alone never changes belief.
 11. Frontend animates the result.
 12. Archive indexes the new objects asynchronously.
 

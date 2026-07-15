@@ -1,4 +1,4 @@
-import type { Signal, SourceRecord } from '@signal-atlas/contracts';
+import type { AgentTurnEvidenceFact, Signal, SourceRecord } from '@signal-atlas/contracts';
 
 export interface CodexPromptSource {
   id: string;
@@ -17,6 +17,13 @@ export interface CodexPromptSignal {
   summary: string;
   sourceIds: string[];
   status: string;
+}
+
+export interface CodexPromptEvidenceFact {
+  kind: string;
+  sourceIds: string[];
+  statement: string;
+  attributes: Record<string, string | number | boolean | null>;
 }
 
 export interface ArchiveKnowledgeGrant {
@@ -40,9 +47,11 @@ export interface CodexKnowledgePacket {
   };
   sources: CodexPromptSource[];
   signals: CodexPromptSignal[];
+  evidenceFacts?: CodexPromptEvidenceFact[];
   omitted: {
     sources: number;
     signals: number;
+    evidenceFacts?: number;
   };
 }
 
@@ -52,9 +61,11 @@ export interface BuildKnowledgePacketOptions {
   knownSourceIds: readonly string[];
   knownSignalIds: readonly string[];
   currentTurnSourceIds?: readonly string[];
+  currentTurnEvidenceFacts?: readonly AgentTurnEvidenceFact[];
   archiveGrant?: ArchiveKnowledgeGrant;
   maxSources?: number;
   maxSignals?: number;
+  maxEvidenceFacts?: number;
   maxExcerptChars?: number;
   maxSignalSummaryChars?: number;
 }
@@ -91,6 +102,22 @@ function promptSignal(signal: Signal, maxSummaryChars: number): CodexPromptSigna
   };
 }
 
+function promptEvidenceFact(fact: AgentTurnEvidenceFact): CodexPromptEvidenceFact {
+  return {
+    kind: fact.kind,
+    sourceIds: stableIds(fact.sourceIds),
+    statement: compactText(fact.statement, 1_200),
+    attributes: Object.fromEntries(
+      Object.entries(fact.attributes)
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([key, value]) => [
+          key,
+          typeof value === 'string' ? compactText(value, 1_000) : value,
+        ]),
+    ),
+  };
+}
+
 /**
  * Build a bounded packet from explicit knowledge edges and current-turn evidence.
  * The complete source/signal collections are inputs for lookup only; ungranted records never leave.
@@ -101,19 +128,29 @@ export function buildKnowledgePacket(options: BuildKnowledgePacketOptions): Code
   const currentTurnSourceIds = stableIds(options.currentTurnSourceIds ?? []);
   const archiveSourceIds = stableIds(options.archiveGrant?.sourceIds ?? []);
   const archiveSignalIds = stableIds(options.archiveGrant?.signalIds ?? []);
-  const allowedSourceIds = new Set([
-    ...knownSourceIds,
+  const sourceById = new Map(options.sources.map((source) => [source.id, source]));
+  const signalById = new Map(options.signals.map((signal) => [signal.id, signal]));
+  const allAllowedSources = stableIds([
     ...currentTurnSourceIds,
+    ...knownSourceIds,
     ...archiveSourceIds,
-  ]);
-  const allowedSignalIds = new Set([...knownSignalIds, ...archiveSignalIds]);
-  const allAllowedSources = options.sources
-    .filter((source) => allowedSourceIds.has(source.id))
-    .sort((left, right) => left.id.localeCompare(right.id));
-  const allAllowedSignals = options.signals
-    .filter((signal) => allowedSignalIds.has(signal.id))
-    .sort((left, right) => left.id.localeCompare(right.id));
-  const maxSources = options.maxSources ?? 12;
+  ]).flatMap((sourceId) => {
+    const source = sourceById.get(sourceId);
+    return source ? [source] : [];
+  });
+  const currentTurnSourceIdSet = new Set(currentTurnSourceIds);
+  allAllowedSources.sort((left, right) => {
+    const priority =
+      Number(currentTurnSourceIdSet.has(right.id)) - Number(currentTurnSourceIdSet.has(left.id));
+    return priority || left.id.localeCompare(right.id);
+  });
+  const allAllowedSignals = stableIds([...knownSignalIds, ...archiveSignalIds]).flatMap(
+    (signalId) => {
+      const signal = signalById.get(signalId);
+      return signal ? [signal] : [];
+    },
+  );
+  const maxSources = options.maxSources ?? Math.max(12, Math.min(20, currentTurnSourceIds.length));
   const maxSignals = options.maxSignals ?? 10;
   const sources = allAllowedSources
     .slice(0, maxSources)
@@ -121,6 +158,12 @@ export function buildKnowledgePacket(options: BuildKnowledgePacketOptions): Code
   const signals = allAllowedSignals
     .slice(0, maxSignals)
     .map((signal) => promptSignal(signal, options.maxSignalSummaryChars ?? 600));
+  const includedSourceIds = new Set(sources.map((source) => source.id));
+  const allEvidenceFacts = (options.currentTurnEvidenceFacts ?? [])
+    .filter((fact) => fact.sourceIds.every((sourceId) => includedSourceIds.has(sourceId)))
+    .map(promptEvidenceFact);
+  const maxEvidenceFacts = options.maxEvidenceFacts ?? 20;
+  const evidenceFacts = allEvidenceFacts.slice(0, maxEvidenceFacts);
 
   return {
     access: {
@@ -140,9 +183,13 @@ export function buildKnowledgePacket(options: BuildKnowledgePacketOptions): Code
     },
     sources,
     signals,
+    ...(evidenceFacts.length > 0 ? { evidenceFacts } : {}),
     omitted: {
       sources: Math.max(0, allAllowedSources.length - sources.length),
       signals: Math.max(0, allAllowedSignals.length - signals.length),
+      ...(options.currentTurnEvidenceFacts
+        ? { evidenceFacts: Math.max(0, allEvidenceFacts.length - evidenceFacts.length) }
+        : {}),
     },
   };
 }

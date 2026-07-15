@@ -467,9 +467,37 @@ In local mode, `professor.query.started` is committed immediately and
 the runtime selects an explicitly labeled authored fallback). A fixture reset cancels pending
 consultations and prevents their late results from entering the new projection.
 
-## 10.13 Agent turn output
+## 10.13 Agent turn input and output
 
-The Codex output contract is intentionally narrow.
+The orchestrator may attach one bounded evidence packet after a successful Pref retrieval. It is
+optional so fixture and non-research turns retain the same input contract.
+
+```ts
+interface AgentTurnEvidencePacket {
+  capability: PrefCanonicalCapability;
+  callId: string;
+  argumentsHash: string;
+  retrievedAt: string;
+  durationMs: number;
+  cacheStatus: 'miss' | 'fresh' | 'stale';
+  sources: SourceRecord[];
+  facts: Array<{
+    kind: string;
+    sourceIds: string[];
+    statement: string;
+    attributes: Record<string, string | number | boolean | null>;
+  }>;
+}
+
+interface AgentTurnInput {
+  // Existing turn, mission, knowledge, capability, and timeout fields omitted here.
+  currentTurnEvidence?: AgentTurnEvidencePacket;
+}
+```
+
+Packet source IDs are unique, every fact references only packet sources, content is rights-filtered,
+and the complete serialized packet is size-bounded. The Codex output contract is intentionally
+narrow.
 
 ```ts
 interface AgentTurnOutput {
@@ -510,7 +538,11 @@ interface AgentTurnOutput {
 }
 ```
 
-The runtime validates that every source ID was known before the turn or retrieved during the turn.
+Without a current-turn packet, the runtime validates that every source ID was known before the turn
+or explicitly granted during it. With a packet, all output citations, claim sources, and signal
+sources must be packet members. The model cannot create source identities. Candidate model
+artifacts are assigned deterministic IDs by the orchestrator and no model-proposed probability
+range is accepted as an authoritative belief mutation.
 
 ## 10.14 Domain event catalog
 

@@ -109,7 +109,25 @@ The orchestrator calls Pref directly for deterministic world metadata, scheduled
 
 ### Agent path
 
-Codex agents call a read-only, audited Pref proxy for mission-specific research. The proxy returns canonical source IDs and logs every call. The agent cannot bypass it.
+The orchestrator exposes a read-only, audited Pref proxy for mission-specific research. The first
+runtime implementation resolves one explicitly authored canonical capability from the agent's
+effective place, mission verb, turn allow-list, and the gateway's validated live allow-list. The
+orchestrator invokes Pref before Codex, records the call, and supplies the agent only a bounded
+current-turn evidence packet. The model never receives a Pref credential, provider tool reference,
+or permission to invoke MCP directly.
+
+Non-weather place bindings must opt in with `configuration.missionVerbs`. Query capabilities must
+also provide an authored query or declare `queryMode: "mission_objective"`; limits and time windows
+remain bounded by the canonical request schema. `local_conditions` retains the explicit
+`context_only` real-world proxy mapping used by the Helios fixture. An unconfigured binding falls
+back to fixture behavior rather than silently enabling a newly discovered provider.
+
+The current-turn packet contains the canonical capability, Pref call ID, argument hash, retrieval
+time, duration, cache status, canonical `SourceRecord` objects, and bounded evidence facts linked to
+those source IDs. Rights-filtered metadata enters the durable source record; transient adapter facts
+such as a GDELT matched sentence enter only the untrusted prompt packet. Raw provider response
+shapes never enter the model prompt. If local Codex is unavailable or its one repair fails, the
+orchestrator records the retrieved canonical sources but accepts no model-derived claim or signal.
 
 This dual pattern preserves agent autonomy while ensuring the game knows exactly which sources entered the world.
 
@@ -215,7 +233,7 @@ MISSION
 Objective, destination, deadline, allowed actions, search budget.
 
 KNOWN INFORMATION
-Source IDs, signal summaries, unresolved questions, current belief.
+Source IDs, signal summaries, bounded current-turn evidence facts, unresolved questions, current belief.
 
 TOOLS
 Only the listed Pref capabilities are allowed.
@@ -250,6 +268,12 @@ Validation layers:
 6. Idempotency check.
 
 One repair turn may receive only the validation errors and original output. A second failure becomes a safe wait event.
+
+For a Pref-backed current-turn packet, every cited source, proposed claim source, and proposed signal
+source must belong to that packet. Accepted claims and signals receive deterministic orchestrator
+IDs and are materialized only after schema and world validation. A model may select the qualitative
+impact label, but it cannot assign a deterministic probability-point range or mutate belief
+directly; those remain orchestrator-owned decisions.
 
 Professor output uses the separate strict
 `professor-response.codex.schema.json` transport contract. In addition to Zod validation, the
