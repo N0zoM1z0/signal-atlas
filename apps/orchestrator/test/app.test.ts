@@ -61,6 +61,12 @@ describe('orchestrator health endpoint', () => {
         activeCount: 0,
         queuedCount: 0,
       },
+      professor: {
+        id: 'scripted-professor',
+        kind: 'scripted',
+        configuredMode: 'scripted',
+        activeMode: 'scripted',
+      },
       turns: [],
     });
     expect(response.body).not.toContain('prompt');
@@ -275,6 +281,12 @@ describe('orchestrator health endpoint', () => {
           activeMode: 'scripted_fallback',
           available: true,
           fallback: { driverId: 'fixture-scripted-codex', used: false },
+        },
+        professor: {
+          kind: 'local_exec',
+          configuredMode: 'local',
+          activeMode: 'local_exec',
+          available: false,
         },
       });
       expect(response.body).not.toMatch(/auth\.json|api[_-]?key|bearer/iu);

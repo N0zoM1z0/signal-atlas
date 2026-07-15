@@ -2,16 +2,21 @@ import {
   AgentTurnInputSchema,
   AgentTurnOutputSchema,
   parseWorldEvent,
+  ProfessorResponseSchema,
   SCHEMA_VERSION,
   type ExpeditionFixture,
   type AgentTurnInput,
   type AgentTurnOutput,
   type WorldCommand,
   type WorldEvent,
+  type ProfessorQuery,
+  type ProfessorResponse,
 } from '@signal-atlas/contracts';
 import { createSignalAtlasCaseFile, type SignalAtlasCaseFile } from '@signal-atlas/archive';
 import {
   CodexTurnScheduler,
+  CodexTurnCanceledError,
+  CodexTurnTimeoutError,
   getAgentRoleProfile,
   isPromiseLike,
   publicCodexError,
@@ -45,6 +50,12 @@ import {
   type ScriptedFixtureTurn,
 } from './fixture-mission-driver.js';
 import { createScriptedProfessorResponse } from './fixture-professor-driver.js';
+import {
+  createScriptedProfessorDriver,
+  type ProfessorDriver,
+  type ProfessorDriverDiagnostics,
+  type ProfessorTurnInput,
+} from './professor-driver.js';
 
 export interface AcceptedCommandResult {
   accepted: true;
@@ -125,12 +136,24 @@ interface ScheduledMeeting {
   missionIdsByAgentId: Record<string, string>;
 }
 
+interface ScheduledProfessorTurn {
+  input: ProfessorTurnInput;
+  correlationId: string;
+  generation: number;
+}
+
+interface ActiveProfessorTurn {
+  controller: AbortController;
+  completion: Promise<void>;
+}
+
 interface CommandEventPlan {
   events: WorldEvent[];
   scheduleTravel?: ScheduledTravel;
   scheduleTravels?: ScheduledTravel[];
   scheduleWork?: ScheduledWork;
   scheduleMeeting?: ScheduledMeeting;
+  scheduleProfessor?: ScheduledProfessorTurn;
   clearScheduledForAgentId?: string;
 }
 
@@ -141,6 +164,12 @@ export interface ExpeditionRuntimeOptions {
   ) => CodexDriver<AgentTurnInput, ScriptedFixtureTurn>;
   maxConcurrentTurns?: number;
   defaultTurnTimeoutMs?: number;
+  professorDriver?: ProfessorDriver;
+  professorTimeoutMs?: number;
+}
+
+export interface SignalAtlasRuntimeDiagnostics extends CodexRuntimeDiagnostics {
+  professor: ProfessorDriverDiagnostics;
 }
 
 function actorForEvent(actor: WorldCommand['actor']): WorldEvent['actor'] {
@@ -162,8 +191,10 @@ function addMilliseconds(timestamp: string, durationMs: number): string {
 export class ExpeditionRuntime {
   readonly #fixture: ExpeditionFixture;
   readonly #missionDriver: CodexDriver<AgentTurnInput, ScriptedFixtureTurn>;
+  readonly #professorDriver: ProfessorDriver;
   readonly #maxConcurrentTurns: number;
   readonly #defaultTurnTimeoutMs: number;
+  readonly #professorTimeoutMs: number;
   #turnScheduler: CodexTurnScheduler<AgentTurnInput, ScriptedFixtureTurn> | undefined;
   #projection: WorldProjection;
   #events: WorldEvent[];
@@ -176,19 +207,30 @@ export class ExpeditionRuntime {
   readonly #meetingIdByMissionId = new Map<string, string>();
   readonly #driverEvents: CodexRuntimeEvent[] = [];
   readonly #eventListeners = new Set<ExpeditionEventListener>();
+  readonly #activeProfessorTurns = new Map<string, ActiveProfessorTurn>();
+  #runtimeGeneration = 0;
   #missionScenario: FixtureMissionScenario = 'success';
 
   constructor(fixture: ExpeditionFixture, options: ExpeditionRuntimeOptions = {}) {
     this.#fixture = structuredClone(fixture);
     this.#maxConcurrentTurns = options.maxConcurrentTurns ?? 2;
     this.#defaultTurnTimeoutMs = options.defaultTurnTimeoutMs ?? 30_000;
+    this.#professorTimeoutMs = options.professorTimeoutMs ?? 90_000;
     if (!Number.isInteger(this.#maxConcurrentTurns) || this.#maxConcurrentTurns < 1) {
       throw new Error('Runtime turn concurrency must be a positive integer.');
+    }
+    if (
+      !Number.isInteger(this.#professorTimeoutMs) ||
+      this.#professorTimeoutMs < 1 ||
+      this.#professorTimeoutMs > 120_000
+    ) {
+      throw new Error('Professor timeout must be an integer from 1 through 120000 ms.');
     }
     this.#missionDriver =
       options.missionDriver ??
       options.missionDriverFactory?.(() => this.#missionScenario) ??
       createFixtureCodexDriver(this.#fixture, () => this.#missionScenario);
+    this.#professorDriver = options.professorDriver ?? createScriptedProfessorDriver();
     this.#turnScheduler = this.#createTurnScheduler();
     const replay = replayFixture(this.#fixture);
     this.#projection = replay.projection;
@@ -334,11 +376,12 @@ export class ExpeditionRuntime {
     this.#missionScenario = scenario;
   }
 
-  runtimeDiagnostics(): CodexRuntimeDiagnostics {
+  runtimeDiagnostics(): SignalAtlasRuntimeDiagnostics {
     if (this.#turnScheduler) {
       const diagnostics = this.#turnScheduler.diagnostics();
       return {
         ...diagnostics,
+        professor: this.#professorDriver.diagnostics(),
         turns: [...diagnostics.turns].sort(
           (left, right) =>
             right.requestedAt.localeCompare(left.requestedAt) ||
@@ -412,6 +455,7 @@ export class ExpeditionRuntime {
     ];
     return {
       driver: this.#missionDriver.diagnostics(),
+      professor: this.#professorDriver.diagnostics(),
       scheduler: {
         maxConcurrency: this.#maxConcurrentTurns,
         defaultTimeoutMs: this.#defaultTurnTimeoutMs,
@@ -430,6 +474,10 @@ export class ExpeditionRuntime {
   }
 
   resetToFixture(): void {
+    this.#runtimeGeneration += 1;
+    for (const task of this.#activeProfessorTurns.values()) {
+      task.controller.abort(new CodexTurnCanceledError('Fixture reset.'));
+    }
     for (const task of this.#workByAgentId.values()) {
       if (task.schedulerManaged) this.#turnScheduler?.cancel(task.turnId, 'Fixture reset.');
     }
@@ -450,6 +498,11 @@ export class ExpeditionRuntime {
 
   async waitForRuntimeIdle(): Promise<void> {
     await this.#turnScheduler?.waitForIdle();
+    while (this.#activeProfessorTurns.size > 0) {
+      await Promise.allSettled(
+        [...this.#activeProfessorTurns.values()].map((task) => task.completion),
+      );
+    }
     await Promise.resolve();
   }
 
@@ -507,6 +560,7 @@ export class ExpeditionRuntime {
         this.#meetingIdByMissionId.set(missionId, plan.scheduleMeeting.meetingId);
       }
     }
+    if (plan.scheduleProfessor) this.#scheduleProfessorTurn(plan.scheduleProfessor);
     const meetingEvents = this.#completeReadyMeetings(command.issuedAt);
     const result: AcceptedCommandResult = {
       accepted: true,
@@ -672,6 +726,132 @@ export class ExpeditionRuntime {
         // Stream observers are non-authoritative and cannot interrupt committed world events.
       }
     }
+  }
+
+  #professorTurnInput(
+    query: ProfessorQuery,
+    scriptedResponse: ProfessorResponse,
+  ): ProfessorTurnInput {
+    return {
+      query: structuredClone(query),
+      market: structuredClone(this.#projection.market),
+      selectedSources: query.selectedSourceIds.flatMap((id) => {
+        const source = this.#projection.sourcesById[id];
+        return source ? [structuredClone(source)] : [];
+      }),
+      selectedSignals: query.selectedSignalIds.flatMap((id) => {
+        const signal = this.#projection.signalsById[id];
+        return signal ? [structuredClone(signal)] : [];
+      }),
+      validPlaceIds: this.#projection.worldManifest.places.map((place) => place.id),
+      scriptedResponse: structuredClone(scriptedResponse),
+      requestedAt: query.createdAt,
+      timeoutMs: this.#professorTimeoutMs,
+    };
+  }
+
+  #scheduleProfessorTurn(task: ScheduledProfessorTurn): void {
+    const taskKey = `${task.generation}:${task.input.query.id}`;
+    const controller = new AbortController();
+    const startedAt = Date.now();
+    const timeout = setTimeout(
+      () => controller.abort(new CodexTurnTimeoutError(task.input.timeoutMs)),
+      task.input.timeoutMs,
+    );
+    timeout.unref();
+    const completion = Promise.resolve()
+      .then(() =>
+        this.#professorDriver.runTurn(task.input, {
+          signal: controller.signal,
+          deadlineAt: addMilliseconds(task.input.requestedAt, task.input.timeoutMs),
+          emit: () => undefined,
+        }),
+      )
+      .then((result) => {
+        if (controller.signal.aborted && task.generation !== this.#runtimeGeneration) return;
+        if (task.generation !== this.#runtimeGeneration) return;
+        const response = ProfessorResponseSchema.parse(result.response);
+        this.#appendProfessorResponse(
+          task.input.query,
+          response,
+          new Date().toISOString(),
+          task.correlationId,
+        );
+      })
+      .catch((error: unknown) => {
+        if (task.generation !== this.#runtimeGeneration) return;
+        const publicError = publicCodexError(error);
+        const response = ProfessorResponseSchema.parse({
+          ...structuredClone(task.input.scriptedResponse),
+          runtime: {
+            mode: 'scripted_fallback',
+            driverId: this.#professorDriver.id,
+            durationMs: Math.max(0, Date.now() - startedAt),
+            repairAttempts: 0,
+            fallbackReason: publicError.code,
+          },
+        });
+        this.#appendProfessorResponse(
+          task.input.query,
+          response,
+          new Date().toISOString(),
+          task.correlationId,
+        );
+      })
+      .finally(() => {
+        clearTimeout(timeout);
+        this.#activeProfessorTurns.delete(taskKey);
+      });
+    this.#activeProfessorTurns.set(taskKey, { controller, completion });
+  }
+
+  #appendProfessorResponse(
+    query: ProfessorQuery,
+    response: ProfessorResponse,
+    occurredAt: string,
+    correlationId: string,
+  ): void {
+    const events: WorldEvent[] = [];
+    const selectedSignalIds = [...new Set(query.selectedSignalIds)].sort();
+    const hasEnoughEvidence =
+      query.mode === 'correlation_check' &&
+      selectedSignalIds.length >= 2 &&
+      !response.answer.startsWith('Insufficient evidence:');
+    const alreadyAssessed = Object.values(this.#projection.correlationsById).some(
+      (correlation) => [...correlation.signalIds].sort().join('|') === selectedSignalIds.join('|'),
+    );
+    if (hasEnoughEvidence && !alreadyAssessed) {
+      events.push(
+        this.#appendSystemEvent(
+          `evt-professor-${query.id}-correlation`,
+          'correlation.detected',
+          {
+            correlation: {
+              id: `correlation-${query.id}`,
+              signalIds: selectedSignalIds,
+              relationship: 'possibly_correlated',
+              reasons: [
+                'The selected records describe different evidence layers but may share a crosswind-delay mechanism.',
+                'Distinct sources and signal IDs do not establish statistical independence.',
+              ],
+              assessedAt: occurredAt,
+            },
+          },
+          occurredAt,
+          correlationId,
+        ),
+      );
+    }
+    events.push(
+      this.#appendSystemEvent(
+        `evt-professor-${query.id}-response`,
+        'professor.response.created',
+        { response },
+        occurredAt,
+        correlationId,
+      ),
+    );
+    this.#publishEvents(events);
   }
 
   #createScheduledWork(
@@ -1550,8 +1730,34 @@ export class ExpeditionRuntime {
       }
       case 'professor.query': {
         const query = command.payload.query;
-        const response = createScriptedProfessorResponse(this.#fixture, this.#projection, query);
+        const scriptedResponse = createScriptedProfessorResponse(
+          this.#fixture,
+          this.#projection,
+          query,
+        );
+        const professorInput = this.#professorTurnInput(query, scriptedResponse);
         const events: WorldEvent[] = [event(1, 'professor.query.started', { query })];
+        if (this.#professorDriver.kind === 'local_exec') {
+          return {
+            events,
+            scheduleProfessor: {
+              input: professorInput,
+              correlationId: command.id,
+              generation: this.#runtimeGeneration,
+            },
+          };
+        }
+        const controller = new AbortController();
+        const result = this.#professorDriver.runTurn(professorInput, {
+          signal: controller.signal,
+          deadlineAt: addMilliseconds(command.issuedAt, this.#professorTimeoutMs),
+          emit: () => undefined,
+        });
+        if (isPromiseLike(result)) {
+          controller.abort(new CodexTurnCanceledError('Unexpected asynchronous scripted turn.'));
+          throw new Error('The scripted Professor driver must complete synchronously.');
+        }
+        const response = ProfessorResponseSchema.parse(result.response);
         const selectedSignalIds = [...new Set(query.selectedSignalIds)].sort();
         const hasEnoughEvidence =
           query.mode === 'correlation_check' &&

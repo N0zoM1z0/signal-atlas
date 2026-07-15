@@ -23,6 +23,7 @@ import {
 } from './local-fixture-codex-driver.js';
 import { createPrefAgentProxyDriver } from './pref-agent-proxy-driver.js';
 import { createConfiguredPrefRuntime, type PrefRuntime } from './pref-runtime.js';
+import { createConfiguredProfessorDriver } from './professor-driver.js';
 
 export interface HealthResponse {
   status: 'ok';
@@ -134,19 +135,22 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
       const fixture = createHelios3ExpeditionFixture();
       const mode: CodexMissionMode =
         process.env['SIGNAL_ATLAS_CODEX_MODE'] === 'local' ? 'local' : 'scripted';
+      const runtimeRoot =
+        process.env['SIGNAL_ATLAS_CODEX_RUNTIME_ROOT'] ?? defaultCodexRuntimeRoot();
+      const localCodexOptions = {
+        mode,
+        ...(process.env['SIGNAL_ATLAS_CODEX_EXECUTABLE']
+          ? { executable: process.env['SIGNAL_ATLAS_CODEX_EXECUTABLE'] }
+          : {}),
+        ...(process.env['SIGNAL_ATLAS_CODEX_MODEL']
+          ? { model: process.env['SIGNAL_ATLAS_CODEX_MODEL'] }
+          : {}),
+        runtimeRoot,
+      };
       return new ExpeditionRuntime(fixture, {
+        professorDriver: createConfiguredProfessorDriver(localCodexOptions),
         missionDriverFactory: (scenario) => {
-          const fallback = createConfiguredMissionDriver(fixture, scenario, {
-            mode,
-            ...(process.env['SIGNAL_ATLAS_CODEX_EXECUTABLE']
-              ? { executable: process.env['SIGNAL_ATLAS_CODEX_EXECUTABLE'] }
-              : {}),
-            ...(process.env['SIGNAL_ATLAS_CODEX_MODEL']
-              ? { model: process.env['SIGNAL_ATLAS_CODEX_MODEL'] }
-              : {}),
-            runtimeRoot:
-              process.env['SIGNAL_ATLAS_CODEX_RUNTIME_ROOT'] ?? defaultCodexRuntimeRoot(),
-          });
+          const fallback = createConfiguredMissionDriver(fixture, scenario, localCodexOptions);
           const gateway = prefRuntime.gateway();
           return gateway ? createPrefAgentProxyDriver({ fixture, gateway, fallback }) : fallback;
         },
