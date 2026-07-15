@@ -21,10 +21,56 @@ async function expectNoPageOverflow(page: Page) {
   expect(overflow.bodyWidth).toBeLessThanOrEqual(overflow.viewportWidth);
 }
 
+async function expectRenderedWorld(page: Page) {
+  const canvas = page.locator('.atlas-world-canvas canvas');
+  await expect(canvas).toHaveCount(1);
+  await expect
+    .poll(() => canvas.evaluate((element) => element.getBoundingClientRect().width))
+    .toBeGreaterThan(500);
+  await expect
+    .poll(
+      () =>
+        canvas.evaluate((element) => {
+          const context = element.getContext('2d');
+          if (!context) return 0;
+          const pixels = context.getImageData(0, 0, element.width, element.height).data;
+          const colors = new Set<string>();
+          for (let offset = 0; offset < pixels.length; offset += 4 * 137) {
+            colors.add(`${pixels[offset]}:${pixels[offset + 1]}:${pixels[offset + 2]}`);
+            if (colors.size >= 8) break;
+          }
+          return colors.size;
+        }),
+      { timeout: 10_000 },
+    )
+    .toBeGreaterThanOrEqual(8);
+}
+
+async function expectNoClippedText(page: Page) {
+  const clippedSelectors = [
+    '.atlas-market-question h1',
+    '.atlas-place__label strong',
+    '.atlas-world-crumb strong',
+    '.atlas-weather-chip strong',
+  ];
+  const clippedText = await page
+    .locator(clippedSelectors.join(', '))
+    .evaluateAll((elements) =>
+      elements
+        .filter(
+          (element) =>
+            element.scrollWidth > element.clientWidth ||
+            element.scrollHeight > element.clientHeight,
+        )
+        .map((element) => element.textContent?.trim() ?? ''),
+    );
+  expect(clippedText).toEqual([]);
+}
+
 test('@visual world shell matches the five-region direction at 1440 × 900', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.emulateMedia({ reducedMotion: 'reduce' });
-  await page.goto('/');
+  await page.goto('/?capture=1');
 
   await expect(
     page.getByRole('heading', {
@@ -37,7 +83,14 @@ test('@visual world shell matches the five-region direction at 1440 × 900', asy
   await expect(page.getByRole('contentinfo', { name: 'Agent command desk' })).toBeVisible();
   await expect(page.locator('.atlas-world-canvas')).toHaveAttribute('data-scene-ready', 'true');
   await expect(page.locator('.atlas-world-canvas')).toHaveAttribute('data-reduced-motion', 'true');
+  await expectRenderedWorld(page);
   await expectNoPageOverflow(page);
+  await expectNoClippedText(page);
+
+  await expect(page.locator('.atlas-world-canvas canvas')).toHaveScreenshot(
+    'world-canvas-1440x900.png',
+    { maxDiffPixels: 100 },
+  );
 
   await expect(page).toHaveScreenshot('world-shell-1440x900.png', {
     fullPage: true,
@@ -48,14 +101,16 @@ test('@visual world shell matches the five-region direction at 1440 × 900', asy
 test('@visual world shell remains usable at 1280 × 800', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 });
   await page.emulateMedia({ reducedMotion: 'reduce' });
-  await page.goto('/');
+  await page.goto('/?capture=1');
 
   await expect(page.getByRole('button', { name: 'Collapse agent dock' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Collapse signal rail' })).toBeVisible();
   await expect(page.getByRole('textbox', { name: 'Command Mira' })).toBeVisible();
   await expect(page.locator('.atlas-world-canvas')).toHaveAttribute('data-scene-ready', 'true');
   await expect(page.locator('.atlas-world-canvas')).toHaveAttribute('data-reduced-motion', 'true');
+  await expectRenderedWorld(page);
   await expectNoPageOverflow(page);
+  await expectNoClippedText(page);
 
   await expect(page).toHaveScreenshot('world-shell-1280x800.png', {
     fullPage: true,

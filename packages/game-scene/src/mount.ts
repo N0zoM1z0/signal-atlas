@@ -170,11 +170,17 @@ export async function mountWorldScene(options: MountWorldSceneOptions): Promise<
       this.selectAgent(this.selectedAgentId);
       this.centerOnPlace(model.defaultSpawnPlaceId, true);
       this.applyReducedMotion();
-      options.bridge.emit({
-        type: 'scene.ready',
-        canvasHeight: initialMetrics.height,
-        canvasWidth: initialMetrics.width,
-        pixelScale: this.basePixelScale,
+      this.resizeToParent(
+        options.parent.clientWidth || model.logicalWidth,
+        options.parent.clientHeight || model.logicalHeight,
+      );
+      this.game.events.once(PhaserRuntime.Core.Events.POST_RENDER, () => {
+        options.bridge.emit({
+          type: 'scene.ready',
+          canvasHeight: this.scale.height,
+          canvasWidth: this.scale.width,
+          pixelScale: this.basePixelScale,
+        });
       });
       this.emitCameraChanged();
       this.events.once(PhaserRuntime.Scenes.Events.SHUTDOWN, () => {
@@ -200,6 +206,8 @@ export async function mountWorldScene(options: MountWorldSceneOptions): Promise<
         model.logicalWidth,
         model.logicalHeight,
       );
+      this.game.canvas.style.width = `${metrics.width}px`;
+      this.game.canvas.style.height = `${metrics.height}px`;
       if (
         metrics.width === this.scale.width &&
         metrics.height === this.scale.height &&
@@ -210,6 +218,8 @@ export async function mountWorldScene(options: MountWorldSceneOptions): Promise<
       const previousPixelScale = this.basePixelScale;
       this.basePixelScale = metrics.pixelScale;
       this.scale.resize(metrics.width, metrics.height);
+      this.game.canvas.style.width = `${metrics.width}px`;
+      this.game.canvas.style.height = `${metrics.height}px`;
       this.cameras.main.setViewport(0, 0, metrics.width, metrics.height);
       if (this.cameras.main.zoom === pixelScaleForZoom(previousPixelScale, this.zoomStep)) {
         this.cameras.main.setZoom(pixelScaleForZoom(this.basePixelScale, this.zoomStep));
@@ -889,16 +899,38 @@ export async function mountWorldScene(options: MountWorldSceneOptions): Promise<
     scene: SignalAtlasScene,
   });
 
+  let pendingResizeFrame: number | undefined;
+  let pendingResize: { height: number; width: number } | undefined;
+  let destroyed = false;
+  const applyObservedResize = (width: number, height: number) => {
+    if (destroyed) return;
+    pendingResize = { height, width };
+    if (!sceneInstance?.scene.isActive()) {
+      if (pendingResizeFrame !== undefined) return;
+      pendingResizeFrame = requestAnimationFrame(() => {
+        pendingResizeFrame = undefined;
+        const latest = pendingResize;
+        if (latest) applyObservedResize(latest.width, latest.height);
+      });
+      return;
+    }
+    pendingResize = undefined;
+    sceneInstance.resizeToParent(width, height);
+  };
   const resizeObserver = new ResizeObserver((entries) => {
     const entry = entries[0];
-    if (!entry || !sceneInstance?.scene.isActive()) return;
-    sceneInstance.resizeToParent(entry.contentRect.width, entry.contentRect.height);
+    if (!entry) return;
+    applyObservedResize(entry.contentRect.width, entry.contentRect.height);
   });
   resizeObserver.observe(options.parent);
 
   return {
     destroy() {
+      destroyed = true;
       resizeObserver.disconnect();
+      if (pendingResizeFrame !== undefined) cancelAnimationFrame(pendingResizeFrame);
+      pendingResizeFrame = undefined;
+      pendingResize = undefined;
       disconnectBridge?.();
       disconnectBridge = undefined;
       game.destroy(true);

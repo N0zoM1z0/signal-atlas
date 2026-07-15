@@ -244,14 +244,13 @@ textarea {
 }
 
 .atlas-market-question h1 {
-  overflow: hidden;
   margin: 0;
   font-size: var(--sa-typography-size-sm);
   font-weight: var(--sa-typography-weight-semibold);
   letter-spacing: 0;
   line-height: var(--sa-typography-line-height-tight);
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  text-wrap: balance;
+  white-space: normal;
 }
 
 .atlas-live-dot {
@@ -2671,10 +2670,8 @@ kbd {
 }
 
 .atlas-world-crumb strong {
-  overflow: hidden;
   font-family: var(--sa-typography-display-family);
   font-size: var(--sa-typography-size-xs);
-  text-overflow: ellipsis;
 }
 
 .atlas-world-tools,
@@ -2736,10 +2733,30 @@ kbd {
 }
 
 .atlas-weather-chip strong {
-  overflow: hidden;
   font-size: 8px;
-  text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+@media (max-width: 1400px) {
+  .atlas-world-toolbar {
+    gap: var(--sa-spacing-1);
+    padding-inline: var(--sa-spacing-2);
+  }
+
+  .atlas-world-crumb,
+  .atlas-world-tools,
+  .atlas-weather-chip {
+    gap: var(--sa-spacing-1);
+  }
+
+  .atlas-world-tools button {
+    min-width: 28px;
+    padding-inline: 6px;
+  }
+
+  .atlas-weather-chip {
+    padding-inline: 6px;
+  }
 }
 
 .atlas-mobile-drawers {
@@ -2795,6 +2812,10 @@ kbd {
 
 .atlas-phaser-mount canvas {
   display: block;
+  width: auto !important;
+  max-width: 100%;
+  height: auto !important;
+  max-height: 100%;
   border: var(--sa-border-hairline) solid
     color-mix(in srgb, var(--sa-color-harbor-blue) 42%, transparent);
   box-shadow: 0 0 var(--sa-spacing-8) color-mix(in srgb, var(--sa-color-black) 38%, transparent);
@@ -2994,7 +3015,7 @@ kbd {
   top: clamp(9%, var(--atlas-place-y), 79%);
   left: clamp(8%, var(--atlas-place-x), 88%);
   display: grid;
-  width: clamp(76px, 9.5vw, 126px);
+  width: clamp(116px, 12vw, 150px);
   justify-items: center;
   padding: 0;
   border: 0;
@@ -3143,10 +3164,8 @@ kbd {
 }
 
 .atlas-place__label strong {
-  overflow: hidden;
   font-family: var(--sa-typography-display-family);
   font-size: 9px;
-  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
@@ -3449,10 +3468,6 @@ kbd {
   min-width: 0;
   border-bottom: var(--sa-border-hairline) solid var(--sa-color-harbor-blue);
   background: var(--sa-color-deep-ink);
-}
-
-.atlas-world-guide-slot:empty {
-  display: none;
 }
 
 .atlas-onboarding {
