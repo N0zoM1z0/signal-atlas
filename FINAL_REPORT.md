@@ -2,7 +2,7 @@
 
 Date: 15 July 2026 (Asia/Singapore)  
 Reviewed commit: `ee335e9` plus this report commit  
-Verdict: **Engineering definition of done met for the deterministic Helios-3 vertical slice, with two explicit external-validation gaps: no standalone live Pref application bearer and no novice-user comprehension study.**
+Verdict: **Engineering definition of done met for the deterministic Helios-3 vertical slice. The standalone live Pref application path and real local Codex path now have combined runtime evidence; novice-user comprehension remains the explicit external-validation gap.**
 
 ## Delivered slice
 
@@ -69,7 +69,9 @@ The final adapter also rejects an ordinary `wait` when an authored fixture turn 
 
 The real Pref connector read for `weather.get_current_conditions` at Cape Canaveral completed during P5 without an external write. The strict structured envelope was then exercised through the actual gateway, agent proxy, scheduler, reducer, HTTP API, inspector, and audit path using a recorded provider response. Unknown tools, credential echoes, malformed envelopes, stale cache, and unavailable-provider behavior have automated coverage.
 
-`SIGNAL_ATLAS_PREF_BEARER_TOKEN` was missing in the final owner shell. Therefore the final hosted Signal Atlas live-bearer handshake was **skipped**, not claimed as passed. Fixture mode is the default and the required demo remains fully offline.
+After the initial release review, the owner supplied a standalone application credential. On 15 July 2026, Signal Atlas connected directly to `pref.trade` through the required local proxy, negotiated protocol `2025-11-25` with `preference-mcp-gateway 1.0.0`, indexed 547 capabilities, and validated the allow-listed `weather.get_current_conditions` mapping. A live Mira mission then recorded one metadata-only sensor source and `Live proxy weather — Clear sky` signal from Cape Canaveral. Runtime events recorded `pref_proxy_started` and `pref_proxy_completed` with cache status `miss`; the source retained Streamable HTTP provenance and a response hash, the signal remained `context`/`unknown`, and it produced no fictional belief update.
+
+In the same application process, a non-weather Orin mission delegated through the Pref proxy to real local Codex. Runtime events recorded `codex_attempt_started`, `thread.started`, `agent_message`, and `turn.completed`; the accepted turn materialized `src-archive-crosswind-1` and `sig-base-rate`. The combined run ended at sequence 40 with two completed missions, two sources, two signals, and zero failed, canceled, or timed-out turns. A public-snapshot scan found no credential name or value.
 
 ### Fresh clone and startup
 
@@ -172,7 +174,7 @@ Runtime/capture art is programmatic CSS, SVG, canvas, or Phaser geometry, and so
 ## Known limitations
 
 1. No external novice-user session was conducted. The interface has strong automated accessibility/onboarding evidence, but first-time human comprehension and six-minute demo pacing remain unvalidated.
-2. No standalone app Pref bearer was available for the final live handshake. Real connector data plus the recorded strict-envelope app path provide integration evidence, not a hosted end-to-end credential test.
+2. Live Pref validation covers only the single approved `weather.get_current_conditions` mapping and one real-world proxy location. Every additional provider capability still requires separate discovery validation, rights review, and a dedicated materializer.
 3. Codex agent sessions persist by expedition, agent, and profile, while the vertical-slice world is process-local. After a restart, an ordinary resumed conversation can retain context not reconstructed into the new world. Durable deployment must restore the event log or bind sessions to a world/access revision.
 4. Events, idempotency records, Pref cache, audit history, and most runtime state are process-local. `recordedAt` currently follows the client-issued command time rather than an independent server audit clock.
 5. Pref credential-echo defense scans bounded recent credential substrings and response structures; it cannot prove detection of every encoded, transformed, or bidirectional variant. Public Pref call completion also does not expose every internal cache/hash audit field.
@@ -186,7 +188,7 @@ Runtime/capture art is programmatic CSS, SVG, canvas, or Phaser geometry, and so
 
 1. Run five to eight novice sessions against `docs/DEMO_SCRIPT.md`, measure completion without coaching, and revise only observed comprehension bottlenecks.
 2. Add durable event storage, authoritative server timestamps, cache/audit rotation, and a world/access revision in the Codex session key before multi-process or long-lived deployment.
-3. Repeat the live Pref application handshake with an owner-provided bearer, add response-hash/cache-status fields to the public audit event where policy permits, and threat-test transformed credential echoes.
+3. Rotate the demo Pref credential after use, add response-hash/cache-status fields to the public audit event where policy permits, and threat-test transformed credential echoes.
 4. Add OS/container isolation for local model execution if the app moves beyond a single trusted local user.
 5. Profile cold Phaser load on target demo hardware, then consider smaller scene imports or an intentional preload screen without weakening the existing truthful readiness sentinel.
 
