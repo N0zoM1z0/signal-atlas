@@ -24,6 +24,7 @@ import { MarketRibbon } from './MarketRibbon.js';
 import { MeetingWorkspace } from './MeetingWorkspace.js';
 import { ForecastWorkspace, type ForecastCommitInput } from './ForecastWorkspace.js';
 import { createShellModel } from './model.js';
+import { missionSuggestionsForPlaces, type MissionSuggestion } from './mission-suggestions.js';
 import { OnboardingGuide } from './OnboardingGuide.js';
 import { enablePresentationAudio, playPresentationTone } from './presentation-audio.js';
 import { presentationCuesForEvents, type ShellPresentationCue } from './presentation-cues.js';
@@ -85,6 +86,13 @@ function captureModeFromLocation(): boolean {
   return (
     typeof window !== 'undefined' &&
     new URLSearchParams(window.location.search).get('capture') === '1'
+  );
+}
+
+function debugControlsFromLocation(): boolean {
+  return (
+    typeof window !== 'undefined' &&
+    new URLSearchParams(window.location.search).get('debug') === '1'
   );
 }
 
@@ -170,6 +178,7 @@ export function WorldShell({ initialProjection, onOpenLobby }: WorldShellProps) 
   const [reducedMotion, setReducedMotion] = useState(false);
   const forcedRuntimeState = forcedRuntimeStateFromLocation();
   const captureMode = captureModeFromLocation();
+  const showFixtureControls = debugControlsFromLocation();
   const [runtimeState, setRuntimeState] = useState<RuntimeState>(forcedRuntimeState ?? 'loading');
   const [prefConnected, setPrefConnected] = useState(false);
   const [prefMode, setPrefMode] = useState<'fixture' | 'live' | 'unknown'>('unknown');
@@ -1056,6 +1065,31 @@ export function WorldShell({ initialProjection, onOpenLobby }: WorldShellProps) 
     }
   };
 
+  const prepareSuggestedMission = (suggestion: MissionSuggestion, agentId = selectedAgent.id) => {
+    const agent = model.agents.find((candidate) => candidate.id === agentId) ?? selectedAgent;
+    const createdAt = new Date().toISOString();
+    setSelectedAgentId(agent.id);
+    setCommand(suggestion.objective);
+    setMissionDraft({
+      status: 'ready',
+      objective: suggestion.objective,
+      assignedAgentId: agent.id,
+      destinationPlaceId: suggestion.destinationPlaceId,
+      verb: suggestion.verb,
+      candidateAgentIds: [agent.id],
+      candidatePlaceIds: [suggestion.destinationPlaceId],
+      missing: [],
+      explanation: 'This authored suggestion has an explicit agent, destination, and mission type.',
+      submissionId: createClientId('suggested-mission'),
+      createdAt,
+    });
+    setCommandError(undefined);
+    setTrayExpanded(true);
+    setAnnouncement(
+      `Mission route prepared for ${agent.name}. Review it before sending the agent.`,
+    );
+  };
+
   const updateMissionDraft = (patch: Partial<MissionDraft>) => {
     setMissionDraft((current) => {
       if (!current) return current;
@@ -1365,8 +1399,8 @@ export function WorldShell({ initialProjection, onOpenLobby }: WorldShellProps) 
           setRuntimeDiagnosticsOpen(true);
           setAnnouncement('Codex runtime diagnostics opened.');
         }}
-        onPrepareMission={(objective) => {
-          if (objective) void prepareMissionDraft(objective);
+        onPrepareMission={(suggestion) => {
+          if (suggestion) prepareSuggestedMission(suggestion);
           else directDraft();
         }}
         onSelectAgent={(agentId) => {
@@ -1475,6 +1509,9 @@ export function WorldShell({ initialProjection, onOpenLobby }: WorldShellProps) 
                       : undefined;
                   setMobilePanel('signals');
                 }}
+                onPrepareMission={(suggestion, agentId) =>
+                  prepareSuggestedMission(suggestion, agentId)
+                }
                 onSelectGuideAgent={(agentId) => {
                   const agent = projection.agentsById[agentId];
                   setSelectedAgentId(agentId);
@@ -1483,6 +1520,7 @@ export function WorldShell({ initialProjection, onOpenLobby }: WorldShellProps) 
                   );
                 }}
                 projection={projection}
+                seenSignalIds={evidencePreferences.seenSignalIds}
                 selectedAgentId={selectedAgentId}
               />
             )
@@ -1538,9 +1576,11 @@ export function WorldShell({ initialProjection, onOpenLobby }: WorldShellProps) 
       <SignalRail
         archivedSignalIds={evidencePreferences.archivedSignalIds}
         collapsed={signalRailCollapsed}
+        emptyMissionSuggestion={missionSuggestionsForPlaces(model.places)[0]}
         mobileOpen={mobilePanel === 'signals'}
         onInspect={inspectSignal}
         onPin={togglePinnedSignal}
+        onPrepareMission={prepareSuggestedMission}
         onToggleCollapsed={() => setSignalRailCollapsed((current) => !current)}
         pinnedSignalIds={evidencePreferences.pinnedSignalIds}
         seenSignalIds={evidencePreferences.seenSignalIds}
@@ -1621,12 +1661,14 @@ export function WorldShell({ initialProjection, onOpenLobby }: WorldShellProps) 
         onDraftChange={updateMissionDraft}
         onExpandedChange={() => setTrayExpanded((current) => !current)}
         onMoveMission={(missionId, direction) => void moveMission(missionId, direction)}
+        onPrepareSuggestedMission={prepareSuggestedMission}
         onRetryMission={(mission) => void retryMission(mission)}
         onScenarioChange={(scenario) => void changeFixtureScenario(scenario)}
         places={model.places}
         scenario={fixtureScenario}
         selectedAgent={selectedAgent}
         sequence={projection.sequence}
+        showFixtureControls={showFixtureControls}
       />
 
       <p aria-live="polite" className="atlas-visually-hidden" role="status">

@@ -1,8 +1,8 @@
 import type { MissionVerb } from '@signal-atlas/contracts';
-import type { RefObject } from 'react';
+import { useEffect, useId, useRef, type RefObject } from 'react';
 
 import type { ShellAgent, ShellMission, ShellPlace } from './model.js';
-import { missionSuggestionsForPlaces } from './mission-suggestions.js';
+import { missionSuggestionsForPlaces, type MissionSuggestion } from './mission-suggestions.js';
 import {
   fixtureMissionScenarios,
   type FixtureMissionScenario,
@@ -23,6 +23,7 @@ export interface CommandTrayProps {
   scenario: FixtureMissionScenario;
   sequence: number;
   selectedAgent: ShellAgent;
+  showFixtureControls: boolean;
   onCancelDraft: () => void;
   onCancelMission: (missionId: string) => void;
   onCommandChange: (value: string) => void;
@@ -32,6 +33,7 @@ export interface CommandTrayProps {
   onDraftChange: (patch: Partial<MissionDraft>) => void;
   onExpandedChange: () => void;
   onMoveMission: (missionId: string, direction: -1 | 1) => void;
+  onPrepareSuggestedMission: (suggestion: MissionSuggestion) => void;
   onRetryMission: (mission: ShellMission) => void;
   onScenarioChange: (scenario: FixtureMissionScenario) => void;
 }
@@ -69,12 +71,14 @@ export function CommandTray({
   onDraftChange,
   onExpandedChange,
   onMoveMission,
+  onPrepareSuggestedMission,
   onRetryMission,
   onScenarioChange,
   places,
   scenario,
   sequence,
   selectedAgent,
+  showFixtureControls,
 }: CommandTrayProps) {
   const suggestions = missionSuggestionsForPlaces(places).slice(0, 4);
   const selectedPlace = draft?.destinationPlaceId
@@ -88,6 +92,25 @@ export function CommandTray({
     draft.objective.trim() &&
     supportedVerbs.includes(draft.verb),
   );
+  const draftStatusId = useId();
+  const agentSelectRef = useRef<HTMLSelectElement>(null);
+  const destinationSelectRef = useRef<HTMLSelectElement>(null);
+  const verbSelectRef = useRef<HTMLSelectElement>(null);
+  const confirmRef = useRef<HTMLButtonElement>(null);
+  const missingKey = draft?.missing.join(',') ?? '';
+
+  useEffect(() => {
+    if (!expanded || busy || !draft) return;
+    const target = draftReady
+      ? confirmRef.current
+      : draft.missing[0] === 'agent'
+        ? agentSelectRef.current
+        : draft.missing[0] === 'destination'
+          ? destinationSelectRef.current
+          : verbSelectRef.current;
+    const frame = window.requestAnimationFrame(() => target?.focus());
+    return () => window.cancelAnimationFrame(frame);
+  }, [busy, draft?.submissionId, draftReady, expanded, missingKey]);
 
   return (
     <footer className="atlas-command-tray" aria-label="Agent command desk">
@@ -130,7 +153,7 @@ export function CommandTray({
           disabled={Boolean(disabledReason) || busy || command.trim().length === 0}
           type="submit"
         >
-          {busy ? 'Reading…' : 'Dispatch'} <kbd>↵</kbd>
+          {busy ? 'Interpreting…' : 'Review mission'} <kbd>↵</kbd>
         </button>
       </form>
 
@@ -140,7 +163,7 @@ export function CommandTray({
           <button
             disabled={Boolean(disabledReason)}
             key={suggestion.objective}
-            onClick={() => onCommandChange(suggestion.objective)}
+            onClick={() => onPrepareSuggestedMission(suggestion)}
             type="button"
           >
             {suggestion.objective}
@@ -171,7 +194,7 @@ export function CommandTray({
           <div className="atlas-command-draft">
             <header>
               <div>
-                <span className="atlas-kicker">Player confirmation</span>
+                <span className="atlas-kicker">Review before sending</span>
                 <h2 id="queue-heading">{draft ? 'Mission draft' : 'Mission queue'}</h2>
               </div>
               {!draft && (
@@ -194,7 +217,7 @@ export function CommandTray({
                   if (draftReady) onConfirmDraft();
                 }}
               >
-                <fieldset disabled={Boolean(disabledReason)}>
+                <fieldset aria-describedby={draftStatusId} disabled={Boolean(disabledReason)}>
                   <label>
                     Agent
                     <select
@@ -202,6 +225,7 @@ export function CommandTray({
                       onChange={(event) =>
                         onDraftChange({ assignedAgentId: event.target.value || undefined })
                       }
+                      ref={agentSelectRef}
                       value={draft.assignedAgentId ?? ''}
                     >
                       <option value="">Choose an agent</option>
@@ -228,6 +252,7 @@ export function CommandTray({
                           verb: nextVerb,
                         });
                       }}
+                      ref={destinationSelectRef}
                       value={draft.destinationPlaceId ?? ''}
                     >
                       <option value="">Choose a place</option>
@@ -246,6 +271,7 @@ export function CommandTray({
                       onChange={(event) =>
                         onDraftChange({ verb: (event.target.value || undefined) as MissionVerb })
                       }
+                      ref={verbSelectRef}
                       value={draft.verb ?? ''}
                     >
                       <option value="">Choose an action</option>
@@ -264,27 +290,39 @@ export function CommandTray({
                       value={draft.objective}
                     />
                   </label>
-                  <p data-ready={draftReady} role="status">
+                  <p data-ready={draftReady} id={draftStatusId} role="status">
                     {draftReady
-                      ? 'Ready to append validated mission events.'
-                      : draft.explanation ||
-                        'Resolve the highlighted mission fields before confirming.'}
+                      ? 'Ready to send. Nothing enters the world until you confirm.'
+                      : draft.explanation || 'Choose the missing mission field before continuing.'}
                   </p>
                   {error && <p className="atlas-command-error">{error}</p>}
                   <div className="atlas-draft-actions">
                     <button onClick={onCancelDraft} type="button">
-                      Keep editing later
+                      Cancel draft
                     </button>
-                    <button disabled={!draftReady || busy} type="submit">
-                      {busy ? 'Submitting…' : 'Confirm mission'}
+                    <button
+                      aria-label={
+                        draftReady
+                          ? `Confirm mission: send ${agents.find((agent) => agent.id === draft.assignedAgentId)?.name ?? 'agent'} to ${selectedPlace?.name ?? 'destination'}`
+                          : 'Confirm mission'
+                      }
+                      disabled={!draftReady || busy}
+                      ref={confirmRef}
+                      type="submit"
+                    >
+                      {busy
+                        ? 'Sending…'
+                        : draftReady
+                          ? `Send ${agents.find((agent) => agent.id === draft.assignedAgentId)?.name ?? 'agent'}`
+                          : 'Send mission'}
                     </button>
                   </div>
                 </fieldset>
               </form>
             ) : (
               <p>
-                Interpret a command or use the direct builder. Only confirmed, schema-valid missions
-                enter the authoritative event log.
+                Write a research objective or use the direct builder. Review the route before the
+                mission enters your workspace.
               </p>
             )}
           </div>
@@ -292,28 +330,30 @@ export function CommandTray({
           <div className="atlas-queue-list">
             <header>
               <div>
-                <span className="atlas-kicker">Authoritative projection</span>
+                <span className="atlas-kicker">Team schedule</span>
                 <strong>
                   {missions.filter((mission) => mission.status !== 'failed').length} active
                 </strong>
               </div>
-              <label className="atlas-scenario-control">
-                Offline result
-                <select
-                  aria-label="Offline mission result"
-                  disabled={Boolean(disabledReason) || busy}
-                  onChange={(event) =>
-                    onScenarioChange(event.target.value as FixtureMissionScenario)
-                  }
-                  value={scenario}
-                >
-                  {fixtureMissionScenarios.map((value) => (
-                    <option key={value} value={value}>
-                      {scenarioLabels[value]}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              {showFixtureControls && (
+                <label className="atlas-scenario-control">
+                  Debug fixture result
+                  <select
+                    aria-label="Offline mission result"
+                    disabled={Boolean(disabledReason) || busy}
+                    onChange={(event) =>
+                      onScenarioChange(event.target.value as FixtureMissionScenario)
+                    }
+                    value={scenario}
+                  >
+                    {fixtureMissionScenarios.map((value) => (
+                      <option key={value} value={value}>
+                        {scenarioLabels[value]}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
               <button className="atlas-secondary-action" onClick={onExpandedChange} type="button">
                 Close mission queue
               </button>

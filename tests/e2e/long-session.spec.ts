@@ -81,8 +81,8 @@ test('@soak fixture world remains interactive and bounded for thirty minutes', a
       await page
         .getByRole('textbox', { name: `Command ${mission.agentName}` })
         .fill(mission.objective);
-      await page.getByRole('button', { name: /Dispatch/ }).click();
-      await page.getByRole('button', { name: 'Confirm mission' }).click();
+      await page.getByRole('button', { name: 'Review mission' }).click();
+      await page.getByRole('button', { name: /^Confirm mission/ }).click();
       await expect(page.getByRole('heading', { name: mission.signal })).toBeVisible({
         timeout: 8_000,
       });

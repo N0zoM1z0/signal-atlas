@@ -183,3 +183,22 @@ hosted authentication, or real-trading path is in scope.
 
 Each milestone uses an English subject and a detailed English body. Unrelated local files remain
 unstaged.
+
+## Progress checkpoints
+
+### Guided research dispatch
+
+- Replaced the multi-action onboarding strip with one current step, durable evidence inspection
+  progress, and one contextual action while retaining an accessible five-step summary.
+- Authored place suggestions now prepare a complete local mission draft with explicit agent,
+  destination, and supported verb. They do not append an event until the user confirms the route.
+- A valid draft focuses its scenario-specific Send action; an incomplete natural-language draft
+  focuses its first missing field without interrupting objective editing.
+- The empty signal rail now explains how evidence arrives and offers a first-mission action.
+- Fixture outcome injection is absent from the normal product and remains available at
+  `?debug=1` for boundary tests.
+- Reviewed screenshots: `/tmp/helios-1440-guide.png`, `/tmp/helios-1440-mission.png`,
+  `/tmp/northlight-720-guide.png`, and `/tmp/northlight-720-mission.png`. The world remains the
+  dominant reference-view surface; the compact mission sheet fits the full 720 x 450 viewport.
+- Validation: web typecheck passed; 12 web test files / 29 tests passed; the focused 720 x 450
+  Playwright authored-guidance test passed. Full repository gates remain for completion.

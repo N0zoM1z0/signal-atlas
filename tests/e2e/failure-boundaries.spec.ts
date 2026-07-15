@@ -83,13 +83,13 @@ test('Pref unavailability is distinct, reversible, and preserves the projection'
 test('an invalid agent output records a sanitized schema failure and applies no evidence', async ({
   page,
 }) => {
-  await page.goto('/');
+  await page.goto('/?debug=1');
   await page.getByRole('button', { name: /Mission queue/ }).click();
   await page.getByLabel('Offline mission result').selectOption('invalid_result');
   await page.getByRole('button', { name: 'Close mission queue' }).click();
 
-  await page.getByRole('button', { name: /Dispatch/ }).click();
-  await page.getByRole('button', { name: 'Confirm mission' }).click();
+  await page.getByRole('button', { name: 'Review mission' }).click();
+  await page.getByRole('button', { name: /^Confirm mission/ }).click();
   await page.getByRole('button', { name: 'Skip travel' }).click();
   await expect(page.getByText('Mira → Galehaven Weather Tower · failed')).toBeVisible({
     timeout: 6_000,

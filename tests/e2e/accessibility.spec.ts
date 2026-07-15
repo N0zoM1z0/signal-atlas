@@ -72,7 +72,7 @@ test('the required expedition journey is completable with keyboard input and res
   await page.keyboard.press('Enter');
   await expect(page.getByRole('heading', { name: 'Mission draft' })).toBeVisible();
 
-  const confirm = page.getByRole('button', { name: 'Confirm mission' });
+  const confirm = page.getByRole('button', { name: /^Confirm mission/ });
   await tabTo(page, confirm);
   await page.keyboard.press('Enter');
   await expect(page.getByText('Mira → Galehaven Weather Tower · traveling')).toBeVisible();

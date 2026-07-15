@@ -3,9 +3,17 @@ import type { MissionVerb } from '@signal-atlas/contracts';
 import type { ShellPlace } from './model.js';
 
 export interface MissionSuggestion {
+  destinationPlaceId: string;
   objective: string;
   placeName: string;
   title: string;
+  verb: MissionVerb;
+}
+
+interface MissionSuggestionPlace {
+  id: string;
+  missionVerbs: readonly MissionVerb[];
+  name: string;
 }
 
 const verbPriority: Record<MissionVerb, number> = {
@@ -21,14 +29,14 @@ const verbPriority: Record<MissionVerb, number> = {
   reassess_forecast: 9,
 };
 
-function preferredVerb(place: ShellPlace): MissionVerb | undefined {
+function preferredVerb(place: MissionSuggestionPlace): MissionVerb | undefined {
   return [...place.missionVerbs].sort((left, right) => verbPriority[left] - verbPriority[right])[0];
 }
 
 function suggestionCopy(
   verb: MissionVerb,
   placeName: string,
-): Omit<MissionSuggestion, 'placeName'> {
+): Pick<MissionSuggestion, 'objective' | 'title'> {
   switch (verb) {
     case 'investigate':
       return {
@@ -80,12 +88,26 @@ function suggestionCopy(
   }
 }
 
+export function missionSuggestionForPlace(
+  place: MissionSuggestionPlace | undefined,
+): MissionSuggestion | undefined {
+  if (!place) return undefined;
+  const verb = preferredVerb(place);
+  return verb
+    ? {
+        ...suggestionCopy(verb, place.name),
+        destinationPlaceId: place.id,
+        placeName: place.name,
+        verb,
+      }
+    : undefined;
+}
+
 export function missionSuggestionsForPlaces(places: readonly ShellPlace[]): MissionSuggestion[] {
   return places
     .flatMap((place) => {
-      const verb = preferredVerb(place);
-      return verb ? [{ ...suggestionCopy(verb, place.name), placeName: place.name, verb }] : [];
+      const suggestion = missionSuggestionForPlace(place);
+      return suggestion ? [suggestion] : [];
     })
-    .sort((left, right) => verbPriority[left.verb] - verbPriority[right.verb])
-    .map(({ verb: _verb, ...suggestion }) => suggestion);
+    .sort((left, right) => verbPriority[left.verb] - verbPriority[right.verb]);
 }

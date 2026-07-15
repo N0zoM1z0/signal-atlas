@@ -19,8 +19,8 @@ async function discoverHistoricalEvidence(page: Page) {
   await page
     .getByRole('textbox', { name: 'Command Orin' })
     .fill('Search historical delays in Archive Quarter');
-  await page.getByRole('button', { name: /Dispatch/ }).click();
-  await page.getByRole('button', { name: 'Confirm mission' }).click();
+  await page.getByRole('button', { name: 'Review mission' }).click();
+  await page.getByRole('button', { name: /^Confirm mission/ }).click();
   await expect(page.getByRole('heading', { name: historicalHeadline })).toBeVisible({
     timeout: 5_000,
   });

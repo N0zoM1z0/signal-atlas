@@ -1,5 +1,5 @@
 import type { ShellAgent, ShellPlace } from './model.js';
-import { missionSuggestionsForPlaces } from './mission-suggestions.js';
+import { missionSuggestionsForPlaces, type MissionSuggestion } from './mission-suggestions.js';
 
 export interface AgentDockProps {
   agents: readonly ShellAgent[];
@@ -11,7 +11,7 @@ export interface AgentDockProps {
   selectedAgentId: string;
   onFollowAgent: (agentId: string) => void;
   onOpenRuntimeDiagnostics: () => void;
-  onPrepareMission: (objective?: string) => void;
+  onPrepareMission: (suggestion?: MissionSuggestion) => void;
   onSkipTravel: (agentId: string, missionId: string) => void;
   onSelectAgent: (agentId: string) => void;
   onToggleCollapsed: () => void;
@@ -62,6 +62,7 @@ export function AgentDock({
             return (
               <li className="atlas-agent-entry" data-selected={selected} key={agent.id}>
                 <button
+                  aria-label={`${agent.name}, ${agent.role}. Forecast ${agent.forecast} percent. ${agent.knowledgeCount} known signals. ${agent.status} at ${agent.placeName}. ${agent.mission}.`}
                   aria-pressed={selected}
                   className="atlas-agent-card"
                   data-agent={agent.id}
@@ -141,16 +142,16 @@ export function AgentDock({
         <section className="atlas-mission-board" aria-labelledby="mission-board-title">
           <header>
             <h3 id="mission-board-title">Mission board</h3>
-            <button aria-label="Add mission draft" onClick={() => onPrepareMission()} type="button">
+            <button
+              aria-label="Build a custom mission"
+              onClick={() => onPrepareMission()}
+              type="button"
+            >
               +
             </button>
           </header>
           {quickMissions.map((mission, index) => (
-            <button
-              key={mission.objective}
-              onClick={() => onPrepareMission(mission.objective)}
-              type="button"
-            >
+            <button key={mission.objective} onClick={() => onPrepareMission(mission)} type="button">
               <span aria-hidden="true">{index === 0 ? '↗' : '▤'}</span>
               <span>
                 <strong>{mission.title}</strong>

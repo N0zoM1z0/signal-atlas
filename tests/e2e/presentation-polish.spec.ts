@@ -62,8 +62,8 @@ test('capture mode removes healthy test chrome but preserves authoritative statu
 
 test('committed mission events drive the ticker and canvas cue', async ({ page }) => {
   await page.goto('/?capture=1');
-  await page.getByRole('button', { name: /Dispatch/ }).click();
-  await page.getByRole('button', { name: 'Confirm mission' }).click();
+  await page.getByRole('button', { name: 'Review mission' }).click();
+  await page.getByRole('button', { name: /^Confirm mission/ }).click();
   await page.getByRole('button', { name: 'Skip travel' }).click();
 
   const scene = page.locator('.atlas-world-canvas');

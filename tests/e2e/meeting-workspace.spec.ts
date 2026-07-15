@@ -20,8 +20,8 @@ async function completeEvidenceMission(
   await page.locator(`.atlas-agent-card[data-agent="${agentId}"]`).click();
   const agentName = agentId === 'mira' ? 'Mira' : 'Orin';
   await page.getByRole('textbox', { name: `Command ${agentName}` }).fill(objective);
-  await page.getByRole('button', { name: /Dispatch/ }).click();
-  await page.getByRole('button', { name: 'Confirm mission' }).click();
+  await page.getByRole('button', { name: 'Review mission' }).click();
+  await page.getByRole('button', { name: /^Confirm mission/ }).click();
   await expect(page.getByRole('heading', { name: headline })).toBeVisible({ timeout: 6_000 });
   await page.getByRole('button', { name: 'Close mission queue' }).click();
 }

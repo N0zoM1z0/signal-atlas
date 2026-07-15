@@ -25,6 +25,31 @@ interface MissionSnapshot {
   };
 }
 
+test('authored guidance prepares a complete local draft at a compact viewport', async ({ page }) => {
+  await page.setViewportSize({ width: 720, height: 450 });
+  await page.goto('/');
+
+  await expect(page.getByLabel('Offline mission result')).toHaveCount(0);
+  await page
+    .getByRole('complementary', { name: 'First expedition guide' })
+    .getByRole('button', { name: 'Prepare mission for Mira' })
+    .click();
+
+  await expect(page.getByLabel('Mission agent')).toHaveValue('mira');
+  await expect(page.getByLabel('Mission destination')).toHaveValue('weather-tower');
+  await expect(page.getByLabel('Mission type')).toHaveValue('observe_conditions');
+  const confirm = page.getByRole('button', { name: /^Confirm mission/ });
+  await expect(confirm).toBeEnabled();
+  await expect(confirm).toBeFocused();
+
+  const queueBox = await page.locator('.atlas-command-queue').boundingBox();
+  expect(queueBox).not.toBeNull();
+  expect(queueBox?.x).toBeGreaterThanOrEqual(0);
+  expect(queueBox?.y).toBeGreaterThanOrEqual(0);
+  expect((queueBox?.x ?? 0) + (queueBox?.width ?? 0)).toBeLessThanOrEqual(720);
+  expect((queueBox?.y ?? 0) + (queueBox?.height ?? 0)).toBeLessThanOrEqual(450);
+});
+
 test('confirmed missions travel, resume from projection, and preserve explicit controls', async ({
   page,
 }) => {
@@ -37,14 +62,14 @@ test('confirmed missions travel, resume from projection, and preserve explicit c
   await expect(page.getByRole('main', { name: 'Interactive world stage' })).toBeVisible();
 
   // Interaction 1: the explicit phrase is interpreted but cannot mutate the world.
-  await page.getByRole('button', { name: /Dispatch/ }).click();
+  await page.getByRole('button', { name: 'Review mission' }).click();
   await expect(page.getByRole('heading', { name: 'Mission draft' })).toBeVisible();
   await expect(page.getByLabel('Mission agent')).toHaveValue('mira');
   await expect(page.getByLabel('Mission destination')).toHaveValue('weather-tower');
   await expect(page.getByLabel('Mission type')).toHaveValue('observe_conditions');
 
   // Interaction 2: confirmation appends mission and first-leg travel events.
-  await page.getByRole('button', { name: 'Confirm mission' }).click();
+  await page.getByRole('button', { name: /^Confirm mission/ }).click();
   await expect(page.getByText('Mira → Galehaven Weather Tower · traveling')).toBeVisible();
   await expect(page.locator('[data-agent="mira"] .atlas-agent-card__status')).toContainText(
     'Traveling',
@@ -83,10 +108,10 @@ test('confirmed missions travel, resume from projection, and preserve explicit c
   await command.fill('Look into the launch question');
   await command.press('Enter');
   await expect(page.getByRole('heading', { name: 'Mission draft' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Confirm mission' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: /^Confirm mission/ })).toBeDisabled();
   await expect(page.getByText(/Confirmation is blocked/)).toBeVisible();
   expect((await snapshot()).projection.sequence).toBe(pausedSnapshot.projection.sequence);
-  await page.getByRole('button', { name: 'Keep editing later' }).click();
+  await page.getByRole('button', { name: 'Cancel draft' }).click();
 
   // Explicit skip emits remaining arrivals before the work phase and gives Phaser an arrival hint.
   await page.getByRole('button', { name: 'Skip travel' }).click();
@@ -117,13 +142,13 @@ test('confirmed missions travel, resume from projection, and preserve explicit c
 });
 
 test('injected failures remain visible and recover through an explicit retry', async ({ page }) => {
-  await page.goto('/');
+  await page.goto('/?debug=1');
   await page.getByRole('button', { name: /Mission queue/ }).click();
   await page.getByLabel('Offline mission result').selectOption('timeout');
   await page.getByRole('button', { name: 'Close mission queue' }).click();
 
-  await page.getByRole('button', { name: /Dispatch/ }).click();
-  await page.getByRole('button', { name: 'Confirm mission' }).click();
+  await page.getByRole('button', { name: 'Review mission' }).click();
+  await page.getByRole('button', { name: /^Confirm mission/ }).click();
   await page.getByRole('button', { name: 'Skip travel' }).click();
 
   const failedMission = page.getByText('Mira → Galehaven Weather Tower · failed');
@@ -161,8 +186,8 @@ test('all authored agents complete their evidence missions without external serv
   ) => {
     await page.locator(`.atlas-agent-card[data-agent="${agentId}"]`).click();
     await page.getByRole('textbox', { name: `Command ${agentName}` }).fill(objective);
-    await page.getByRole('button', { name: /Dispatch/ }).click();
-    await page.getByRole('button', { name: 'Confirm mission' }).click();
+    await page.getByRole('button', { name: 'Review mission' }).click();
+    await page.getByRole('button', { name: /^Confirm mission/ }).click();
     await expect(page.getByRole('heading', { name: signalHeadline })).toBeVisible({
       timeout: 5_000,
     });

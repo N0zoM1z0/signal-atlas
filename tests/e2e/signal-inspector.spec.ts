@@ -15,8 +15,8 @@ async function discoverWeatherSignal(page: Page) {
   await page.getByLabel('Skip travel').check();
   await page.getByRole('button', { name: 'Simulation speed 1 times' }).click();
   await page.getByRole('button', { name: 'Simulation speed 2 times' }).click();
-  await page.getByRole('button', { name: /Dispatch/ }).click();
-  await page.getByRole('button', { name: 'Confirm mission' }).click();
+  await page.getByRole('button', { name: 'Review mission' }).click();
+  await page.getByRole('button', { name: /^Confirm mission/ }).click();
   await page.getByRole('button', { name: 'Close mission queue' }).click();
   const card = page.locator('.atlas-signal-card').filter({ hasText: headline });
   await expect(card).toBeVisible({ timeout: 5_000 });
