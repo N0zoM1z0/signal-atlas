@@ -9,6 +9,8 @@ export interface MarketRibbonProps {
   mode: 'director' | 'observatory';
   paused: boolean;
   prefConnected: boolean;
+  prefConnectionState: string;
+  prefMode: 'fixture' | 'live' | 'unknown';
   runtimeState: RuntimeState;
   streamStatus: EventStreamStatus;
   speed: 1 | 2 | 4;
@@ -29,6 +31,8 @@ export function MarketRibbon({
   onSpeedChange,
   paused,
   prefConnected,
+  prefConnectionState,
+  prefMode,
   publicProbability,
   resolvedOutcomeLabel,
   runtimeState,
@@ -58,8 +62,14 @@ export function MarketRibbon({
               : streamStatus.phase === 'connecting'
                 ? `◌ Connecting · seq ${streamStatus.cursor}`
                 : !prefConnected
-                  ? '△ Pref disconnected'
-                  : '● Fixture ready';
+                  ? prefMode === 'live' && prefConnectionState === 'auth_required'
+                    ? '△ Live Pref auth required'
+                    : prefMode === 'unknown'
+                      ? '△ Pref status unavailable'
+                      : `△ ${prefMode === 'live' ? 'Live Pref' : 'Fixture Pref'} disconnected`
+                  : prefMode === 'live'
+                    ? '● Live Pref ready'
+                    : '● Fixture ready';
 
   return (
     <header className="atlas-market-ribbon" aria-label="Market overview">

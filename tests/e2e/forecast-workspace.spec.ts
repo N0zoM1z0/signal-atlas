@@ -43,6 +43,7 @@ async function reachForecastDesk(page: Page) {
     'Search historical delays in Archive Quarter',
     historicalHeadline,
   );
+  await page.getByRole('main', { name: 'Interactive world stage' }).focus();
   await page.keyboard.press('c');
   await expect(page.getByRole('dialog', { name: 'Commit Forecast' })).toBeVisible();
 }

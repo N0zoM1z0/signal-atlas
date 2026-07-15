@@ -1,5 +1,14 @@
 import { expect, test, type Page } from '@playwright/test';
 
+test.beforeEach(async ({ request }) => {
+  await request.post('/api/testing/reset');
+  await request.post('/api/runtime/pref/test', { data: {} });
+});
+
+test.afterEach(async ({ request }) => {
+  await request.post('/api/testing/reset');
+});
+
 async function expectNoPageOverflow(page: Page) {
   const overflow = await page.evaluate(() => ({
     bodyHeight: document.body.scrollHeight,
@@ -69,7 +78,7 @@ test('desktop panels collapse independently and keyboard shortcuts preserve focu
   await expect(shell).toHaveAttribute('data-signal-collapsed', 'true');
   await expectNoPageOverflow(page);
 
-  await page.locator('body').click({ position: { x: 640, y: 400 } });
+  await page.getByRole('main', { name: 'Interactive world stage' }).focus();
   await page.keyboard.press('/');
   await expect(page.getByRole('textbox', { name: 'Command Mira' })).toBeFocused();
   await page.keyboard.press('Escape');
@@ -114,7 +123,9 @@ test('fixture, loading, and disconnected runtime states are explicit', async ({ 
 
   await page.goto('/?state=disconnected');
   await expect(page.getByText('△ Orchestrator offline')).toBeVisible();
-  await expect(page.getByText('Offline', { exact: true })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Runtime connections' })).toContainText(
+    'Pref GatewayChecking',
+  );
 });
 
 test('Phaser owns a crisp 48 × 30 world while the DOM mirror and camera stay synchronized', async ({

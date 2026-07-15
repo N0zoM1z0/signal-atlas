@@ -28,6 +28,7 @@ export interface CameraFollowRequest {
 
 export interface WorldCanvasProps {
   autoCamera: boolean;
+  captureMode: boolean;
   children: ReactNode;
   followRequest: CameraFollowRequest | undefined;
   model: WorldSceneDefinition;
@@ -49,6 +50,9 @@ function isEditableTarget(target: EventTarget | null): boolean {
   return (
     target instanceof HTMLInputElement ||
     target instanceof HTMLTextAreaElement ||
+    target instanceof HTMLSelectElement ||
+    target instanceof HTMLButtonElement ||
+    target instanceof HTMLAnchorElement ||
     (target instanceof HTMLElement && target.isContentEditable)
   );
 }
@@ -56,6 +60,7 @@ function isEditableTarget(target: EventTarget | null): boolean {
 export const WorldCanvas = forwardRef<WorldCanvasHandle, WorldCanvasProps>(function WorldCanvas(
   {
     autoCamera,
+    captureMode,
     children,
     followRequest,
     model,
@@ -260,6 +265,7 @@ export const WorldCanvas = forwardRef<WorldCanvasHandle, WorldCanvasProps>(funct
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (isEditableTarget(event.target)) return;
+      if (document.querySelector('[role="dialog"][aria-modal="true"]')) return;
       if (event.key === 'Home') {
         event.preventDefault();
         bridge.send({ type: 'camera.home' });
@@ -304,13 +310,15 @@ export const WorldCanvas = forwardRef<WorldCanvasHandle, WorldCanvasProps>(funct
       <div className="atlas-place-mirror-layer" style={coordinatePlaneStyle}>
         {children}
       </div>
-      <span className="atlas-scene-diagnostic" role="status">
-        {error
-          ? `Canvas fallback active · ${error}`
-          : ready && metrics
-            ? `Phaser · ${metrics.pixelScale}× pixels · Live`
-            : 'Starting Phaser scene…'}
-      </span>
+      {(!captureMode || error) && (
+        <span className="atlas-scene-diagnostic" role="status">
+          {error
+            ? `Canvas fallback active · ${error}`
+            : ready && metrics
+              ? `Phaser · ${metrics.pixelScale}× pixels · Live`
+              : 'Starting Phaser scene…'}
+        </span>
+      )}
     </div>
   );
 });

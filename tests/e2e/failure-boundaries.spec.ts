@@ -2,6 +2,7 @@ import { expect, test } from '@playwright/test';
 
 test.beforeEach(async ({ request }) => {
   await request.post('/api/testing/reset');
+  await request.post('/api/runtime/pref/test', { data: {} });
 });
 
 test.afterEach(async ({ request }) => {
@@ -60,8 +61,10 @@ test('Pref unavailability is distinct, reversible, and preserves the projection'
   await expect(pref).toContainText('disconnected');
   await dialog.getByRole('button', { name: 'Done' }).click();
 
-  await expect(page.getByText('△ Pref disconnected')).toBeVisible();
-  await expect(page.getByRole('region', { name: 'Runtime connections' })).toContainText('Offline');
+  await expect(page.getByText('△ Fixture Pref disconnected')).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Runtime connections' })).toContainText(
+    'Unavailable',
+  );
   await expect(shell).toHaveAttribute('data-event-stream-sequence', sequence ?? '2');
 
   await page.getByRole('button', { name: /Codex Runtime/ }).click();

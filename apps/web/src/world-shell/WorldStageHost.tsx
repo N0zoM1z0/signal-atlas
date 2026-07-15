@@ -1,8 +1,9 @@
-import { useRef, type CSSProperties } from 'react';
+import { useRef, type CSSProperties, type ReactNode } from 'react';
 
-import type { WorldSceneDefinition } from '@signal-atlas/game-scene';
+import type { WorldSceneDefinition, WorldWeatherPresentation } from '@signal-atlas/game-scene';
 
 import type { ShellAgent, ShellPlace } from './model.js';
+import type { ShellPresentationCue } from './presentation-cues.js';
 import { WorldCanvas, type CameraFollowRequest, type WorldCanvasHandle } from './WorldCanvas.js';
 
 interface RouteModel {
@@ -16,10 +17,13 @@ interface RouteModel {
 }
 
 export interface WorldStageHostProps {
+  activeCue: ShellPresentationCue | undefined;
   agentsDrawerOpen: boolean;
   agents: readonly ShellAgent[];
   autoCamera: boolean;
+  captureMode: boolean;
   followRequest: CameraFollowRequest | undefined;
+  guide: ReactNode;
   loading: boolean;
   places: readonly ShellPlace[];
   reducedMotion: boolean;
@@ -39,6 +43,9 @@ export interface WorldStageHostProps {
   onSelectAgent: (agentId: string) => void;
   onSelectPlace: (placeId: string) => void;
   onSkipTravelChange: (enabled: boolean) => void;
+  onSoundToggle: () => void;
+  soundEnabled: boolean;
+  weather: WorldWeatherPresentation;
 }
 
 function placeStyle(place: ShellPlace): CSSProperties {
@@ -49,10 +56,13 @@ function placeStyle(place: ShellPlace): CSSProperties {
 }
 
 export function WorldStageHost({
+  activeCue,
   agentsDrawerOpen,
   agents,
   autoCamera,
+  captureMode,
   followRequest,
+  guide,
   loading,
   meetingBusy,
   meetingDisabled,
@@ -61,6 +71,7 @@ export function WorldStageHost({
   onSelectAgent,
   onSelectPlace,
   onSkipTravelChange,
+  onSoundToggle,
   places,
   reducedMotion,
   routes,
@@ -70,6 +81,8 @@ export function WorldStageHost({
   selectedPlaceId,
   skipTravel,
   signalsDrawerOpen,
+  soundEnabled,
+  weather,
 }: WorldStageHostProps) {
   const canvasRef = useRef<WorldCanvasHandle>(null);
 
@@ -150,6 +163,13 @@ export function WorldStageHost({
           </button>
         </span>
         <span className="atlas-world-tools">
+          <span className="atlas-weather-chip" title={weather.sourceTitle}>
+            <i aria-hidden="true" />
+            <span>
+              <small>Weather</small>
+              <strong>{weather.label}</strong>
+            </span>
+          </span>
           <button aria-current="page" type="button">
             World
           </button>
@@ -178,6 +198,14 @@ export function WorldStageHost({
             Replay
           </button>
           <button
+            aria-label={soundEnabled ? 'Mute presentation sound' : 'Enable presentation sound'}
+            aria-pressed={soundEnabled}
+            onClick={onSoundToggle}
+            type="button"
+          >
+            {soundEnabled ? 'Sound on' : 'Sound off'}
+          </button>
+          <button
             aria-label="Center map"
             onClick={() => canvasRef.current?.send({ type: 'camera.home' })}
             type="button"
@@ -200,6 +228,8 @@ export function WorldStageHost({
           </button>
         </span>
       </nav>
+
+      <div className="atlas-world-guide-slot">{guide}</div>
 
       <section aria-label="World map" className="atlas-world-stage">
         <div className="atlas-react-world-layer" aria-hidden="true">
@@ -236,6 +266,7 @@ export function WorldStageHost({
 
         <WorldCanvas
           autoCamera={autoCamera}
+          captureMode={captureMode}
           followRequest={followRequest}
           model={sceneDefinition}
           onAgentSelect={onSelectAgent}
@@ -244,6 +275,7 @@ export function WorldStageHost({
           ref={canvasRef}
           selectedAgentId={selectedAgentId}
           selectedPlaceId={selectedPlaceId}
+          {...(activeCue ? { presentationCue: activeCue } : {})}
         >
           {places.map((place) => (
             <button
@@ -285,8 +317,22 @@ export function WorldStageHost({
       </section>
 
       <footer className="atlas-world-footer">
-        <span className="atlas-event-ticker" role="status">
-          <i aria-hidden="true" /> <strong>18:32</strong> {selectedAgentName} selected.
+        <span
+          className="atlas-event-ticker"
+          data-cue-kind={activeCue?.kind ?? 'selection'}
+          role="status"
+        >
+          <i aria-hidden="true" />{' '}
+          <strong>
+            {activeCue
+              ? new Date(activeCue.occurredAt).toLocaleTimeString('en-GB', {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                  timeZone: 'UTC',
+                })
+              : 'Ready'}
+          </strong>{' '}
+          {activeCue?.text ?? `${selectedAgentName} selected.`}
         </span>
         <span className="atlas-world-footer__actions">
           <label className="atlas-travel-preference">

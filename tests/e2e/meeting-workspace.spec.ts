@@ -90,7 +90,9 @@ test('Lantern Square preserves asymmetry, shares signals, and files a skippable 
   await expect(memo).toContainText(/SEQ \d+/);
 
   await page.keyboard.press('Escape');
-  await expect(page.getByRole('main', { name: 'Interactive world stage' })).toBeVisible();
+  const world = page.getByRole('main', { name: 'Interactive world stage' });
+  await expect(world).toBeVisible();
+  await world.focus();
   await page.keyboard.press('a');
   await page.getByRole('tab', { name: 'Memos 1' }).click();
   await expect(page.getByText('1 matching memo record')).toBeVisible();

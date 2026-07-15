@@ -49,6 +49,7 @@ async function reachProfessorJourney(page: Page) {
     timeout: 5_000,
   });
   await page.keyboard.press('Escape');
+  await page.getByRole('main', { name: 'Interactive world stage' }).focus();
   await page.keyboard.press('p');
   await expect(page.getByRole('main', { name: "Professor Vale's Study" })).toBeVisible();
 }

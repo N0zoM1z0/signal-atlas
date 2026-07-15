@@ -36,6 +36,7 @@ async function reachResolvedReplay(page: Page) {
   });
   await page.getByRole('button', { name: 'Close mission queue' }).click();
 
+  await page.getByRole('main', { name: 'Interactive world stage' }).focus();
   await page.keyboard.press('c');
   const forecast = page.getByRole('dialog', { name: 'Commit Forecast' });
   await forecast.getByRole('spinbutton', { name: 'YES probability' }).fill('48');

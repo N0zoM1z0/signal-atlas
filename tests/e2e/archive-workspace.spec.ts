@@ -31,6 +31,7 @@ test('Archive Quarter searches, compares, files, and replays discovered evidence
   page,
 }) => {
   await discoverHistoricalEvidence(page);
+  await page.getByRole('main', { name: 'Interactive world stage' }).focus();
   await page.keyboard.press('a');
   const archive = page.getByRole('main', { name: 'Archive Quarter' });
   await expect(archive).toBeVisible();
@@ -86,7 +87,9 @@ test('Archive Quarter searches, compares, files, and replays discovered evidence
   );
 
   await page.keyboard.press('Escape');
-  await expect(page.getByRole('main', { name: 'Interactive world stage' })).toBeVisible();
+  const world = page.getByRole('main', { name: 'Interactive world stage' });
+  await expect(world).toBeVisible();
+  await world.focus();
   await page.keyboard.press('a');
   await expect(page.getByText('1 selected')).toBeVisible();
 });
@@ -96,6 +99,7 @@ test('@visual Archive Quarter keeps search, shelf, inspector, and case file legi
 }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await discoverHistoricalEvidence(page);
+  await page.getByRole('main', { name: 'Interactive world stage' }).focus();
   await page.keyboard.press('a');
   await expect(page.getByRole('main', { name: 'Archive Quarter' })).toBeVisible();
   await page.getByLabel('Search archive').fill('crosswind');

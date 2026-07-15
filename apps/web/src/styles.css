@@ -2633,7 +2633,7 @@ kbd {
   min-width: 0;
   min-height: 0;
   grid-area: world;
-  grid-template-rows: var(--sa-size-min-touch-target) minmax(0, 1fr) 36px;
+  grid-template-rows: var(--sa-size-min-touch-target) auto minmax(0, 1fr) 36px;
   overflow: hidden;
   background: var(--sa-color-atlas-night);
 }
@@ -2700,6 +2700,46 @@ kbd {
   border-color: var(--sa-color-harbor-blue);
   color: var(--sa-color-paper-light);
   background: var(--sa-color-atlas-night);
+}
+
+.atlas-weather-chip {
+  display: flex;
+  max-width: 180px;
+  align-items: center;
+  gap: var(--sa-spacing-2);
+  padding: 3px var(--sa-spacing-2);
+  border: var(--sa-border-hairline) solid var(--sa-color-harbor-blue);
+  border-radius: var(--sa-radius-small);
+  color: var(--sa-color-paper-light);
+  background: var(--sa-color-atlas-night);
+}
+
+.atlas-weather-chip i {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--sa-color-weather-cyan);
+  box-shadow: 0 0 8px var(--sa-color-weather-cyan);
+}
+
+.atlas-weather-chip span {
+  display: grid;
+  min-width: 0;
+}
+
+.atlas-weather-chip small {
+  color: var(--sa-color-muted-steel);
+  font-size: 7px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.atlas-weather-chip strong {
+  overflow: hidden;
+  font-size: 8px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .atlas-mobile-drawers {
@@ -3402,6 +3442,104 @@ kbd {
 .atlas-command-status strong {
   font-family: var(--sa-typography-mono-family);
   font-size: 9px;
+}
+
+.atlas-world-guide-slot {
+  z-index: var(--sa-z-index-world-callout);
+  min-width: 0;
+  border-bottom: var(--sa-border-hairline) solid var(--sa-color-harbor-blue);
+  background: var(--sa-color-deep-ink);
+}
+
+.atlas-world-guide-slot:empty {
+  display: none;
+}
+
+.atlas-onboarding {
+  display: grid;
+  width: 100%;
+  align-items: center;
+  grid-template-columns: minmax(150px, 0.7fr) minmax(0, 2fr) auto;
+  gap: var(--sa-spacing-3);
+  padding: var(--sa-spacing-2) var(--sa-spacing-3);
+  color: var(--sa-color-paper-light);
+  background: color-mix(in srgb, var(--sa-color-harbor-blue) 10%, var(--sa-color-deep-ink));
+}
+
+.atlas-onboarding header,
+.atlas-onboarding header > div,
+.atlas-onboarding ol {
+  display: grid;
+  gap: var(--sa-spacing-2);
+}
+
+.atlas-onboarding header {
+  align-items: start;
+  grid-template-columns: 1fr auto;
+}
+
+.atlas-onboarding header strong {
+  font-size: var(--sa-typography-size-xs);
+}
+
+.atlas-onboarding header button,
+.atlas-onboarding > div button,
+.atlas-guide-reopen {
+  min-height: 28px;
+  padding: 0 var(--sa-spacing-2);
+  border: var(--sa-border-hairline) solid var(--sa-color-slate-cloud);
+  color: var(--sa-color-paper-light);
+  background: var(--sa-color-atlas-night);
+  font-size: 9px;
+}
+
+.atlas-onboarding ol {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.atlas-onboarding li {
+  display: grid;
+  align-items: center;
+  grid-template-columns: 22px 1fr;
+  color: var(--sa-color-muted-steel);
+  font-size: 10px;
+}
+
+.atlas-onboarding li span {
+  display: grid;
+  width: 18px;
+  height: 18px;
+  place-items: center;
+  border: var(--sa-border-hairline) solid var(--sa-color-slate-cloud);
+  border-radius: 50%;
+  font-family: var(--sa-typography-mono-family);
+  font-size: 8px;
+}
+
+.atlas-onboarding li[data-complete='true'] {
+  color: var(--sa-color-moss-signal);
+}
+
+.atlas-onboarding > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sa-spacing-1);
+}
+
+.atlas-guide-reopen {
+  min-height: 28px;
+  margin: var(--sa-spacing-1) var(--sa-spacing-3);
+  padding: 0 var(--sa-spacing-2);
+  border-color: var(--sa-color-weather-cyan);
+  border-radius: 999px;
+}
+
+.signal-atlas-shell[data-capture-mode='true'] .atlas-scenario-control,
+.signal-atlas-shell[data-capture-mode='true'] .atlas-command-status strong {
+  display: none;
 }
 
 .atlas-command-queue {
@@ -6514,6 +6652,25 @@ kbd {
 
   .atlas-panel-toggle {
     display: none;
+  }
+}
+
+@media (max-width: 600px) {
+  .atlas-onboarding {
+    grid-template-columns: minmax(130px, 0.7fr) minmax(0, 1.3fr);
+  }
+
+  .atlas-onboarding > div {
+    display: none;
+  }
+
+  .atlas-onboarding ol {
+    display: flex;
+    overflow-x: auto;
+  }
+
+  .atlas-onboarding li {
+    min-width: 130px;
   }
 }
 

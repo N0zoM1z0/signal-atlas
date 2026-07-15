@@ -3,8 +3,9 @@ import type { ShellAgent } from './model.js';
 export interface AgentDockProps {
   agents: readonly ShellAgent[];
   collapsed: boolean;
-  disconnected: boolean;
   mobileOpen: boolean;
+  prefConnectionLabel: string;
+  prefWarning: boolean;
   selectedAgentId: string;
   onFollowAgent: (agentId: string) => void;
   onOpenRuntimeDiagnostics: () => void;
@@ -17,7 +18,6 @@ export interface AgentDockProps {
 export function AgentDock({
   agents,
   collapsed,
-  disconnected,
   mobileOpen,
   onFollowAgent,
   onOpenRuntimeDiagnostics,
@@ -25,6 +25,8 @@ export function AgentDock({
   onSkipTravel,
   onSelectAgent,
   onToggleCollapsed,
+  prefConnectionLabel,
+  prefWarning,
   selectedAgentId,
 }: AgentDockProps) {
   return (
@@ -159,8 +161,8 @@ export function AgentDock({
 
       <section className="atlas-connections" aria-label="Runtime connections">
         <span>
-          <i className={disconnected ? 'is-warning' : ''} aria-hidden="true" /> Pref Gateway
-          <b>{disconnected ? 'Offline' : 'Fixture'}</b>
+          <i className={prefWarning ? 'is-warning' : ''} aria-hidden="true" /> Pref Gateway
+          <b>{prefConnectionLabel}</b>
         </span>
         <button onClick={onOpenRuntimeDiagnostics} type="button">
           <i aria-hidden="true" /> Codex Runtime <b>Inspect</b>

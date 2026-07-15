@@ -5,7 +5,7 @@ import {
   type WorldCommand,
   type WorldEvent,
 } from '@signal-atlas/contracts';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 
 import { AgentDock } from './AgentDock.js';
 import { ArchiveWorkspace } from './ArchiveWorkspace.js';
@@ -22,6 +22,10 @@ import { MarketRibbon } from './MarketRibbon.js';
 import { MeetingWorkspace } from './MeetingWorkspace.js';
 import { ForecastWorkspace, type ForecastCommitInput } from './ForecastWorkspace.js';
 import { createShellModel, shellModel } from './model.js';
+import { OnboardingGuide } from './OnboardingGuide.js';
+import { enablePresentationAudio, playPresentationTone } from './presentation-audio.js';
+import { presentationCuesForEvents, type ShellPresentationCue } from './presentation-cues.js';
+import { chooseLatestProjection } from './projection-state.js';
 import { ProfessorWorkspace, type ProfessorQuestionInput } from './ProfessorWorkspace.js';
 import { ReplayWorkspace } from './ReplayWorkspace.js';
 import { RuntimeDiagnosticsDialog } from './RuntimeDiagnosticsDialog.js';
@@ -30,6 +34,7 @@ import {
   fetchExpeditionEvents,
   fetchExpeditionSnapshot,
   fetchFixtureConfiguration,
+  fetchPrefDiagnostics,
   interpretMissionDraft,
   submitWorldCommand,
   updateFixtureMissionScenario,
@@ -44,10 +49,39 @@ type RuntimeState = 'ready' | 'loading' | 'disconnected';
 type MobilePanel = 'agents' | 'signals' | null;
 type Workspace = 'world' | 'archive' | 'meeting' | 'professor' | 'replay';
 
-function runtimeStateFromLocation(): RuntimeState {
-  if (typeof window === 'undefined') return 'ready';
+interface CueState {
+  active: ShellPresentationCue | undefined;
+  queue: ShellPresentationCue[];
+}
+
+type CueAction =
+  { type: 'append'; cues: ShellPresentationCue[] } | { type: 'advance'; activeId: string };
+
+function cueReducer(state: CueState, action: CueAction): CueState {
+  if (action.type === 'append') {
+    if (action.cues.length === 0) return state;
+    if (state.active) {
+      return { ...state, queue: [...state.queue, ...action.cues].slice(-24) };
+    }
+    const [active, ...queue] = action.cues;
+    return { active, queue: queue.slice(-24) };
+  }
+  if (state.active?.id !== action.activeId) return state;
+  const [active, ...queue] = state.queue;
+  return { active, queue };
+}
+
+function forcedRuntimeStateFromLocation(): RuntimeState | undefined {
+  if (typeof window === 'undefined') return undefined;
   const state = new URLSearchParams(window.location.search).get('state');
-  return state === 'loading' || state === 'disconnected' ? state : 'ready';
+  return state === 'loading' || state === 'disconnected' ? state : undefined;
+}
+
+function captureModeFromLocation(): boolean {
+  return (
+    typeof window !== 'undefined' &&
+    new URLSearchParams(window.location.search).get('capture') === '1'
+  );
 }
 
 function isEditableTarget(target: EventTarget | null): boolean {
@@ -55,6 +89,8 @@ function isEditableTarget(target: EventTarget | null): boolean {
     target instanceof HTMLInputElement ||
     target instanceof HTMLTextAreaElement ||
     target instanceof HTMLSelectElement ||
+    target instanceof HTMLButtonElement ||
+    target instanceof HTMLAnchorElement ||
     (target instanceof HTMLElement && target.isContentEditable)
   );
 }
@@ -98,13 +134,17 @@ export function WorldShell() {
   const [command, setCommand] = useState('Check latest weather at Galehaven Weather Tower');
   const [announcement, setAnnouncement] = useState('Fixture projection ready.');
   const [reducedMotion, setReducedMotion] = useState(false);
-  const [runtimeState, setRuntimeState] = useState<RuntimeState>(runtimeStateFromLocation);
-  const [prefConnected, setPrefConnected] = useState(true);
+  const forcedRuntimeState = forcedRuntimeStateFromLocation();
+  const captureMode = captureModeFromLocation();
+  const [runtimeState, setRuntimeState] = useState<RuntimeState>(forcedRuntimeState ?? 'loading');
+  const [prefConnected, setPrefConnected] = useState(false);
+  const [prefMode, setPrefMode] = useState<'fixture' | 'live' | 'unknown'>('unknown');
+  const [prefConnectionState, setPrefConnectionState] = useState('checking');
   const [eventStreamStatus, setEventStreamStatus] = useState<EventStreamStatus>({
     attempt: 0,
     cursor: shellModel.projection.sequence,
     message: `Connecting from sequence ${shellModel.projection.sequence}.`,
-    phase: runtimeStateFromLocation() === 'ready' ? 'connecting' : 'stopped',
+    phase: forcedRuntimeState ? 'stopped' : 'connecting',
   });
   const [streamBoundaryError, setStreamBoundaryError] = useState<string>();
   const [missionDraft, setMissionDraft] = useState<MissionDraft>();
@@ -127,9 +167,15 @@ export function WorldShell() {
   const [followRequest, setFollowRequest] = useState<
     { agentId: string; requestId: number } | undefined
   >();
+  const [cueState, dispatchCue] = useReducer(cueReducer, { active: undefined, queue: [] });
+  const activeCue = cueState.active;
+  const [soundEnabled, setSoundEnabled] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const startupCompleteRef = useRef(false);
   const autoSkippedTravelRef = useRef(new Set<string>());
   const sourceInspectorTriggerRef = useRef<HTMLElement | undefined>(undefined);
+  const mobilePanelReturnRef = useRef<HTMLElement | undefined>(undefined);
+  const previousMobilePanelRef = useRef<MobilePanel>(null);
   const workspaceFocusCycleRef = useRef(false);
   const workspaceReturnTargetRef = useRef<Exclude<Workspace, 'world'>>('archive');
   const paused = projection.expedition.status === 'paused';
@@ -139,6 +185,9 @@ export function WorldShell() {
     (agent) =>
       Boolean(agent.activeMissionId || agent.movement) || agent.queuedMissionIds.length > 0,
   );
+  const installAuthoritativeProjection = useCallback((candidate: typeof projection) => {
+    setProjection((current) => chooseLatestProjection(current, candidate));
+  }, []);
 
   const selectedAgent = useMemo(
     () => model.agents.find((agent) => agent.id === selectedAgentId) ?? model.agents[0],
@@ -250,10 +299,10 @@ export function WorldShell() {
 
   const refreshProjection = useCallback(async () => {
     const nextProjection = await fetchExpeditionSnapshot();
-    setProjection(nextProjection);
+    installAuthoritativeProjection(nextProjection);
     setRuntimeState('ready');
     return nextProjection;
-  }, []);
+  }, [installAuthoritativeProjection]);
 
   const openArchiveWorkspace = useCallback(async () => {
     workspaceFocusCycleRef.current = true;
@@ -267,7 +316,7 @@ export function WorldShell() {
         fetchExpeditionSnapshot(),
         fetchExpeditionEvents(),
       ]);
-      setProjection(nextProjection);
+      installAuthoritativeProjection(nextProjection);
       setArchiveEvents(eventLog.events);
       setRuntimeState('ready');
       setAnnouncement('Archive Quarter opened with the current expedition index.');
@@ -278,7 +327,7 @@ export function WorldShell() {
     } finally {
       setArchiveLoading(false);
     }
-  }, []);
+  }, [installAuthoritativeProjection]);
 
   const conveneMeeting = useCallback(async () => {
     const participantAgentIds = Object.keys(projection.agentsById);
@@ -302,7 +351,7 @@ export function WorldShell() {
         fetchExpeditionSnapshot(),
         fetchExpeditionEvents(),
       ]);
-      setProjection(nextProjection);
+      installAuthoritativeProjection(nextProjection);
       setMeetingEvents(eventLog.events);
       setActiveMeetingId(meetingId);
       workspaceFocusCycleRef.current = true;
@@ -319,7 +368,7 @@ export function WorldShell() {
     } finally {
       setMeetingBusy(false);
     }
-  }, [projection.agentsById]);
+  }, [installAuthoritativeProjection, projection.agentsById]);
 
   const skipMeetingArrivals = useCallback(async () => {
     if (!activeMeetingId) return;
@@ -346,7 +395,7 @@ export function WorldShell() {
         nextProjection = await fetchExpeditionSnapshot();
       }
       const eventLog = await fetchExpeditionEvents();
-      setProjection(nextProjection);
+      installAuthoritativeProjection(nextProjection);
       setMeetingEvents(eventLog.events);
       setAnnouncement('Arrivals skipped with every route and arrival event preserved.');
     } catch (error: unknown) {
@@ -356,7 +405,7 @@ export function WorldShell() {
     } finally {
       setMeetingBusy(false);
     }
-  }, [activeMeetingId]);
+  }, [activeMeetingId, installAuthoritativeProjection]);
 
   const openProfessorWorkspace = useCallback(async () => {
     workspaceFocusCycleRef.current = true;
@@ -484,6 +533,8 @@ export function WorldShell() {
   const openPanel = useCallback(
     (panel: 'agents' | 'signals' | 'archive' | 'professor' | 'forecast' | 'replay') => {
       if (panel === 'agents' || panel === 'signals') {
+        mobilePanelReturnRef.current =
+          document.activeElement instanceof HTMLElement ? document.activeElement : undefined;
         setMobilePanel((current) => (current === panel ? null : panel));
         return;
       }
@@ -583,31 +634,42 @@ export function WorldShell() {
   );
 
   useEffect(() => {
-    const forcedState = runtimeStateFromLocation();
-    if (forcedState !== 'ready') {
-      return;
-    }
+    if (forcedRuntimeStateFromLocation()) return;
 
     let active = true;
-    void Promise.all([fetchExpeditionSnapshot(), fetchFixtureConfiguration()])
-      .then(([nextProjection, configuration]) => {
-        if (!active) return;
-        setProjection(nextProjection);
-        setFixtureScenario(configuration.missionScenario);
-        setRuntimeState('ready');
-      })
-      .catch(() => {
-        if (!active) return;
+    void Promise.allSettled([
+      fetchExpeditionSnapshot(),
+      fetchFixtureConfiguration(),
+      fetchPrefDiagnostics(),
+    ]).then(([snapshotResult, configurationResult, prefResult]) => {
+      if (!active) return;
+      if (snapshotResult.status === 'rejected' || configurationResult.status === 'rejected') {
+        startupCompleteRef.current = true;
         setRuntimeState('disconnected');
         setAnnouncement('Orchestrator disconnected. The last valid projection remains visible.');
-      });
+        return;
+      }
+      installAuthoritativeProjection(snapshotResult.value);
+      setFixtureScenario(configurationResult.value.missionScenario);
+      if (prefResult.status === 'fulfilled') {
+        setPrefConnected(prefResult.value.connected);
+        setPrefMode(prefResult.value.mode);
+        setPrefConnectionState(prefResult.value.state);
+      } else {
+        setPrefConnected(false);
+        setPrefMode('unknown');
+        setPrefConnectionState('unavailable');
+      }
+      startupCompleteRef.current = true;
+      setRuntimeState('ready');
+    });
     return () => {
       active = false;
     };
-  }, []);
+  }, [installAuthoritativeProjection]);
 
   useEffect(() => {
-    if (runtimeStateFromLocation() !== 'ready') return;
+    if (forcedRuntimeStateFromLocation()) return;
     let active = true;
     const stream = new ExpeditionEventStream({
       expeditionId: shellModel.projection.expedition.id,
@@ -621,13 +683,15 @@ export function WorldShell() {
           throw new Error('The authoritative projection does not cover the event batch.');
         }
         if (!active) return;
-        setProjection(nextProjection);
-        setRuntimeState('ready');
+        installAuthoritativeProjection(nextProjection);
+        if (startupCompleteRef.current) setRuntimeState('ready');
+        const cues = presentationCuesForEvents(envelope.events, nextProjection);
+        dispatchCue({ type: 'append', cues });
       },
       onStatus: (status) => {
         if (!active) return;
         setEventStreamStatus(status);
-        if (status.phase === 'live') setRuntimeState('ready');
+        if (status.phase === 'live' && startupCompleteRef.current) setRuntimeState('ready');
         if (status.phase === 'reconnecting') setAnnouncement(status.message);
       },
       onBoundaryError: (message) => {
@@ -641,7 +705,22 @@ export function WorldShell() {
       active = false;
       stream.stop();
     };
-  }, []);
+  }, [installAuthoritativeProjection]);
+
+  useEffect(() => {
+    if (!activeCue) return;
+    if (soundEnabled) {
+      void playPresentationTone(activeCue.kind).catch(() => {
+        setSoundEnabled(false);
+        setAnnouncement('Presentation sound became unavailable and was disabled.');
+      });
+    }
+    const timer = window.setTimeout(
+      () => dispatchCue({ type: 'advance', activeId: activeCue.id }),
+      reducedMotion ? 1_400 : 2_400,
+    );
+    return () => window.clearTimeout(timer);
+  }, [activeCue, reducedMotion, soundEnabled]);
 
   useEffect(() => {
     if (!workspaceFocusCycleRef.current) return;
@@ -659,6 +738,31 @@ export function WorldShell() {
     });
     return () => window.cancelAnimationFrame(frame);
   }, [workspace]);
+
+  useEffect(() => {
+    const previous = previousMobilePanelRef.current;
+    previousMobilePanelRef.current = mobilePanel;
+    if (mobilePanel) {
+      const frame = window.requestAnimationFrame(() => {
+        document
+          .querySelector<HTMLElement>(
+            mobilePanel === 'agents'
+              ? '.atlas-agent-dock .atlas-agent-card'
+              : '.atlas-signal-rail [role="tab"]',
+          )
+          ?.focus();
+      });
+      return () => window.cancelAnimationFrame(frame);
+    }
+    if (previous) {
+      const frame = window.requestAnimationFrame(() => {
+        if (mobilePanelReturnRef.current?.isConnected) mobilePanelReturnRef.current.focus();
+        mobilePanelReturnRef.current = undefined;
+      });
+      return () => window.cancelAnimationFrame(frame);
+    }
+    return undefined;
+  }, [mobilePanel]);
 
   useEffect(() => {
     if (workspace !== 'meeting' || !activeMeetingId) return;
@@ -718,6 +822,13 @@ export function WorldShell() {
       }
 
       if (isEditableTarget(event.target)) return;
+      if (
+        runtimeDiagnosticsOpen ||
+        forecastOpen ||
+        document.querySelector('[role="dialog"][aria-modal="true"]')
+      ) {
+        return;
+      }
 
       if (event.key === '/') {
         event.preventDefault();
@@ -1030,6 +1141,7 @@ export function WorldShell() {
       data-agent-collapsed={agentDockCollapsed}
       data-event-stream-sequence={eventStreamStatus.cursor}
       data-event-stream-state={eventStreamStatus.phase}
+      data-capture-mode={captureMode}
       data-signal-collapsed={signalRailCollapsed}
       data-tray-expanded={trayExpanded}
     >
@@ -1048,6 +1160,8 @@ export function WorldShell() {
         paused={paused}
         publicProbability={model.market.publicProbability}
         prefConnected={prefConnected}
+        prefConnectionState={prefConnectionState}
+        prefMode={prefMode}
         {...(resolvedOutcomeLabel ? { resolvedOutcomeLabel } : {})}
         runtimeState={runtimeState}
         speed={speed}
@@ -1075,11 +1189,6 @@ export function WorldShell() {
       <AgentDock
         agents={model.agents}
         collapsed={agentDockCollapsed}
-        disconnected={
-          runtimeState === 'disconnected' ||
-          !prefConnected ||
-          ['reconnecting', 'schema_error', 'boundary_error'].includes(eventStreamStatus.phase)
-        }
         mobileOpen={mobilePanel === 'agents'}
         onFollowAgent={(agentId) => {
           setFollowRequest((current) => ({
@@ -1104,6 +1213,20 @@ export function WorldShell() {
         }}
         onSkipTravel={(agentId, missionId) => void skipTravelForAgent(agentId, missionId)}
         onToggleCollapsed={() => setAgentDockCollapsed((current) => !current)}
+        prefConnectionLabel={
+          prefMode === 'live'
+            ? prefConnected
+              ? 'Live'
+              : prefConnectionState === 'auth_required'
+                ? 'Auth needed'
+                : 'Unavailable'
+            : prefMode === 'fixture'
+              ? prefConnected
+                ? 'Fixture'
+                : 'Unavailable'
+              : 'Checking'
+        }
+        prefWarning={!prefConnected && prefConnectionState !== 'checking'}
         selectedAgentId={selectedAgentId}
       />
 
@@ -1150,7 +1273,7 @@ export function WorldShell() {
             ? {}
             : { initialSequence: replayInitialSequence })}
           onAuthoritativeProjectionChange={(nextProjection) => {
-            setProjection(nextProjection);
+            installAuthoritativeProjection(nextProjection);
             setRuntimeState('ready');
             setAnnouncement('Fixture resolution recorded and final projection verified.');
           }}
@@ -1168,10 +1291,34 @@ export function WorldShell() {
         />
       ) : (
         <WorldStageHost
+          activeCue={activeCue}
           agentsDrawerOpen={mobilePanel === 'agents'}
           agents={model.agents}
           autoCamera={model.projection.expedition.settings.autoCamera}
+          captureMode={captureMode}
           followRequest={followRequest}
+          guide={
+            captureMode ? null : (
+              <OnboardingGuide
+                inspectedSignalId={inspectedSignalId}
+                onOpenArchive={() => void openArchiveWorkspace()}
+                onOpenForecast={() => void openForecastWorkspace()}
+                onOpenSignals={() => {
+                  mobilePanelReturnRef.current =
+                    document.activeElement instanceof HTMLElement
+                      ? document.activeElement
+                      : undefined;
+                  setMobilePanel('signals');
+                }}
+                onSelectMira={() => {
+                  setSelectedAgentId('mira');
+                  setAnnouncement('Mira selected for the first expedition step.');
+                }}
+                projection={projection}
+                selectedAgentId={selectedAgentId}
+              />
+            )
+          }
           loading={runtimeState === 'loading'}
           meetingBusy={meetingBusy}
           meetingDisabled={meetingDisabled}
@@ -1187,6 +1334,18 @@ export function WorldShell() {
             setSelectedPlaceId(placeId);
             setAnnouncement(`${place?.name ?? 'Place'} selected.`);
           }}
+          onSoundToggle={() => {
+            if (soundEnabled) {
+              setSoundEnabled(false);
+              return;
+            }
+            void enablePresentationAudio()
+              .then(() => setSoundEnabled(true))
+              .catch(() => {
+                setSoundEnabled(false);
+                setAnnouncement('Presentation sound is unavailable in this browser.');
+              });
+          }}
           onSkipTravelChange={(enabled) => {
             setSkipTravel(enabled);
             window.localStorage.setItem('signal-atlas:skip-travel', String(enabled));
@@ -1201,6 +1360,8 @@ export function WorldShell() {
           selectedPlaceId={selectedPlaceId}
           signalsDrawerOpen={mobilePanel === 'signals'}
           skipTravel={skipTravel}
+          soundEnabled={soundEnabled}
+          weather={model.weather}
         />
       )}
 

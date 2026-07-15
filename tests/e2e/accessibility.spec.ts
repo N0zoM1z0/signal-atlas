@@ -97,6 +97,7 @@ test('the required expedition journey is completable with keyboard input and res
   await expect(sourceDialog).toBeHidden();
   await expect(page.getByRole('tab', { name: 'New 0' })).toBeFocused();
 
+  await page.getByRole('main', { name: 'Interactive world stage' }).focus();
   await page.keyboard.press('a');
   const archive = page.getByRole('main', { name: 'Archive Quarter' });
   await expect(archive).toBeVisible();
@@ -104,6 +105,7 @@ test('the required expedition journey is completable with keyboard input and res
   await page.keyboard.press('Escape');
   await expect(page.locator('[data-workspace-target="archive"]')).toBeFocused();
 
+  await page.getByRole('main', { name: 'Interactive world stage' }).focus();
   await page.keyboard.press('p');
   const professor = page.getByRole('main', { name: "Professor Vale's Study" });
   await expect(professor).toBeVisible();
@@ -111,14 +113,16 @@ test('the required expedition journey is completable with keyboard input and res
   await page.keyboard.press('Escape');
   await expect(page.locator('[data-workspace-target="professor"]')).toBeFocused();
 
+  await page.getByRole('main', { name: 'Interactive world stage' }).focus();
   await page.keyboard.press('c');
   const forecast = page.getByRole('dialog', { name: 'Commit Forecast' });
   await expect(forecast).toBeVisible();
   await expect(forecast.getByRole('button', { name: 'Close' })).toBeFocused();
   await page.keyboard.press('Escape');
   await expect(forecast).toBeHidden();
-  await expect(page.locator('[data-workspace-target="professor"]')).toBeFocused();
+  await expect(page.getByRole('main', { name: 'Interactive world stage' })).toBeFocused();
 
+  await page.getByRole('main', { name: 'Interactive world stage' }).focus();
   await page.keyboard.press('r');
   const replay = page.getByRole('main', { name: 'Expedition replay case file' });
   await expect(replay).toBeVisible();
@@ -126,6 +130,7 @@ test('the required expedition journey is completable with keyboard input and res
   await page.keyboard.press('Escape');
   await expect(page.locator('[data-workspace-target="replay"]')).toBeFocused();
 
+  await page.getByRole('main', { name: 'Interactive world stage' }).focus();
   await page.keyboard.press('m');
   const meeting = page.getByRole('main', { name: 'Lantern Square meeting' });
   await expect(meeting).toBeVisible();

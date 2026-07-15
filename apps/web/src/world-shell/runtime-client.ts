@@ -1,4 +1,9 @@
-import type { MissionVerb, WorldCommand, WorldEvent } from '@signal-atlas/contracts';
+import {
+  parseWorldEvent,
+  type MissionVerb,
+  type WorldCommand,
+  type WorldEvent,
+} from '@signal-atlas/contracts';
 import type { CodexRuntimeDiagnostics } from '@signal-atlas/codex-runtime';
 import type { SignalAtlasCaseFile } from '@signal-atlas/archive';
 import type { PrefMcpConnectionDiagnostics } from '@signal-atlas/pref-gateway';
@@ -64,19 +69,56 @@ export interface FixtureResolutionResponse {
 }
 
 const expeditionId = shellModel.projection.expedition.id;
+const requestTimeoutMs = 10_000;
 
 async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(url, {
-    ...init,
-    headers: { 'content-type': 'application/json', ...init?.headers },
-  });
-  const payload: unknown = await response.json();
-  if (!response.ok) {
-    const rejected = payload as Partial<RejectedCommandResponse> & { error?: string };
-    const detail = rejected.issues?.map((issue) => issue.message).join(' ') ?? rejected.error;
-    throw new Error(detail ?? `Orchestrator request failed with status ${response.status}.`);
+  const controller = new AbortController();
+  const forwardAbort = () => controller.abort(init?.signal?.reason);
+  init?.signal?.addEventListener('abort', forwardAbort, { once: true });
+  const timeout = globalThis.setTimeout(
+    () => controller.abort('request_timeout'),
+    requestTimeoutMs,
+  );
+  try {
+    const response = await fetch(url, {
+      ...init,
+      signal: controller.signal,
+      headers: { 'content-type': 'application/json', ...init?.headers },
+    });
+    const payload: unknown = await response.json();
+    if (!response.ok) {
+      const rejected = payload as Partial<RejectedCommandResponse> & { error?: string };
+      const detail = rejected.issues?.map((issue) => issue.message).join(' ') ?? rejected.error;
+      throw new Error(detail ?? `Orchestrator request failed with status ${response.status}.`);
+    }
+    return payload as T;
+  } catch (error: unknown) {
+    if (controller.signal.reason === 'request_timeout') {
+      throw new Error(`Orchestrator request timed out after ${requestTimeoutMs} ms.`, {
+        cause: error,
+      });
+    }
+    throw error;
+  } finally {
+    globalThis.clearTimeout(timeout);
+    init?.signal?.removeEventListener('abort', forwardAbort);
   }
-  return payload as T;
+}
+
+function isWorldProjection(value: unknown): value is WorldProjection {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const record = value as Record<string, unknown>;
+  const expedition = record['expedition'];
+  return (
+    Number.isInteger(record['sequence']) &&
+    expedition !== null &&
+    typeof expedition === 'object' &&
+    (expedition as Record<string, unknown>)['id'] === expeditionId &&
+    record['agentsById'] !== null &&
+    typeof record['agentsById'] === 'object' &&
+    record['worldManifest'] !== null &&
+    typeof record['worldManifest'] === 'object'
+  );
 }
 
 export function createClientId(prefix: string): string {
@@ -88,6 +130,9 @@ export async function fetchExpeditionSnapshot(): Promise<WorldProjection> {
   const response = await requestJson<{ projection: WorldProjection }>(
     `/api/expeditions/${expeditionId}/snapshot`,
   );
+  if (!isWorldProjection(response.projection)) {
+    throw new Error('The orchestrator returned an invalid world projection.');
+  }
   return response.projection;
 }
 
@@ -117,9 +162,13 @@ export async function fetchExpeditionEvents(after = 0): Promise<{
   events: WorldEvent[];
   sequence: number;
 }> {
-  return requestJson<{ events: WorldEvent[]; sequence: number }>(
+  const response = await requestJson<{ events: unknown[]; sequence: number }>(
     `/api/expeditions/${expeditionId}/events?after=${after}`,
   );
+  if (!Number.isInteger(response.sequence) || !Array.isArray(response.events)) {
+    throw new Error('The orchestrator returned an invalid event history envelope.');
+  }
+  return { events: response.events.map(parseWorldEvent), sequence: response.sequence };
 }
 
 export async function fetchReplayProjection(sequence?: number): Promise<ReplayProjectionResponse> {
