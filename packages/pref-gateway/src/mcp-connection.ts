@@ -151,6 +151,7 @@ export class StreamableHttpPrefConnection implements PrefMcpConnection {
   #indexedCapabilityCount: number | undefined;
   #lastError: PrefMcpConnectionDiagnostics['lastError'];
   #connectAttempt: Promise<PrefMcpConnectionDiagnostics> | undefined;
+  #activeCredential: string | undefined;
   #closing = false;
 
   constructor(options: StreamableHttpPrefConnectionOptions) {
@@ -203,6 +204,7 @@ export class StreamableHttpPrefConnection implements PrefMcpConnection {
     } catch {
       // The local state still closes; transport details are never exposed.
     } finally {
+      this.#activeCredential = undefined;
       this.#closing = false;
       this.#transition('disconnected');
       this.#lastError = undefined;
@@ -257,6 +259,7 @@ export class StreamableHttpPrefConnection implements PrefMcpConnection {
         this.#map.discovery.executionTool,
         { tool_ref: toolRef, arguments: structuredClone(argumentsValue) },
         options,
+        'pref_upstream_error',
       );
       if (result.isError) throw safeConnectionError('pref_upstream_error');
       return publicCallResult(result, this.#maxDiscoveryBytes);
@@ -289,7 +292,8 @@ export class StreamableHttpPrefConnection implements PrefMcpConnection {
     const credentialProvider = async (): Promise<string | undefined> => {
       const value = await this.#credential.token();
       const token = typeof value === 'string' ? value.trim() : '';
-      return token.length > 0 ? token : undefined;
+      this.#activeCredential = token.length > 0 ? token : undefined;
+      return this.#activeCredential;
     };
     const token = await credentialProvider();
     if (!token) {
@@ -299,7 +303,6 @@ export class StreamableHttpPrefConnection implements PrefMcpConnection {
       this.#transition('auth_required');
       throw error;
     }
-
     const client = this.#clientFactory({
       endpoint: new URL(this.#endpoint),
       credentialProvider,
@@ -311,16 +314,20 @@ export class StreamableHttpPrefConnection implements PrefMcpConnection {
       await client.connect({ timeoutMs: this.#timeoutMs });
       await this.#discover(client);
       const version = client.getServerVersion();
+      this.#assertNoActiveCredential(version, 'pref_discovery_failed');
+      const protocolVersion = client.getProtocolVersion();
+      this.#assertNoActiveCredential(protocolVersion, 'pref_discovery_failed');
       this.#serverVersion = version
         ? safeText(`${version.name} ${version.version}`, 256)
         : undefined;
-      this.#protocolVersion = safeOptionalText(client.getProtocolVersion(), 256);
+      this.#protocolVersion = safeOptionalText(protocolVersion, 256);
       this.#lastCheckedAt = this.#timestamp();
       this.#lastError = undefined;
       this.#transition('connected');
       return this.diagnostics();
     } catch (error: unknown) {
       this.#client = undefined;
+      this.#activeCredential = undefined;
       try {
         await client.close();
       } catch {
@@ -343,6 +350,7 @@ export class StreamableHttpPrefConnection implements PrefMcpConnection {
     const toolInventory = tools.map(toPublicTool).sort(byName);
     const advertisedTools = new Set(toolInventory.map((tool) => tool.name));
     const serverCapabilities = client.getServerCapabilities();
+    this.#assertNoActiveCredential(serverCapabilities, 'pref_discovery_failed');
 
     let resources: PrefResourcePrimitive[] = [];
     let resourceTemplates: PrefResourceTemplatePrimitive[] = [];
@@ -454,6 +462,7 @@ export class StreamableHttpPrefConnection implements PrefMcpConnection {
     name: string,
     argumentsValue: Record<string, unknown>,
     options: PrefMcpCallOptions,
+    credentialLeakCode: PrefMcpConnectionErrorCode = 'pref_discovery_failed',
   ): Promise<PrefMcpSdkCallResult> {
     if (!this.#map.discovery.allowedDirectTools.includes(name)) {
       throw safeConnectionError('pref_tool_denied');
@@ -465,6 +474,7 @@ export class StreamableHttpPrefConnection implements PrefMcpConnection {
       ...(options.signal ? { signal: options.signal } : {}),
     });
     assertBoundedPayload(result, this.#maxDiscoveryBytes);
+    this.#assertNoActiveCredential(result, credentialLeakCode);
     return result;
   }
 
@@ -478,6 +488,7 @@ export class StreamableHttpPrefConnection implements PrefMcpConnection {
     for (let pageNumber = 0; pageNumber < MAX_PAGES; pageNumber += 1) {
       const page = await load(cursor);
       assertBoundedPayload(page, this.#maxDiscoveryBytes);
+      this.#assertNoActiveCredential(page, 'pref_discovery_failed');
       collected.push(...items(page));
       if (collected.length > this.#maxPrimitiveCount) {
         throw safeConnectionError('pref_response_too_large');
@@ -493,6 +504,7 @@ export class StreamableHttpPrefConnection implements PrefMcpConnection {
   #handleRemoteClose(): void {
     if (this.#closing) return;
     this.#client = undefined;
+    this.#activeCredential = undefined;
     const error = safeConnectionError('pref_disconnected');
     this.#lastError = { code: error.code, message: error.message };
     this.#transition('disconnected');
@@ -506,6 +518,11 @@ export class StreamableHttpPrefConnection implements PrefMcpConnection {
   #timestamp(): string {
     return this.#now().toISOString();
   }
+
+  #assertNoActiveCredential(value: unknown, code: PrefMcpConnectionErrorCode): void {
+    const credential = this.#activeCredential;
+    if (credential) assertCredentialAbsent(value, credential, code);
+  }
 }
 
 function createOfficialPrefMcpSdkClient(input: PrefMcpSdkClientFactoryInput): PrefMcpSdkClient {
@@ -518,6 +535,7 @@ function createOfficialPrefMcpSdkClient(input: PrefMcpSdkClientFactoryInput): Pr
   const proxyFetch: typeof fetch = (request, init) =>
     fetch(request, {
       ...init,
+      redirect: 'error',
       dispatcher: proxyDispatcher,
     } as RequestInit & { dispatcher: EnvHttpProxyAgent });
   const transport = new StreamableHTTPClientTransport(input.endpoint, {
@@ -613,7 +631,7 @@ export function createBoundedPrefFetch(
     throw new Error('A bounded Pref fetch requires a positive integer byte limit.');
   }
   return async (input, init) => {
-    const response = await baseFetch(input, init);
+    const response = await baseFetch(input, { ...init, redirect: 'error' });
     const declaredLength = response.headers.get('content-length');
     if (declaredLength !== null) {
       const declaredBytes = Number(declaredLength);
@@ -751,6 +769,25 @@ function assertBoundedPayload(value: unknown, maximumBytes: number): void {
   if (encoder.encode(serialized).byteLength > maximumBytes) {
     throw safeConnectionError('pref_response_too_large');
   }
+}
+
+function assertCredentialAbsent(
+  value: unknown,
+  credential: string,
+  code: PrefMcpConnectionErrorCode,
+): void {
+  const seen = new WeakSet<object>();
+  const containsCredential = (candidate: unknown): boolean => {
+    if (typeof candidate === 'string') return candidate.includes(credential);
+    if (candidate === null || typeof candidate !== 'object') return false;
+    if (seen.has(candidate)) return false;
+    seen.add(candidate);
+    if (Array.isArray(candidate)) return candidate.some(containsCredential);
+    return Object.entries(candidate).some(
+      ([key, nested]) => key.includes(credential) || containsCredential(nested),
+    );
+  };
+  if (containsCredential(value)) throw safeConnectionError(code);
 }
 
 function publicCallResult(result: PrefMcpSdkCallResult, maximumBytes: number): PrefMcpCallResult {

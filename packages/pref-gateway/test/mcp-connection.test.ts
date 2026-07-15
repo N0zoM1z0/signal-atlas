@@ -13,10 +13,14 @@ import {
 
 interface FakeClientOptions {
   onClose: () => void;
+  credentialProvider?: () => Promise<string | undefined>;
   failConnect?: boolean;
   driftMapping?: boolean;
   oversized?: boolean;
   nativePrimitives?: boolean;
+  credentialEcho?: 'server_version' | 'provider_payload';
+  echoedCredential?: string;
+  refreshCredentialOnConnect?: boolean;
 }
 
 class FakeSdkClient implements PrefMcpSdkClient {
@@ -31,6 +35,9 @@ class FakeSdkClient implements PrefMcpSdkClient {
 
   async connect(_options: PrefMcpCallOptions): Promise<void> {
     this.connects += 1;
+    if (this.#options.refreshCredentialOnConnect) {
+      await this.#options.credentialProvider?.();
+    }
     if (this.#options.failConnect) {
       throw new Error('Bearer seeded-secret appeared in an unsafe upstream failure.');
     }
@@ -52,6 +59,12 @@ class FakeSdkClient implements PrefMcpSdkClient {
   }
 
   getServerVersion(): { name: string; version: string } {
+    if (this.#options.credentialEcho === 'server_version') {
+      return {
+        name: `preference-mcp-gateway ${this.#options.echoedCredential ?? 'seeded-secret'}`,
+        version: '1.0.0',
+      };
+    }
     return { name: 'preference-mcp-gateway', version: '1.0.0' };
   }
 
@@ -153,7 +166,7 @@ class FakeSdkClient implements PrefMcpSdkClient {
               { name: 'onboard', description: 'Orient a selected task.' },
               { name: 'capability_routing', description: 'Route a task through discovery.' },
             ],
-            auth_guidance: { claim_link: 'seeded-secret-that-must-not-be-retained' },
+            auth_guidance: { claim_link: 'provider-claim-secret-that-must-not-be-retained' },
           },
           content: [],
         };
@@ -185,7 +198,12 @@ class FakeSdkClient implements PrefMcpSdkClient {
       case 'call_tool':
         return {
           structuredContent: {
-            location: { name: 'Galehaven' },
+            location: {
+              name:
+                this.#options.credentialEcho === 'provider_payload'
+                  ? `Galehaven ${this.#options.echoedCredential ?? 'seeded-secret'}`
+                  : 'Galehaven',
+            },
             temperature_c: 17,
             weather_description: 'Light rain',
           },
@@ -199,7 +217,11 @@ class FakeSdkClient implements PrefMcpSdkClient {
 
 async function connectionFixture(
   overrides: Omit<FakeClientOptions, 'onClose'> = {},
-  connectionOverrides: { credentialConfigured?: boolean; maxDiscoveryBytes?: number } = {},
+  connectionOverrides: {
+    credentialConfigured?: boolean;
+    maxDiscoveryBytes?: number;
+    token?: () => string | undefined;
+  } = {},
 ): Promise<{
   connection: StreamableHttpPrefConnection;
   clients: FakeSdkClient[];
@@ -208,9 +230,9 @@ async function connectionFixture(
   const capabilityMap = await loadPrefCapabilityMap();
   const clients: FakeSdkClient[] = [];
   let factoryCalls = 0;
-  const factory: PrefMcpSdkClientFactory = ({ onClose }) => {
+  const factory: PrefMcpSdkClientFactory = ({ onClose, credentialProvider }) => {
     factoryCalls += 1;
-    const client = new FakeSdkClient({ onClose, ...overrides });
+    const client = new FakeSdkClient({ onClose, credentialProvider, ...overrides });
     clients.push(client);
     return client;
   };
@@ -218,7 +240,7 @@ async function connectionFixture(
     capabilityMap,
     credential: {
       configured: connectionOverrides.credentialConfigured ?? true,
-      token: () => 'seeded-secret',
+      token: connectionOverrides.token ?? (() => 'seeded-secret'),
     },
     clientFactory: factory,
     ...(connectionOverrides.maxDiscoveryBytes
@@ -388,6 +410,52 @@ describe('Streamable HTTP Pref connection', () => {
     expect(serialized).not.toMatch(/Bearer/iu);
   });
 
+  it('rejects credential echoes in discovery metadata without retaining them', async () => {
+    const fixture = await connectionFixture({ credentialEcho: 'server_version' });
+
+    await expect(fixture.connection.connect()).rejects.toMatchObject({
+      code: 'pref_discovery_failed',
+    });
+    const serialized = JSON.stringify(fixture.connection.diagnostics());
+    expect(serialized).toContain('pref_discovery_failed');
+    expect(serialized).not.toContain('seeded-secret');
+    expect(serialized).not.toContain('preference-mcp-gateway seeded-secret');
+  });
+
+  it('tracks a credential rotated by the SDK auth provider before validating responses', async () => {
+    let calls = 0;
+    const fixture = await connectionFixture(
+      {
+        credentialEcho: 'server_version',
+        echoedCredential: 'rotated-secret',
+        refreshCredentialOnConnect: true,
+      },
+      { token: () => (calls++ === 0 ? 'seeded-secret' : 'rotated-secret') },
+    );
+
+    await expect(fixture.connection.connect()).rejects.toMatchObject({
+      code: 'pref_discovery_failed',
+    });
+    const serialized = JSON.stringify(fixture.connection.diagnostics());
+    expect(serialized).not.toContain('seeded-secret');
+    expect(serialized).not.toContain('rotated-secret');
+  });
+
+  it('rejects an otherwise valid provider payload that echoes the active credential', async () => {
+    const fixture = await connectionFixture({ credentialEcho: 'provider_payload' });
+    await fixture.connection.connect();
+
+    await expect(
+      fixture.connection.callProviderTool('weather.get_current_conditions', {
+        location: 'Galehaven',
+      }),
+    ).rejects.toMatchObject({ code: 'pref_upstream_error' });
+    const serialized = JSON.stringify(fixture.connection.diagnostics());
+    expect(serialized).toContain('pref_upstream_error');
+    expect(serialized).not.toContain('seeded-secret');
+    expect(serialized).not.toContain('Galehaven seeded-secret');
+  });
+
   it('rejects oversized discovery payloads before retaining them', async () => {
     const fixture = await connectionFixture({ oversized: true }, { maxDiscoveryBytes: 1_024 });
 
@@ -403,6 +471,14 @@ describe('Streamable HTTP Pref connection', () => {
   });
 
   it('caps declared and streamed HTTP response bytes before the SDK parses them', async () => {
+    let observedRedirect: RequestRedirect | undefined;
+    const redirectSafeFetch = createBoundedPrefFetch(128, async (_input, init) => {
+      observedRedirect = init?.redirect;
+      return new Response('{}', { headers: { 'content-type': 'application/json' } });
+    });
+    await redirectSafeFetch('https://pref.trade/mcp', { redirect: 'follow' });
+    expect(observedRedirect).toBe('error');
+
     const declaredFetch = createBoundedPrefFetch(
       8,
       async () =>
