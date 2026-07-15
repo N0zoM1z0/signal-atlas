@@ -7,7 +7,7 @@ import {
 } from '../src/index.js';
 
 describe('Pref capability map', () => {
-  it('loads the provider-neutral v3 registry with explicit synchronous execution policy', async () => {
+  it('loads the provider-neutral v3 registry with approved synchronous mappings', async () => {
     const map = await loadPrefCapabilityMap();
 
     expect(map).toMatchObject({
@@ -35,7 +35,7 @@ describe('Pref capability map', () => {
         {
           mappingId: 'gdelt-context-articles-v1',
           canonicalName: 'search_sources',
-          enabled: false,
+          enabled: true,
           toolRef: 'gdelt.context.search_context',
           providerServer: 'gdelt_context',
           executionMode: 'synchronous',

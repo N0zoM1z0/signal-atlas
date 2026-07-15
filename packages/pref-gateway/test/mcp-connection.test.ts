@@ -382,7 +382,7 @@ describe('Streamable HTTP Pref connection', () => {
         {
           canonicalName: 'search_sources',
           toolRef: 'gdelt.context.search_context',
-          status: 'disabled',
+          status: 'valid',
         },
       ],
     });

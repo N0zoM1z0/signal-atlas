@@ -28,6 +28,11 @@ In progress.
   synchronous execution explicit in capability-map v3, treats `task_support: forbidden` and
   `optional` as compatible, rejects task-required or ambiguous contracts, and gives each fake
   catalog lookup an exact provider-specific response before any second live mapping is enabled.
+- `f38b46b` committed the synchronous task-policy correction. A proxy-enabled live gate then
+  validated the exact hosted GDELT contract. The first deliberately tight 10-second invocation
+  failed safely with `pref_timeout`; a single 30-second retry completed in about 19 seconds with one
+  unique metadata-only source, no retained excerpt, and exact GDELT provenance. The mapping is now
+  enabled as canonical `search_sources` with the same bounded normalization and rights policy.
 - Focused validation after the first two commits: contracts 18/18, simulation 34/34, codex-runtime
   25/25, game-scene 13/13, archive 4/4, web 19/19, orchestrator 95/95, and repository lint with zero
   warnings. Persistence milestone validation currently passes contracts 19/19, world-content 2/2,

@@ -87,7 +87,7 @@ class FakeConnection implements PrefMcpConnection {
         canonicalName: 'search_sources',
         toolRef: 'gdelt.context.search_context',
         providerServer: 'gdelt_context',
-        status: 'disabled',
+        status: 'valid',
       },
     ],
   ) {
@@ -345,10 +345,7 @@ describe('LivePrefGateway', () => {
         },
       ],
     );
-    const capabilityMap = loadPrefCapabilityMapSync();
-    capabilityMap.mappings[1]!.enabled = true;
     const pref = gateway(connection, {
-      capabilityMap,
       config: { ...config(), allowCapabilities: ['search_sources'] },
     });
 
@@ -391,19 +388,27 @@ describe('LivePrefGateway', () => {
     expect(JSON.stringify(result.sources[0])).not.toContain('Untrusted provider context');
   });
 
-  it('keeps the inspected search mapping disabled until the bounded live acceptance gate passes', async () => {
+  it('exposes the inspected search mapping after its bounded live acceptance gate passes', async () => {
     const map = loadPrefCapabilityMapSync();
     const searchMapping = map.mappings.find(
       (mapping) => mapping.canonicalName === 'search_sources',
     );
     expect(searchMapping).toMatchObject({
-      enabled: false,
+      enabled: true,
       executionMode: 'synchronous',
       requiredSecurityHints: { sideEffect: 'read_only' },
     });
-    const pref = gateway(new FakeConnection([]));
-    await expect(
-      pref.search({ query: 'launch weather' }, context({ correlationId: 'blocked-search' })),
-    ).rejects.toMatchObject({ code: 'pref_capability_denied' });
+    const pref = gateway(new FakeConnection([]), {
+      config: { ...config(), allowCapabilities: ['local_conditions', 'search_sources'] },
+    });
+    await expect(pref.discoverCapabilities()).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          canonicalName: 'search_sources',
+          primitiveName: 'gdelt.context.search_context',
+          readOnly: true,
+        }),
+      ]),
+    );
   });
 });

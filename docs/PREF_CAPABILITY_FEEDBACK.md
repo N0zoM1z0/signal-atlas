@@ -53,6 +53,12 @@ Atlas is correct to reject those records until the catalog is repaired.
 
 ## Critical finding: `task_support` is not a side-effect policy
 
+Implementation status: Signal Atlas fixed this finding in `f38b46b`. Capability-map v3 declares
+`executionMode: synchronous`, accepts `forbidden | optional`, and fails closed on `required`, missing,
+or unknown task policy. A subsequent exact-catalog and one-record metadata-only live smoke passed,
+so the GDELT `search_sources` mapping is now enabled. The historical audit below records the defect
+as it existed when discovered.
+
 Signal Atlas currently treats Preference `security_hints.task_support` as an execution-safety
 property. That interpretation is incorrect.
 

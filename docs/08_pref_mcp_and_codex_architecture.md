@@ -53,9 +53,10 @@ Example:
   "priority": 100,
   "toolRef": "provider.search_articles",
   "providerServer": "provider_catalog",
+  "executionMode": "synchronous",
   "inputProjection": {
-    "query": { "selector": "query", "required": true, "transform": "identity" },
-    "limit": { "selector": "limit", "required": false, "transform": "identity" }
+    "query": { "selector": "query", "requiredFromCanonical": true, "transform": "identity" },
+    "limit": { "selector": "limit", "requiredFromCanonical": false, "transform": "identity" }
   },
   "expectedInput": { "query": "string", "limit": "number" },
   "responseAdapter": "article_search_v1",
@@ -64,21 +65,22 @@ Example:
     "destructiveHint": false,
     "idempotentHint": true
   },
-  "requiredSecurityHints": { "sideEffect": "read_only", "taskSupport": "optional" }
+  "requiredSecurityHints": { "sideEffect": "read_only" }
 }
 ```
 
 The registry schema is versioned. Each provider-required argument must have a required canonical
 projection, projected types must exactly match discovery, and the selected response adapter must
 match the provider output schema. Unknown transforms, unmapped required fields, incompatible
-schemas, write-capable annotations, side effects, or task-support policies fail closed.
+schemas, write-capable annotations, side effects, or task-support policies fail closed. A synchronous
+mapping accepts `task_support: forbidden` or `optional`; `required`, missing, and unknown values are
+rejected because Signal Atlas does not implement the MCP Tasks lifecycle.
 
-The implemented v2 registry enables `weather.get_current_conditions` for `local_conditions`.
-Discovery also found `gdelt.context.search_context`, and the generic article adapter can normalize
-its metadata into canonical `SourceRecord` objects, but that candidate remains disabled because the
-live server reports `task_support: forbidden`. No provider is enabled for `read_source` until one
-passes the same contract and policy checks. This is an intentional truthful capability gap, not an
-implicit fallback to an unreviewed search tool.
+The implemented v3 registry enables `weather.get_current_conditions` for `local_conditions` and
+`gdelt.context.search_context` for `search_sources`. GDELT passed exact catalog discovery and a
+bounded synchronous live smoke; the generic article adapter retains stable URL identity and
+metadata while discarding matched sentences and context under a metadata-only rights policy. No
+provider is enabled for `read_source` until one passes the same contract and policy checks.
 
 ## 8.5 Dual access pattern
 

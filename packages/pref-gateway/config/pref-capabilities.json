@@ -47,7 +47,7 @@
     {
       "mappingId": "gdelt-context-articles-v1",
       "canonicalName": "search_sources",
-      "enabled": false,
+      "enabled": true,
       "priority": 100,
       "toolRef": "gdelt.context.search_context",
       "providerServer": "gdelt_context",
