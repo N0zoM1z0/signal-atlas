@@ -35,6 +35,7 @@ import {
   fetchExpeditionSnapshot,
   fetchFixtureConfiguration,
   fetchPrefDiagnostics,
+  fetchRuntimeDiagnostics,
   interpretMissionDraft,
   submitWorldCommand,
   updateFixtureMissionScenario,
@@ -143,6 +144,7 @@ export function WorldShell() {
     phase: forcedRuntimeState ? 'stopped' : 'connecting',
   });
   const [streamBoundaryError, setStreamBoundaryError] = useState<string>();
+  const [workspacePersistenceIssue, setWorkspacePersistenceIssue] = useState<string>();
   const [missionDraft, setMissionDraft] = useState<MissionDraft>();
   const [commandBusy, setCommandBusy] = useState(false);
   const [commandError, setCommandError] = useState<string>();
@@ -678,6 +680,35 @@ export function WorldShell() {
 
   useEffect(() => {
     if (forcedRuntimeStateFromLocation()) return;
+
+    let active = true;
+    let timer: number | undefined;
+    const checkWorkspace = async () => {
+      try {
+        const diagnostics = await fetchRuntimeDiagnostics();
+        if (!active) return;
+        setWorkspacePersistenceIssue(
+          diagnostics.workspace.state === 'degraded'
+            ? (diagnostics.workspace.issue?.message ??
+                'The local workspace cannot durably record new events.')
+            : undefined,
+        );
+      } catch {
+        // Connectivity is represented by the existing runtime and event-stream boundaries.
+      } finally {
+        if (active) timer = window.setTimeout(() => void checkWorkspace(), 5_000);
+      }
+    };
+
+    void checkWorkspace();
+    return () => {
+      active = false;
+      if (timer !== undefined) window.clearTimeout(timer);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (forcedRuntimeStateFromLocation()) return;
     let active = true;
     const stream = new ExpeditionEventStream({
       expeditionId: shellModel.projection.expedition.id,
@@ -1139,9 +1170,11 @@ export function WorldShell() {
   const resolvedOutcomeLabel = projection.market.outcomes.find(
     (outcome) => outcome.id === projection.market.resolvedOutcomeId,
   )?.shortLabel;
-  const commandDisabledReason = ['resolved', 'archived'].includes(projection.expedition.status)
-    ? `Expedition ${projection.expedition.status}; commands are closed.`
-    : undefined;
+  const commandDisabledReason = workspacePersistenceIssue
+    ? 'Workspace persistence paused; commands are closed.'
+    : ['resolved', 'archived'].includes(projection.expedition.status)
+      ? `Expedition ${projection.expedition.status}; commands are closed.`
+      : undefined;
 
   return (
     <div
@@ -1191,6 +1224,23 @@ export function WorldShell() {
           >
             ×
           </button>
+        </div>
+      )}
+
+      {workspacePersistenceIssue && (
+        <div
+          className="atlas-stream-boundary-alert atlas-persistence-boundary-alert"
+          data-boundary="persistence"
+          role="alert"
+        >
+          <span aria-hidden="true">!</span>
+          <p>
+            <strong>Workspace persistence paused</strong>
+            <span>
+              {workspacePersistenceIssue} The last durable world remains visible; new commands are
+              disabled.
+            </span>
+          </p>
         </div>
       )}
 

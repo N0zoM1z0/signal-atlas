@@ -250,6 +250,63 @@ export function RuntimeDiagnosticsDialog({
               </dl>
             </section>
 
+            <section className="atlas-runtime-driver" aria-labelledby="runtime-workspace-title">
+              <header>
+                <div>
+                  <span className="atlas-kicker">Local authoritative history</span>
+                  <h3 id="runtime-workspace-title">Workspace persistence</h3>
+                </div>
+                <span data-available={diagnostics.workspace.state === 'ready'}>
+                  <i aria-hidden="true" />
+                  {diagnostics.workspace.state}
+                </span>
+              </header>
+              <p>
+                {diagnostics.workspace.mode === 'sqlite'
+                  ? 'Append-only events and command receipts are stored in the local SQLite workspace.'
+                  : 'This runtime is intentionally ephemeral; authoritative history remains in memory.'}
+              </p>
+              {diagnostics.workspace.issue && (
+                <p className="atlas-runtime-driver__error" role="alert">
+                  <strong>Persistence paused.</strong> {diagnostics.workspace.issue.message}
+                </p>
+              )}
+              <dl>
+                <div>
+                  <dt>Mode</dt>
+                  <dd>{diagnostics.workspace.mode}</dd>
+                </div>
+                <div>
+                  <dt>Events / latest</dt>
+                  <dd>
+                    {diagnostics.workspace.eventCount} / {diagnostics.workspace.latestSequence}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Replay base</dt>
+                  <dd>SEQ {diagnostics.workspace.replayBaseSequence}</dd>
+                </div>
+                <div>
+                  <dt>Checkpoint interval</dt>
+                  <dd>{diagnostics.workspace.checkpointInterval} events</dd>
+                </div>
+                <div>
+                  <dt>Checkpoints / latest</dt>
+                  <dd>
+                    {diagnostics.workspace.store?.checkpointCount ?? 0} / SEQ{' '}
+                    {diagnostics.workspace.store?.latestCheckpointSequence ?? 0}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Schema / invalid</dt>
+                  <dd>
+                    v{diagnostics.workspace.store?.schemaVersion ?? 'memory'} /{' '}
+                    {diagnostics.workspace.invalidCheckpointCount}
+                  </dd>
+                </div>
+              </dl>
+            </section>
+
             <section className="atlas-pref-connection" aria-labelledby="pref-connection-title">
               <header>
                 <div>

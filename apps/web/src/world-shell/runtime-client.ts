@@ -83,8 +83,33 @@ export interface ProfessorRuntimeDiagnostics {
   command?: { executable: string; args: string[]; display: string };
 }
 
+export interface WorkspaceRuntimeDiagnostics {
+  mode: 'memory' | 'sqlite';
+  state: 'ready' | 'degraded' | 'closed';
+  eventCount: number;
+  latestSequence: number;
+  checkpointInterval: number;
+  replayBaseSequence: number;
+  invalidCheckpointCount: number;
+  store?: {
+    mode: 'sqlite';
+    state: 'ready' | 'closed';
+    schemaVersion: number;
+    location: string;
+    eventCount: number;
+    latestSequence: number;
+    checkpointCount: number;
+    latestCheckpointSequence?: number;
+  };
+  issue?: {
+    code: 'workspace_persistence_failed';
+    message: string;
+  };
+}
+
 export interface SignalAtlasRuntimeDiagnostics extends CodexRuntimeDiagnostics {
   professor: ProfessorRuntimeDiagnostics;
+  workspace: WorkspaceRuntimeDiagnostics;
 }
 
 const expeditionId = shellModel.projection.expedition.id;

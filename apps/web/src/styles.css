@@ -430,6 +430,10 @@ textarea {
   background: transparent;
 }
 
+.atlas-persistence-boundary-alert {
+  grid-template-columns: auto minmax(0, 1fr);
+}
+
 .atlas-deadline {
   display: grid;
   justify-items: end;

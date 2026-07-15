@@ -21,6 +21,15 @@ test('runtime diagnostics expose the scripted driver, scheduler, and persisted t
   const professorRuntime = dialog.getByRole('region', { name: /Professor · scripted-professor/ });
   await expect(professorRuntime).toContainText('Evidence-bound consultation agent');
   await expect(professorRuntime).toContainText('scripted');
+  const workspacePersistence = dialog.getByRole('region', { name: 'Workspace persistence' });
+  await expect(workspacePersistence).toContainText('Local authoritative history');
+  await expect(workspacePersistence).toContainText('memory');
+  await expect(workspacePersistence).toContainText('Events / latest');
+  await expect(workspacePersistence).toContainText('2 / 2');
+  await expect(workspacePersistence).toContainText('Replay base');
+  await expect(workspacePersistence).toContainText('SEQ 0');
+  await expect(workspacePersistence).toContainText('Checkpoint interval');
+  await expect(workspacePersistence).toContainText('50 events');
   const prefConnection = dialog.getByRole('region', { name: 'Pref MCP connection' });
   await expect(prefConnection).toContainText('connected');
   await expect(prefConnection).toContainText('Deterministic recorded data');
@@ -63,4 +72,34 @@ test('runtime diagnostics expose the scripted driver, scheduler, and persisted t
   await expect(turns).toContainText('completed');
   await expect(turns).toContainText('attempt 1');
   await expect(dialog).toContainText('No credential, prompt text, private reasoning');
+});
+
+test('a degraded persistence boundary remains visible and closes command controls', async ({
+  page,
+}) => {
+  await page.route('**/api/runtime/diagnostics', async (route) => {
+    await route.fulfill({
+      body: JSON.stringify({
+        workspace: {
+          state: 'degraded',
+          issue: {
+            code: 'workspace_persistence_failed',
+            message: 'The injected local database is unavailable.',
+          },
+        },
+      }),
+      contentType: 'application/json',
+      status: 200,
+    });
+  });
+
+  await page.goto('/');
+
+  const boundary = page.getByRole('alert').filter({ hasText: 'Workspace persistence paused' });
+  await expect(boundary).toContainText('The injected local database is unavailable.');
+  await expect(boundary).toContainText('The last durable world remains visible');
+  await expect(page.getByRole('textbox', { name: 'Command Mira' })).toBeDisabled();
+  await expect(page.locator('.atlas-command-status small')).toHaveText(
+    'Workspace persistence paused; commands are closed.',
+  );
 });
