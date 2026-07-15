@@ -116,6 +116,7 @@ export function MeetingWorkspace({
       className="atlas-meeting-workspace"
       aria-busy={loading}
       aria-label="Lantern Square meeting"
+      tabIndex={-1}
     >
       <header className="atlas-meeting-header">
         <div>

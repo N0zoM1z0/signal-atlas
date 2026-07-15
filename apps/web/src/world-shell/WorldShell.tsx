@@ -129,6 +129,9 @@ export function WorldShell() {
   >();
   const inputRef = useRef<HTMLInputElement>(null);
   const autoSkippedTravelRef = useRef(new Set<string>());
+  const sourceInspectorTriggerRef = useRef<HTMLElement | undefined>(undefined);
+  const workspaceFocusCycleRef = useRef(false);
+  const workspaceReturnTargetRef = useRef<Exclude<Workspace, 'world'>>('archive');
   const paused = projection.expedition.status === 'paused';
   const projectionSpeed = projection.expedition.simulationSpeed;
   const speed: 1 | 2 | 4 = projectionSpeed === 2 || projectionSpeed === 4 ? projectionSpeed : 1;
@@ -216,6 +219,8 @@ export function WorldShell() {
   };
 
   const inspectSignal = (signalId: string) => {
+    sourceInspectorTriggerRef.current =
+      document.activeElement instanceof HTMLElement ? document.activeElement : undefined;
     saveEvidencePreferences((current) => ({
       ...current,
       seenSignalIds: appendSignalId(current.seenSignalIds, signalId),
@@ -251,6 +256,8 @@ export function WorldShell() {
   }, []);
 
   const openArchiveWorkspace = useCallback(async () => {
+    workspaceFocusCycleRef.current = true;
+    workspaceReturnTargetRef.current = 'archive';
     setWorkspace('archive');
     setTrayExpanded(false);
     setMobilePanel(null);
@@ -298,6 +305,8 @@ export function WorldShell() {
       setProjection(nextProjection);
       setMeetingEvents(eventLog.events);
       setActiveMeetingId(meetingId);
+      workspaceFocusCycleRef.current = true;
+      workspaceReturnTargetRef.current = 'meeting';
       setWorkspace('meeting');
       setTrayExpanded(false);
       setMobilePanel(null);
@@ -350,6 +359,8 @@ export function WorldShell() {
   }, [activeMeetingId]);
 
   const openProfessorWorkspace = useCallback(async () => {
+    workspaceFocusCycleRef.current = true;
+    workspaceReturnTargetRef.current = 'professor';
     setWorkspace('professor');
     setTrayExpanded(false);
     setMobilePanel(null);
@@ -379,6 +390,8 @@ export function WorldShell() {
   }, [refreshProjection]);
 
   const openReplayWorkspace = useCallback((sequence?: number) => {
+    workspaceFocusCycleRef.current = true;
+    workspaceReturnTargetRef.current = 'replay';
     setReplayInitialSequence(sequence);
     setWorkspace('replay');
     setInspectedSignalId(undefined);
@@ -631,6 +644,23 @@ export function WorldShell() {
   }, []);
 
   useEffect(() => {
+    if (!workspaceFocusCycleRef.current) return;
+    const frame = window.requestAnimationFrame(() => {
+      if (workspace === 'world') {
+        const target = document.querySelector<HTMLButtonElement>(
+          `[data-workspace-target="${workspaceReturnTargetRef.current}"]`,
+        );
+        if (target && !target.disabled) target.focus();
+        else document.querySelector<HTMLElement>('#world-stage')?.focus();
+        workspaceFocusCycleRef.current = false;
+        return;
+      }
+      document.querySelector<HTMLElement>(`.atlas-${workspace}-workspace`)?.focus();
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [workspace]);
+
+  useEffect(() => {
     if (workspace !== 'meeting' || !activeMeetingId) return;
     let active = true;
     void fetchExpeditionEvents()
@@ -713,6 +743,16 @@ export function WorldShell() {
         return;
       }
 
+      if (event.key.toLocaleLowerCase('en-US') === 'm') {
+        event.preventDefault();
+        if (meetingDisabled) {
+          setAnnouncement('Finish active and queued missions before convening the team.');
+        } else {
+          void conveneMeeting();
+        }
+        return;
+      }
+
       if (event.key.toLocaleLowerCase('en-US') === 'r') {
         event.preventDefault();
         openReplayWorkspace();
@@ -744,8 +784,10 @@ export function WorldShell() {
   }, [
     changePauseState,
     changeSpeed,
+    conveneMeeting,
     forecastOpen,
     model.agents,
+    meetingDisabled,
     openArchiveWorkspace,
     openForecastWorkspace,
     openPanel,
@@ -1124,6 +1166,7 @@ export function WorldShell() {
       ) : (
         <WorldStageHost
           agentsDrawerOpen={mobilePanel === 'agents'}
+          agents={model.agents}
           autoCamera={model.projection.expedition.settings.autoCamera}
           followRequest={followRequest}
           loading={runtimeState === 'loading'}
@@ -1175,7 +1218,18 @@ export function WorldShell() {
           inspectedSignalId && evidencePreferences.archivedSignalIds.includes(inspectedSignalId),
         )}
         onArchive={toggleArchivedSignal}
-        onClose={() => setInspectedSignalId(undefined)}
+        onClose={() => {
+          setInspectedSignalId(undefined);
+          window.requestAnimationFrame(() => {
+            if (sourceInspectorTriggerRef.current?.isConnected) {
+              sourceInspectorTriggerRef.current.focus();
+            } else {
+              document
+                .querySelector<HTMLElement>('.atlas-signal-tabs [aria-selected="true"]')
+                ?.focus();
+            }
+          });
+        }}
         onPin={togglePinnedSignal}
         pinned={Boolean(
           inspectedSignalId && evidencePreferences.pinnedSignalIds.includes(inspectedSignalId),
@@ -1236,6 +1290,7 @@ export function WorldShell() {
         places={model.places}
         scenario={fixtureScenario}
         selectedAgent={selectedAgent}
+        sequence={projection.sequence}
       />
 
       <p aria-live="polite" className="atlas-visually-hidden" role="status">

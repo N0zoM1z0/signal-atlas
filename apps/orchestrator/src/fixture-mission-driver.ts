@@ -60,7 +60,7 @@ function failureDialogue(scenario: Exclude<FixtureMissionScenario, 'success'>): 
     case 'timeout':
       return 'The source request timed out before I could verify evidence. This turn can be retried.';
     case 'invalid_result':
-      return 'The source response failed validation, so I recorded no evidence. This turn can be retried safely.';
+      return 'The agent output schema boundary rejected the injected result. I recorded no evidence or world action, and this turn can be retried safely.';
   }
 }
 

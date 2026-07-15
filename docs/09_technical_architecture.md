@@ -203,6 +203,7 @@ POST /api/expeditions
 GET  /api/expeditions/:id/snapshot
 POST /api/expeditions/:id/commands
 GET  /api/expeditions/:id/events
+WS   /api/expeditions/:id/stream?after=N
 GET  /api/expeditions/:id/replay?sequence=N
 GET  /api/expeditions/:id/case-file
 POST /api/expeditions/:id/resolve-fixture
@@ -216,6 +217,8 @@ POST /api/runtime/test-codex
 ```
 
 The fixture-resolution endpoint is intentionally narrower than the ordinary command surface. It accepts no caller-selected outcome and emits only the authored fixture resolution plus deterministic scores. Replay folds the authoritative event log from the sequence-zero bootstrap and verifies its latest canonical projection hash. Public case-file serialization strips private forecast memos from summaries and event copies.
+
+The expedition stream is a notification and recovery transport, not a second authority. A client supplies its last validated sequence, receives strict contiguous batches followed by a readiness marker, then reloads the authoritative snapshot before accepting the new cursor. Observer failures cannot interrupt committed runtime events. Temporary close codes reconnect with bounded backoff; invalid cursors, sequence gaps, unsupported client messages, and invalid client-side envelope schemas identify the failed boundary without applying partial state.
 
 WebSocket topics:
 

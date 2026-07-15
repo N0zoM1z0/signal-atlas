@@ -173,6 +173,7 @@ export function ReplayWorkspace({
       aria-busy={loading || resolving}
       aria-label="Expedition replay case file"
       className="atlas-replay-workspace"
+      tabIndex={-1}
     >
       <header className="atlas-replay-header">
         <div>

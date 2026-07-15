@@ -6451,6 +6451,7 @@ kbd {
     width: min(340px, calc(100vw - var(--sa-spacing-8)));
     box-shadow: var(--sa-shadow-panel);
     transition: transform var(--sa-motion-standard) ease;
+    visibility: hidden;
   }
 
   .atlas-agent-dock,
@@ -6470,6 +6471,7 @@ kbd {
   .atlas-agent-dock[data-mobile-open='true'],
   .atlas-signal-rail[data-mobile-open='true'] {
     transform: translateX(0);
+    visibility: visible;
   }
 
   .atlas-agent-dock[data-collapsed='true'] .atlas-panel-heading__copy,
@@ -6616,6 +6618,84 @@ kbd {
     animation-duration: var(--sa-motion-instant) !important;
     animation-iteration-count: 1 !important;
     transition-duration: var(--sa-motion-instant) !important;
+  }
+}
+
+@media (forced-colors: active) {
+  .signal-atlas-shell,
+  .atlas-market-ribbon,
+  .atlas-agent-dock,
+  .atlas-signal-rail,
+  .atlas-command-tray,
+  .atlas-world-panel,
+  .atlas-archive-workspace,
+  .atlas-professor-workspace,
+  .atlas-meeting-workspace,
+  .atlas-replay-workspace,
+  .atlas-stream-boundary-alert {
+    border-color: CanvasText;
+    color: CanvasText;
+    background: Canvas;
+    forced-color-adjust: auto;
+  }
+
+  .signal-atlas-shell::after,
+  .atlas-sky-stars,
+  .atlas-cloud,
+  .atlas-moon {
+    display: none;
+  }
+
+  .atlas-phaser-mount,
+  .atlas-react-world-layer {
+    opacity: 0.3;
+  }
+
+  .signal-atlas-shell button,
+  .signal-atlas-shell input,
+  .signal-atlas-shell select,
+  .signal-atlas-shell textarea,
+  .atlas-place,
+  .atlas-agent-card,
+  .atlas-signal-card {
+    border: 2px solid ButtonText;
+    color: ButtonText;
+    background: ButtonFace;
+    forced-color-adjust: auto;
+  }
+
+  .signal-atlas-shell button:focus-visible,
+  .signal-atlas-shell input:focus-visible,
+  .signal-atlas-shell select:focus-visible,
+  .signal-atlas-shell textarea:focus-visible,
+  .signal-atlas-shell [tabindex]:focus-visible,
+  .atlas-skip-link:focus-visible {
+    outline: 3px solid Highlight;
+    outline-offset: 2px;
+    box-shadow: none;
+  }
+
+  .signal-atlas-shell [aria-pressed='true'],
+  .signal-atlas-shell [aria-selected='true'],
+  .signal-atlas-shell [data-selected='true'] {
+    outline: 2px solid Highlight;
+    outline-offset: -3px;
+  }
+
+  .atlas-live-dot,
+  .atlas-agent-card__status i,
+  .atlas-event-ticker i,
+  .atlas-command-status i {
+    border: 1px solid CanvasText;
+    background: Highlight;
+    box-shadow: none;
+  }
+
+  .atlas-route-map polyline,
+  .atlas-worldline__track,
+  .atlas-agent-travel-progress {
+    border-color: CanvasText;
+    stroke: CanvasText;
   }
 }
 

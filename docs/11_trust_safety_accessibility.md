@@ -190,6 +190,10 @@ The canvas cannot be the only representation of essential state.
 - do not use color alone;
 - avoid tiny pixel text for body content.
 
+The implemented vertical slice mirrors all six places as labeled DOM buttons, all three agents as stateful controls, movement as a named progressbar, and the route graph in a conventional text region. Shared modal primitives trap `Tab`, close on `Escape`, and restore their invocation context. Full-page workspaces focus their main landmark and return to the corresponding world action. Responsive drawers use visibility as well as transforms so closed controls do not remain in the keyboard order.
+
+Verification treats 720 × 450 CSS pixels as the 200% reflow equivalent of the 1440 × 900 reference viewport. Automated coverage also exercises reduced-motion, forced-colors focus and selection affordances, the keyboard-only evidence journey, and serious/critical axe checks for World, Archive, Professor, Forecast, and Replay. These checks complement manual screenshot and focus review; they do not claim screen-reader parity across every browser/assistive-technology combination.
+
 ## 11.13 Cognitive accessibility
 
 The product handles substantial complexity, so it should reduce cognitive load.

@@ -153,7 +153,7 @@ export function ProfessorWorkspace({
   const selectedCount = selectedSignalIds.length + selectedSourceIds.length;
 
   return (
-    <main className="atlas-professor-workspace" aria-label="Professor Vale's Study">
+    <main className="atlas-professor-workspace" aria-label="Professor Vale's Study" tabIndex={-1}>
       <header className="atlas-professor-header">
         <div>
           <span className="atlas-kicker">The Atlas / Scholar's Hill</span>

@@ -98,9 +98,30 @@ describe('Signal Atlas UI primitives', () => {
     }
 
     render(<Harness />);
-    await user.click(screen.getByRole('button', { name: 'Open archive' }));
+    const trigger = screen.getByRole('button', { name: 'Open archive' });
+    await user.click(trigger);
     expect(screen.getByRole('dialog', { name: 'Archive Quarter' })).toBeTruthy();
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Close' }));
     await user.click(screen.getByRole('button', { name: 'Close' }));
     expect(screen.queryByRole('dialog')).toBeNull();
+    expect(document.activeElement).toBe(trigger);
+  });
+
+  it('contains keyboard focus within an open modal dialog', async () => {
+    const user = userEvent.setup();
+    render(
+      <Dialog onClose={() => undefined} open title="Focus audit">
+        <Button>First action</Button>
+        <Button>Last action</Button>
+      </Dialog>,
+    );
+
+    const close = screen.getByRole('button', { name: 'Close' });
+    const last = screen.getByRole('button', { name: 'Last action' });
+    expect(document.activeElement).toBe(close);
+    await user.keyboard('{Shift>}{Tab}{/Shift}');
+    expect(document.activeElement).toBe(last);
+    await user.keyboard('{Tab}');
+    expect(document.activeElement).toBe(close);
   });
 });

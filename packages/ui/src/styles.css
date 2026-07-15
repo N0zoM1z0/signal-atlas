@@ -334,3 +334,34 @@
 [data-contrast='high'] .sa-button {
   border-width: var(--sa-border-pixel);
 }
+
+@media (forced-colors: active) {
+  .sa-panel,
+  .sa-dialog,
+  .sa-card,
+  .sa-button,
+  .sa-badge,
+  .sa-tab,
+  .sa-progress progress {
+    border-color: CanvasText;
+    color: CanvasText;
+    background: Canvas;
+    forced-color-adjust: auto;
+  }
+
+  .sa-button:focus-visible,
+  .sa-tab:focus-visible,
+  .sa-dialog:focus-visible {
+    outline: 3px solid Highlight;
+    outline-offset: 2px;
+  }
+
+  .sa-button:disabled {
+    color: GrayText;
+  }
+
+  .sa-badge::before,
+  .sa-progress progress::-webkit-progress-value {
+    background: Highlight;
+  }
+}

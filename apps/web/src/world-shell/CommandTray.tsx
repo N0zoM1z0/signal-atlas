@@ -19,6 +19,7 @@ export interface CommandTrayProps {
   missions: readonly ShellMission[];
   places: readonly ShellPlace[];
   scenario: FixtureMissionScenario;
+  sequence: number;
   selectedAgent: ShellAgent;
   onCancelDraft: () => void;
   onCancelMission: (missionId: string) => void;
@@ -76,6 +77,7 @@ export function CommandTray({
   onScenarioChange,
   places,
   scenario,
+  sequence,
   selectedAgent,
 }: CommandTrayProps) {
   const selectedPlace = draft?.destinationPlaceId
@@ -154,7 +156,7 @@ export function CommandTray({
       <div className="atlas-command-status">
         <i aria-hidden="true" />
         <small>World live</small>
-        <strong>SEQ {String(Math.max(2, missions.length + 2)).padStart(2, '0')}</strong>
+        <strong>SEQ {String(sequence).padStart(2, '0')}</strong>
       </div>
 
       {expanded && (

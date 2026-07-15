@@ -8,6 +8,7 @@ import {
   useEffect,
   useId,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 
@@ -118,16 +119,69 @@ export interface DialogProps {
 export function Dialog({ children, description, onClose, open, title }: DialogProps) {
   const titleId = useId();
   const descriptionId = useId();
+  const dialogRef = useRef<HTMLElement>(null);
+  const onCloseRef = useRef(onClose);
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
 
   useEffect(() => {
     if (!open) return undefined;
 
-    const closeOnEscape = (event: globalThis.KeyboardEvent) => {
-      if (event.key === 'Escape') onClose();
+    const returnFocusTarget =
+      document.activeElement instanceof HTMLElement ? document.activeElement : undefined;
+    const dialog = dialogRef.current;
+    const focusableSelector = [
+      'button:not([disabled])',
+      'a[href]',
+      'input:not([disabled])',
+      'select:not([disabled])',
+      'textarea:not([disabled])',
+      '[tabindex]:not([tabindex="-1"])',
+    ].join(',');
+    const focusableElements = () =>
+      dialog
+        ? [...dialog.querySelectorAll<HTMLElement>(focusableSelector)].filter(
+            (element) => !element.hidden && element.getAttribute('aria-hidden') !== 'true',
+          )
+        : [];
+    (focusableElements()[0] ?? dialog)?.focus();
+
+    const handleDialogKeys = (event: globalThis.KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        event.stopPropagation();
+        onCloseRef.current();
+        return;
+      }
+      if (event.key !== 'Tab' || !dialog) return;
+      const elements = focusableElements();
+      if (elements.length === 0) {
+        event.preventDefault();
+        dialog.focus();
+        return;
+      }
+      const first = elements[0];
+      const last = elements.at(-1);
+      if (!first || !last) return;
+      if (
+        event.shiftKey &&
+        (document.activeElement === first || !dialog.contains(document.activeElement))
+      ) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
     };
-    document.addEventListener('keydown', closeOnEscape);
-    return () => document.removeEventListener('keydown', closeOnEscape);
-  }, [onClose, open]);
+    document.addEventListener('keydown', handleDialogKeys);
+    return () => {
+      document.removeEventListener('keydown', handleDialogKeys);
+      if (returnFocusTarget?.isConnected) returnFocusTarget.focus();
+    };
+  }, [open]);
 
   if (!open) return null;
 
@@ -144,14 +198,16 @@ export function Dialog({ children, description, onClose, open, title }: DialogPr
         aria-labelledby={titleId}
         aria-modal="true"
         className="sa-dialog"
+        ref={dialogRef}
         role="dialog"
+        tabIndex={-1}
       >
         <header className="sa-dialog__header">
           <div>
             <p className="sa-eyebrow">Signal Atlas</p>
             <h2 id={titleId}>{title}</h2>
           </div>
-          <IconButton accessibleLabel="Close" autoFocus onClick={onClose}>
+          <IconButton accessibleLabel="Close" onClick={onClose}>
             ×
           </IconButton>
         </header>

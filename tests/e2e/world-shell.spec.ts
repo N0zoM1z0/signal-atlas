@@ -85,8 +85,8 @@ test('narrow layout exposes mutually exclusive agent and signal drawers', async 
   await page.setViewportSize({ width: 1024, height: 768 });
   await page.goto('/');
 
-  const agents = page.getByRole('complementary', { name: 'Agents' });
-  const signals = page.getByRole('complementary', { name: 'Signals' });
+  const agents = page.locator('.atlas-agent-dock');
+  const signals = page.locator('.atlas-signal-rail');
   await page.getByRole('button', { name: 'Open agents drawer' }).click();
   await expect(agents).toHaveAttribute('data-mobile-open', 'true');
   await expect(signals).toHaveAttribute('data-mobile-open', 'false');

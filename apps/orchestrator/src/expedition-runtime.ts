@@ -789,7 +789,7 @@ export class ExpeditionRuntime {
       const invalid = turn.scenario === 'invalid_result';
       const code = invalid ? 'fixture_invalid_result' : 'fixture_timeout';
       const message = invalid
-        ? 'The scripted source response did not satisfy the result contract.'
+        ? 'The agent output schema boundary rejected the injected result; no evidence or world action was applied.'
         : 'The scripted source request exceeded its injected time limit.';
       emit('pref-failed', 'pref.call.failed', {
         callId: turn.callId,

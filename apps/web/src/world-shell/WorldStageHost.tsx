@@ -2,16 +2,22 @@ import { useRef, type CSSProperties } from 'react';
 
 import type { WorldSceneDefinition } from '@signal-atlas/game-scene';
 
-import type { ShellPlace } from './model.js';
+import type { ShellAgent, ShellPlace } from './model.js';
 import { WorldCanvas, type CameraFollowRequest, type WorldCanvasHandle } from './WorldCanvas.js';
 
 interface RouteModel {
+  baseDurationMs: number;
+  bidirectional: boolean;
+  fromPlaceId: string;
   id: string;
+  toPlaceId: string;
+  transitType: string;
   waypoints: Array<{ x: number; y: number }>;
 }
 
 export interface WorldStageHostProps {
   agentsDrawerOpen: boolean;
+  agents: readonly ShellAgent[];
   autoCamera: boolean;
   followRequest: CameraFollowRequest | undefined;
   loading: boolean;
@@ -44,6 +50,7 @@ function placeStyle(place: ShellPlace): CSSProperties {
 
 export function WorldStageHost({
   agentsDrawerOpen,
+  agents,
   autoCamera,
   followRequest,
   loading,
@@ -74,6 +81,50 @@ export function WorldStageHost({
       id="world-stage"
       tabIndex={-1}
     >
+      <section aria-label="World state text view" className="atlas-visually-hidden">
+        <h2>World state text view</h2>
+        <h3>Agents and movement</h3>
+        <ul>
+          {agents.map((agent) => (
+            <li key={agent.id}>
+              <strong>{agent.name}</strong> · {agent.status} · {agent.placeName} · {agent.mission}
+              {agent.movement
+                ? ` Route ${agent.movement.routeId}, ${Math.round(agent.movement.progress * 100)} percent complete toward ${agent.movement.destinationName}.`
+                : ' Not traveling.'}
+            </li>
+          ))}
+        </ul>
+        <h3>Places and available missions</h3>
+        <ul>
+          {places.map((place) => (
+            <li key={place.id}>
+              <strong>{place.name}</strong> · {place.label} ·{' '}
+              {place.missionVerbs.length > 0
+                ? `Available missions: ${place.missionVerbs.join(', ')}.`
+                : 'No mission action available.'}
+            </li>
+          ))}
+        </ul>
+        <h3>Routes</h3>
+        <ul>
+          {routes.map((route) => {
+            const from = places.find((place) => place.id === route.fromPlaceId);
+            const to = places.find((place) => place.id === route.toPlaceId);
+            return (
+              <li key={route.id}>
+                {from?.name ?? route.fromPlaceId} to {to?.name ?? route.toPlaceId} by{' '}
+                {route.transitType}; {Math.round(route.baseDurationMs / 1_000)} seconds
+                {route.bidirectional ? ', bidirectional.' : ', one way.'}
+              </li>
+            );
+          })}
+        </ul>
+        <p>
+          Select places with the labeled map buttons. Select and follow agents from the Agents
+          region. Pause, speed, forecast, archive, professor, replay, meeting, and camera controls
+          are available as standard buttons outside the canvas.
+        </p>
+      </section>
       <nav aria-label="World views" className="atlas-world-toolbar">
         <span className="atlas-world-crumb">
           <small>The Atlas</small>
@@ -102,16 +153,28 @@ export function WorldStageHost({
           <button aria-current="page" type="button">
             World
           </button>
-          <button onClick={() => onOpenPanel('archive')} type="button">
+          <button
+            data-workspace-target="archive"
+            onClick={() => onOpenPanel('archive')}
+            type="button"
+          >
             Archive
           </button>
-          <button onClick={() => onOpenPanel('professor')} type="button">
+          <button
+            data-workspace-target="professor"
+            onClick={() => onOpenPanel('professor')}
+            type="button"
+          >
             Professor
           </button>
           <button onClick={() => onOpenPanel('forecast')} type="button">
             Forecast
           </button>
-          <button onClick={() => onOpenPanel('replay')} type="button">
+          <button
+            data-workspace-target="replay"
+            onClick={() => onOpenPanel('replay')}
+            type="button"
+          >
             Replay
           </button>
           <button
@@ -235,6 +298,7 @@ export function WorldStageHost({
             Skip travel
           </label>
           <button
+            data-workspace-target="meeting"
             disabled={meetingBusy || meetingDisabled}
             onClick={onConveneMeeting}
             title={

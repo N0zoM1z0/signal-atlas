@@ -142,13 +142,17 @@ export function RuntimeDiagnosticsDialog({
                 </div>
                 <span data-available={diagnostics.driver.available}>
                   <i aria-hidden="true" />
-                  {diagnostics.driver.available ? 'Available' : 'Unavailable'}
+                  {diagnostics.driver.activeMode === 'scripted_fallback'
+                    ? 'Fallback available'
+                    : diagnostics.driver.available
+                      ? 'Available'
+                      : 'Unavailable'}
                 </span>
               </header>
               <p>{diagnostics.driver.description}</p>
               {diagnostics.driver.activeMode === 'scripted_fallback' && (
                 <p className="atlas-runtime-driver__fallback" role="status">
-                  <strong>Scripted fallback active.</strong>{' '}
+                  <strong>Local Codex unavailable · scripted fixture fallback active.</strong>{' '}
                   {diagnostics.driver.fallback?.reason ?? 'The local executable is unavailable.'}
                 </p>
               )}

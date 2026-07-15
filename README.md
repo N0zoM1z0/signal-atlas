@@ -108,6 +108,20 @@ Fixture resolution is deliberately not a general outcome command. `POST /api/exp
 
 `GET /api/expeditions/:id/replay?sequence=N` returns the exact projection at an event sequence. `GET /api/expeditions/:id/case-file` returns a deterministic public JSON case file with separate source, claim, signal, and forecast-rationale sections. Private forecast memos are excluded from both those sections and the exported event stream.
 
+### Event recovery and accessibility
+
+The world shell receives committed event notifications from `GET /api/expeditions/:id/stream?after=N` over WebSocket. Every envelope is versioned, bounded to 100 events, and requires contiguous expedition-owned sequences. The browser advances its reconnect cursor only after the envelope validates and a fresh authoritative snapshot covers that batch; stream data never mutates the projection directly. Temporary transport loss uses bounded backoff from the last validated sequence. A malformed envelope keeps the last valid projection visible and names the event-stream schema boundary.
+
+Connection failures remain distinct in the UI and diagnostics:
+
+- **Orchestrator offline** means the local API/snapshot boundary is unavailable.
+- **Stream reconnecting/schema error** means live notifications failed while the last projection remains readable.
+- **Pref disconnected** means the read-only source gateway is unavailable; it does not imply that Codex or the orchestrator failed.
+- **Local Codex unavailable · scripted fixture fallback active** means local execution could not start and the deterministic authored driver remains available.
+- **Agent output schema boundary rejected** means no source, claim, signal, or world action from that result was applied.
+
+All essential world places, agents, movement progress, routes, and actions have semantic React representations outside Phaser. Modal dialogs contain focus and restore it on close; Archive, Professor, Meeting, and Replay focus their main landmark and return to the originating world control. The required journey supports `/`, `1`–`3`, `A`, `P`, `C`, `R`, `M`, `Space`, `[`/`]`, `F`, `Home`, `Tab`, `Enter`, and `Escape`. Closed responsive drawers leave the focus order, reduced-motion disables nonessential motion, and forced-colors mode restores explicit borders and focus/selection outlines. The 200% reflow target is the 720 × 450 CSS viewport equivalent of the 1440 × 900 reference desktop.
+
 Run the current repository gate with:
 
 ```bash

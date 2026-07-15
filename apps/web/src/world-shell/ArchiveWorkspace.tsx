@@ -209,7 +209,12 @@ export function ArchiveWorkspace({
   };
 
   return (
-    <main className="atlas-archive-workspace" aria-label="Archive Quarter" aria-busy={loading}>
+    <main
+      className="atlas-archive-workspace"
+      aria-label="Archive Quarter"
+      aria-busy={loading}
+      tabIndex={-1}
+    >
       <header className="atlas-archive-header">
         <div>
           <span className="atlas-kicker">The Atlas / Archive Quarter</span>
