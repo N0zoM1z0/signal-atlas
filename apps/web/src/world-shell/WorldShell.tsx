@@ -42,6 +42,7 @@ import {
   type MissionDraft,
 } from './runtime-client.js';
 import { SignalRail } from './SignalRail.js';
+import { readSkipTravelPreference, writeSkipTravelPreference } from './skip-travel-preference.js';
 import { SourceInspector } from './SourceInspector.js';
 import { WorldStageHost } from './WorldStageHost.js';
 
@@ -106,11 +107,6 @@ function commandEnvelope(id: string, idempotencyKey: string, issuedAt: string) {
   };
 }
 
-function skipTravelPreference(): boolean {
-  if (typeof window === 'undefined') return false;
-  return window.localStorage.getItem('signal-atlas:skip-travel') === 'true';
-}
-
 function nextRecordedTimestamp(events: readonly { occurredAt: string }[]): string {
   const latestRecorded = events.reduce(
     (latest, event) => Math.max(latest, Date.parse(event.occurredAt)),
@@ -150,7 +146,7 @@ export function WorldShell() {
   const [missionDraft, setMissionDraft] = useState<MissionDraft>();
   const [commandBusy, setCommandBusy] = useState(false);
   const [commandError, setCommandError] = useState<string>();
-  const [skipTravel, setSkipTravel] = useState(skipTravelPreference);
+  const [skipTravel, setSkipTravel] = useState(readSkipTravelPreference);
   const [fixtureScenario, setFixtureScenario] = useState<FixtureMissionScenario>('success');
   const [workspace, setWorkspace] = useState<Workspace>('world');
   const [replayInitialSequence, setReplayInitialSequence] = useState<number>();
@@ -1348,7 +1344,7 @@ export function WorldShell() {
           }}
           onSkipTravelChange={(enabled) => {
             setSkipTravel(enabled);
-            window.localStorage.setItem('signal-atlas:skip-travel', String(enabled));
+            writeSkipTravelPreference(enabled);
             setAnnouncement(`Skip-travel preference ${enabled ? 'enabled' : 'disabled'}.`);
           }}
           places={model.places}

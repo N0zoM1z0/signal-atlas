@@ -1,5 +1,7 @@
 import { expect, test } from '@playwright/test';
 
+test.use({ reducedMotion: 'no-preference' });
+
 test.beforeEach(async ({ request }) => {
   await request.post('/api/testing/reset');
 });
@@ -16,12 +18,19 @@ test('world input remains responsive during active work and meets the scene budg
     })
     .toBeGreaterThanOrEqual(5);
   expect(Number(await scene.getAttribute('data-fps-p10'))).toBeGreaterThan(30);
+  const idleSampleCount = Number(await scene.getAttribute('data-fps-sample-count'));
 
   await page.getByRole('button', { name: /Dispatch/ }).click();
   await page.getByRole('button', { name: 'Confirm mission' }).click();
   await expect(page.locator('[data-agent="mira"] .atlas-agent-card__status')).toContainText(
     'Traveling',
   );
+  await expect
+    .poll(async () => Number(await scene.getAttribute('data-fps-sample-count')), {
+      timeout: 10_000,
+    })
+    .toBeGreaterThan(idleSampleCount);
+  expect(Number(await scene.getAttribute('data-fps-p10'))).toBeGreaterThan(30);
 
   const latencies: number[] = [];
   for (let index = 0; index < 8; index += 1) {

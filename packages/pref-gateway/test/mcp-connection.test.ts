@@ -52,6 +52,10 @@ class FakeSdkClient implements PrefMcpSdkClient {
     this.#options.onClose();
   }
 
+  async refreshCredential(): Promise<string | undefined> {
+    return this.#options.credentialProvider?.();
+  }
+
   getServerCapabilities(): Record<string, unknown> {
     return this.#options.nativePrimitives
       ? { tools: {}, resources: {}, prompts: {} }
@@ -454,6 +458,52 @@ describe('Streamable HTTP Pref connection', () => {
     expect(serialized).toContain('pref_upstream_error');
     expect(serialized).not.toContain('seeded-secret');
     expect(serialized).not.toContain('Galehaven seeded-secret');
+  });
+
+  it('rejects a provider payload that echoes a credential used before rotation', async () => {
+    let calls = 0;
+    const fixture = await connectionFixture(
+      {
+        credentialEcho: 'provider_payload',
+        echoedCredential: 'seeded-secret',
+        refreshCredentialOnConnect: true,
+      },
+      { token: () => (calls++ === 0 ? 'seeded-secret' : 'rotated-secret') },
+    );
+    await fixture.connection.connect();
+
+    await expect(
+      fixture.connection.callProviderTool('weather.get_current_conditions', {
+        location: 'Galehaven',
+      }),
+    ).rejects.toMatchObject({ code: 'pref_upstream_error' });
+    const serialized = JSON.stringify(fixture.connection.diagnostics());
+    expect(serialized).not.toContain('seeded-secret');
+    expect(serialized).not.toContain('rotated-secret');
+  });
+
+  it('retains a reused credential when bounded rotation history evicts an older value', async () => {
+    const values = [
+      'reused-secret',
+      ...Array.from({ length: 15 }, (_, index) => `rotated-secret-${index}`),
+      'reused-secret',
+      'rotated-secret-final',
+    ];
+    let calls = 0;
+    const fixture = await connectionFixture(
+      { credentialEcho: 'provider_payload', echoedCredential: 'reused-secret' },
+      { token: () => values[calls++] },
+    );
+    await fixture.connection.connect();
+    for (let index = 1; index < values.length; index += 1) {
+      await fixture.clients[0]?.refreshCredential();
+    }
+
+    await expect(
+      fixture.connection.callProviderTool('weather.get_current_conditions', {
+        location: 'Galehaven',
+      }),
+    ).rejects.toMatchObject({ code: 'pref_upstream_error' });
   });
 
   it('rejects oversized discovery payloads before retaining them', async () => {

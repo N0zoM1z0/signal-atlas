@@ -96,6 +96,7 @@ export const WorldCanvas = forwardRef<WorldCanvasHandle, WorldCanvasProps>(funct
   const [metrics, setMetrics] = useState<CanvasMetrics>();
   const [framesPerSecond, setFramesPerSecond] = useState<number>();
   const [fpsSamples, setFpsSamples] = useState<number[]>([]);
+  const [fpsSampleCount, setFpsSampleCount] = useState(0);
   const [renderedCueId, setRenderedCueId] = useState<string>();
   const [renderedWeather, setRenderedWeather] = useState(model.weather.state);
   const [weatherTransitionMs, setWeatherTransitionMs] = useState(0);
@@ -162,6 +163,7 @@ export const WorldCanvas = forwardRef<WorldCanvasHandle, WorldCanvasProps>(funct
         case 'performance.sample':
           setFramesPerSecond(event.framesPerSecond);
           setFpsSamples((current) => [...current, event.framesPerSecond].slice(-120));
+          setFpsSampleCount((current) => current + 1);
           return;
         case 'presentation.rendered':
           setRenderedCueId(event.cueId);
@@ -306,7 +308,7 @@ export const WorldCanvas = forwardRef<WorldCanvasHandle, WorldCanvasProps>(funct
       data-following-agent={followingAgentId ?? ''}
       data-fps={framesPerSecond ?? ''}
       data-fps-p10={lowerPercentile(fpsSamples, 0.1) ?? ''}
-      data-fps-sample-count={fpsSamples.length}
+      data-fps-sample-count={fpsSampleCount}
       data-pixel-scale={metrics?.pixelScale ?? ''}
       data-scene-ready={ready}
       data-reduced-motion={reducedMotion}

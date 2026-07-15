@@ -128,6 +128,7 @@ const DEFAULT_TIMEOUT_MS = 10_000;
 const DEFAULT_MAX_DISCOVERY_BYTES = 1_000_000;
 const DEFAULT_MAX_PRIMITIVES = 256;
 const MAX_PAGES = 16;
+const MAX_CREDENTIAL_HISTORY = 16;
 const encoder = new TextEncoder();
 
 export class StreamableHttpPrefConnection implements PrefMcpConnection {
@@ -151,7 +152,7 @@ export class StreamableHttpPrefConnection implements PrefMcpConnection {
   #indexedCapabilityCount: number | undefined;
   #lastError: PrefMcpConnectionDiagnostics['lastError'];
   #connectAttempt: Promise<PrefMcpConnectionDiagnostics> | undefined;
-  #activeCredential: string | undefined;
+  #activeCredentials = new Set<string>();
   #closing = false;
 
   constructor(options: StreamableHttpPrefConnectionOptions) {
@@ -204,7 +205,7 @@ export class StreamableHttpPrefConnection implements PrefMcpConnection {
     } catch {
       // The local state still closes; transport details are never exposed.
     } finally {
-      this.#activeCredential = undefined;
+      this.#activeCredentials.clear();
       this.#closing = false;
       this.#transition('disconnected');
       this.#lastError = undefined;
@@ -292,8 +293,15 @@ export class StreamableHttpPrefConnection implements PrefMcpConnection {
     const credentialProvider = async (): Promise<string | undefined> => {
       const value = await this.#credential.token();
       const token = typeof value === 'string' ? value.trim() : '';
-      this.#activeCredential = token.length > 0 ? token : undefined;
-      return this.#activeCredential;
+      if (!token) return undefined;
+      this.#activeCredentials.delete(token);
+      this.#activeCredentials.add(token);
+      while (this.#activeCredentials.size > MAX_CREDENTIAL_HISTORY) {
+        const oldest = this.#activeCredentials.values().next().value;
+        if (oldest === undefined) break;
+        this.#activeCredentials.delete(oldest);
+      }
+      return token;
     };
     const token = await credentialProvider();
     if (!token) {
@@ -327,7 +335,7 @@ export class StreamableHttpPrefConnection implements PrefMcpConnection {
       return this.diagnostics();
     } catch (error: unknown) {
       this.#client = undefined;
-      this.#activeCredential = undefined;
+      this.#activeCredentials.clear();
       try {
         await client.close();
       } catch {
@@ -504,7 +512,7 @@ export class StreamableHttpPrefConnection implements PrefMcpConnection {
   #handleRemoteClose(): void {
     if (this.#closing) return;
     this.#client = undefined;
-    this.#activeCredential = undefined;
+    this.#activeCredentials.clear();
     const error = safeConnectionError('pref_disconnected');
     this.#lastError = { code: error.code, message: error.message };
     this.#transition('disconnected');
@@ -520,8 +528,9 @@ export class StreamableHttpPrefConnection implements PrefMcpConnection {
   }
 
   #assertNoActiveCredential(value: unknown, code: PrefMcpConnectionErrorCode): void {
-    const credential = this.#activeCredential;
-    if (credential) assertCredentialAbsent(value, credential, code);
+    for (const credential of this.#activeCredentials) {
+      assertCredentialAbsent(value, credential, code);
+    }
   }
 }
 

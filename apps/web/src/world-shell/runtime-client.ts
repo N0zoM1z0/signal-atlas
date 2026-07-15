@@ -7,7 +7,7 @@ import {
 import type { CodexRuntimeDiagnostics } from '@signal-atlas/codex-runtime';
 import type { SignalAtlasCaseFile } from '@signal-atlas/archive';
 import type { PrefMcpConnectionDiagnostics } from '@signal-atlas/pref-gateway';
-import type { WorldProjection } from '@signal-atlas/simulation';
+import { parseWorldProjection, type WorldProjection } from '@signal-atlas/simulation';
 
 import { shellModel } from './model.js';
 
@@ -105,35 +105,25 @@ async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
   }
 }
 
-function isWorldProjection(value: unknown): value is WorldProjection {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
-  const record = value as Record<string, unknown>;
-  const expedition = record['expedition'];
-  return (
-    Number.isInteger(record['sequence']) &&
-    expedition !== null &&
-    typeof expedition === 'object' &&
-    (expedition as Record<string, unknown>)['id'] === expeditionId &&
-    record['agentsById'] !== null &&
-    typeof record['agentsById'] === 'object' &&
-    record['worldManifest'] !== null &&
-    typeof record['worldManifest'] === 'object'
-  );
-}
-
 export function createClientId(prefix: string): string {
   const random = globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`;
   return `${prefix}-${random}`;
 }
 
 export async function fetchExpeditionSnapshot(): Promise<WorldProjection> {
-  const response = await requestJson<{ projection: WorldProjection }>(
+  const response = await requestJson<{ projection: unknown }>(
     `/api/expeditions/${expeditionId}/snapshot`,
   );
-  if (!isWorldProjection(response.projection)) {
+  let projection: WorldProjection;
+  try {
+    projection = parseWorldProjection(response.projection);
+  } catch {
     throw new Error('The orchestrator returned an invalid world projection.');
   }
-  return response.projection;
+  if (projection.expedition.id !== expeditionId) {
+    throw new Error('The orchestrator returned an invalid world projection.');
+  }
+  return projection;
 }
 
 export async function fetchRuntimeDiagnostics(): Promise<CodexRuntimeDiagnostics> {

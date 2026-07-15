@@ -19,6 +19,30 @@ describe('browser runtime boundary', () => {
     );
   });
 
+  it('rejects an object-like snapshot with arrays in entity-map positions', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({
+              projection: {
+                projectionSchemaVersion: 1,
+                sequence: 999,
+                expedition: { id: 'exp-helios3-demo' },
+                agentsById: [],
+                worldManifest: {},
+              },
+            }),
+          ),
+      ),
+    );
+
+    await expect(fetchExpeditionSnapshot()).rejects.toThrow(
+      'The orchestrator returned an invalid world projection.',
+    );
+  });
+
   it('aborts a stalled orchestrator request after the fixed browser timeout', async () => {
     vi.useFakeTimers();
     vi.stubGlobal(
