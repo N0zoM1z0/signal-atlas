@@ -208,11 +208,14 @@ WS   /api/expeditions/:id/stream?after=N
 GET  /api/expeditions/:id/replay?sequence=N
 GET  /api/expeditions/:id/case-file
 POST /api/expeditions/:id/resolve-fixture
+GET  /api/scenarios
+GET  /api/expeditions
+POST /api/expeditions
 GET  /api/archive/search
 GET  /api/sources/:id
 POST /api/professor/query
 POST /api/forecast/commit
-GET  /api/runtime/diagnostics
+GET  /api/runtime/diagnostics?expeditionId=:id
 POST /api/runtime/test-pref
 POST /api/runtime/test-codex
 ```
@@ -368,7 +371,8 @@ Reference targets for a local machine:
 - event application below 10 milliseconds for ordinary events;
 - snapshot load below one second for the vertical slice;
 - card/overlay interaction response below 100 milliseconds;
-- no more than two concurrent Codex turns by default;
+- no more than two concurrent external Pref/Codex/Professor turns across all expeditions by
+  default, with at most 32 waiting calls;
 - map and core UI initial assets below 8 MB before final art expansion.
 
 Agent latency is presented honestly and does not block world interaction.
@@ -391,6 +395,10 @@ Expected behavior:
 - normal local runs persist to `~/.local/state/signal-atlas/workspace.sqlite` unless
   `SIGNAL_ATLAS_WORKSPACE_DB=off` is set;
 - `SIGNAL_ATLAS_CHECKPOINT_INTERVAL` configures the positive event interval and defaults to 50;
+- `SIGNAL_ATLAS_MAX_EXTERNAL_CALLS` configures positive process-wide external-call concurrency and
+  accepts 1 through 16, defaulting to 2;
+- `SIGNAL_ATLAS_MAX_QUEUED_EXTERNAL_CALLS` configures the non-negative process-wide queue bound and
+  accepts 0 through 256, defaulting to 32;
 - test and Playwright profiles remain isolated in memory;
 - diagnostics identify missing dependencies;
 - no cloud account is required to view the scripted vertical slice.

@@ -23,6 +23,7 @@ import {
   ExpeditionRuntimeRegistry,
   ScenarioNotInstalledError,
 } from './expedition-runtime-registry.js';
+import { ExternalCallGate, gateCodexDriver, gateProfessorDriver } from './external-call-gate.js';
 import { fixtureMissionScenarios, type FixtureMissionScenario } from './fixture-mission-driver.js';
 import { interpretFixtureMission } from './fixture-mission-interpreter.js';
 import {
@@ -45,6 +46,7 @@ export interface HealthResponse {
 
 export interface BuildAppOptions {
   registry?: ExpeditionRuntimeRegistry;
+  externalCallGate?: ExternalCallGate;
   runtime?: ExpeditionRuntime;
   prefRuntime?: PrefRuntime;
   runScheduler?: boolean;
@@ -144,6 +146,16 @@ function configuredCheckpointInterval(): number {
   return Number.isInteger(parsed) && parsed > 0 ? parsed : 50;
 }
 
+function configuredExternalCallGate(): ExternalCallGate {
+  const concurrency = Number(process.env['SIGNAL_ATLAS_MAX_EXTERNAL_CALLS'] ?? 2);
+  const maxQueued = Number(process.env['SIGNAL_ATLAS_MAX_QUEUED_EXTERNAL_CALLS'] ?? 32);
+  return new ExternalCallGate({
+    maxConcurrency:
+      Number.isInteger(concurrency) && concurrency > 0 && concurrency <= 16 ? concurrency : 2,
+    maxQueued: Number.isInteger(maxQueued) && maxQueued >= 0 && maxQueued <= 256 ? maxQueued : 32,
+  });
+}
+
 export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   const app = Fastify({
     logger:
@@ -157,6 +169,7 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
     throw new Error('Inject a workspace store through ExpeditionRuntime when supplying a runtime.');
   }
   const scenarioCatalog = options.scenarioCatalog ?? installedScenarioCatalog;
+  const externalCallGate = options.externalCallGate ?? configuredExternalCallGate();
   const workspaceStore = options.runtime
     ? undefined
     : (options.workspaceStore ?? configuredWorkspaceStore());
@@ -202,13 +215,17 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
             ownsWorkspaceStore: false,
             checkpointInterval: configuredCheckpointInterval(),
             scenarioDefinition,
-            professorDriver: createConfiguredProfessorDriver(localCodexOptions),
+            professorDriver: gateProfessorDriver(
+              createConfiguredProfessorDriver(localCodexOptions),
+              externalCallGate,
+            ),
             missionDriverFactory: (scenario) => {
               const fallback = createConfiguredMissionDriver(fixture, scenario, localCodexOptions);
               const gateway = prefRuntime.gateway();
-              return gateway
+              const driver = gateway
                 ? createPrefAgentProxyDriver({ fixture, gateway, fallback })
                 : fallback;
+              return gateCodexDriver(driver, externalCallGate);
             },
           });
         },
@@ -264,7 +281,11 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
       const requestedId = request.query.expeditionId;
       const runtime = requestedId ? registry.get(requestedId) : registry.primary();
       if (!runtime) return reply.code(404).send({ error: 'expedition_not_found' });
-      return runtime.runtimeDiagnostics();
+      return {
+        ...runtime.runtimeDiagnostics(),
+        registry: { runtimeCount: registry.list().length },
+        globalExternalCalls: externalCallGate.diagnostics(),
+      };
     },
   );
 

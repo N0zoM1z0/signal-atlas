@@ -175,6 +175,13 @@ describe('orchestrator health endpoint', () => {
         activeCount: 0,
         queuedCount: 0,
       },
+      registry: { runtimeCount: 1 },
+      globalExternalCalls: {
+        maxConcurrency: 2,
+        maxQueued: 32,
+        activeCount: 0,
+        queuedCount: 0,
+      },
       professor: {
         id: 'scripted-professor',
         kind: 'scripted',

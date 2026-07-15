@@ -272,12 +272,18 @@ Triggers include:
 Fairness and budget rules:
 
 - one active turn per agent;
-- configurable global concurrency, default two;
+- configurable process-wide external-call concurrency, default two across all expeditions;
 - per-mission timeout;
 - per-agent and per-expedition token/call budget;
 - exponential backoff on connection failure;
 - no automatic infinite retry;
 - priority for player-requested turns.
+
+Each expedition owns its deterministic mission scheduler, but non-scripted driver execution must
+also acquire the orchestrator's shared FIFO admission gate. This prevents opening additional
+expeditions from multiplying Pref, local Codex, or Professor process concurrency. Waiting calls
+observe their existing abort signal, the queue has a finite configured capacity, and overload fails
+closed as a recoverable runtime error. Scripted fixture turns bypass the gate and remain synchronous.
 
 ## 8.13 Observability
 

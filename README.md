@@ -145,6 +145,11 @@ export SIGNAL_ATLAS_WORKSPACE_DB="$HOME/.local/state/signal-atlas/workspace.sqli
 
 # Use any positive integer; invalid values fall back to 50.
 export SIGNAL_ATLAS_CHECKPOINT_INTERVAL=50
+
+# Bound live Pref/Codex/Professor work across all open expeditions in this process.
+# Accepted ranges are 1-16 active calls and 0-256 queued calls; invalid values use the defaults.
+export SIGNAL_ATLAS_MAX_EXTERNAL_CALLS=2
+export SIGNAL_ATLAS_MAX_QUEUED_EXTERNAL_CALLS=32
 ```
 
 Tests and Playwright use memory mode by default so fixture runs remain isolated and deterministic.
@@ -152,6 +157,11 @@ If a durable write fails, the runtime keeps the last committed projection visibl
 uncommitted event, rejects new commands, and exposes a blocking workspace warning plus safe
 diagnostics. The database directory and file are created with owner-only permissions. Never place a
 workspace database in version control.
+
+Per-expedition schedulers preserve mission ordering and timeouts, while one process-wide admission
+gate bounds all non-scripted Pref, Codex, and Professor calls. Queued calls remain cancelable and
+fail closed when the configured queue is full. `GET /api/runtime/diagnostics` reports both the
+selected expedition scheduler and the shared gate without exposing prompts or credentials.
 
 ### Resolution, replay, and case-file export
 

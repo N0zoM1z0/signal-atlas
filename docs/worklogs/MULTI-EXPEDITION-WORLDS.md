@@ -18,13 +18,17 @@ In progress.
   creation receipts, one shared multi-expedition store, lazy runtime restoration, strict
   idempotent `POST /api/expeditions`, registry-routed HTTP/WebSocket endpoints, and restart coverage
   proving that changing one expedition does not change another.
+- `8021bcb` committed the durable registry boundary. The immediate follow-up adds the shared,
+  cancelable, queue-bounded external-call gate so Pref, local Codex, and Professor capacity cannot
+  multiply as expeditions are opened.
 - Focused validation after the first two commits: contracts 18/18, simulation 34/34, codex-runtime
   25/25, game-scene 13/13, archive 4/4, web 19/19, orchestrator 95/95, and repository lint with zero
   warnings. Persistence milestone validation currently passes contracts 19/19, world-content 2/2,
   and orchestrator 98/98. Registry validation currently passes contracts 19/19 and orchestrator
   102/102, plus full-workspace typecheck, schema artifact verification, and repository lint with
-  zero warnings. The global cross-runtime external-call gate remains the next registry follow-up
-  before the browser Lobby milestone.
+  zero warnings. Shared-gate focused validation passes three admission, cancellation, and overload
+  tests; the complete orchestrator suite currently passes 105/105 before the browser Lobby
+  milestone.
 
 ## Goal
 
