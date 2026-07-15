@@ -200,6 +200,7 @@ export function WorldShell({ initialProjection, onOpenLobby }: WorldShellProps) 
   const [fixtureScenario, setFixtureScenario] = useState<FixtureMissionScenario>('success');
   const [workspace, setWorkspace] = useState<Workspace>('world');
   const [replayInitialSequence, setReplayInitialSequence] = useState<number>();
+  const [replayProjection, setReplayProjection] = useState<WorldProjection>();
   const [forecastOpen, setForecastOpen] = useState(false);
   const [runtimeDiagnosticsOpen, setRuntimeDiagnosticsOpen] = useState(false);
   const [archiveEvents, setArchiveEvents] = useState<WorldEvent[]>([]);
@@ -1294,14 +1295,21 @@ export function WorldShell({ initialProjection, onOpenLobby }: WorldShellProps) 
     setCommandError(undefined);
   };
 
-  const resolvedOutcomeLabel = projection.market.outcomes.find(
-    (outcome) => outcome.id === projection.market.resolvedOutcomeId,
+  const ribbonProjection =
+    workspace === 'replay' && replayProjection ? replayProjection : projection;
+  const ribbonModel =
+    workspace === 'replay' && replayProjection ? createShellModel(replayProjection) : model;
+  const resolvedOutcomeLabel = ribbonProjection.market.outcomes.find(
+    (outcome) => outcome.id === ribbonProjection.market.resolvedOutcomeId,
   )?.shortLabel;
-  const marketKindLabel = projection.market.tags.includes('fictional')
-    ? 'Fictional sandbox market'
-    : projection.expedition.settings.fixtureMode
-      ? 'Offline research scenario'
-      : 'Read-only market research';
+  const marketKindLabel =
+    workspace === 'replay'
+      ? 'Read-only case-file replay'
+      : projection.market.tags.includes('fictional')
+        ? 'Fictional sandbox market'
+        : projection.expedition.settings.fixtureMode
+          ? 'Offline research scenario'
+          : 'Read-only market research';
   const commandDisabledReason = workspacePersistenceIssue
     ? 'Workspace persistence paused; commands are closed.'
     : ['resolved', 'archived'].includes(projection.expedition.status)
@@ -1317,14 +1325,15 @@ export function WorldShell({ initialProjection, onOpenLobby }: WorldShellProps) 
       data-capture-mode={captureMode}
       data-signal-collapsed={signalRailCollapsed}
       data-tray-expanded={trayExpanded}
+      data-workspace={workspace}
     >
       <a className="atlas-skip-link" href="#world-stage">
         Skip to world stage
       </a>
 
       <MarketRibbon
-        deadlineLabel={shortDateLabel(model.market.closesAt)}
-        expeditionName={model.market.expeditionName}
+        deadlineLabel={shortDateLabel(ribbonModel.market.closesAt)}
+        expeditionName={ribbonModel.market.expeditionName}
         marketKindLabel={marketKindLabel}
         mode={mode}
         onModeChange={() =>
@@ -1334,19 +1343,22 @@ export function WorldShell({ initialProjection, onOpenLobby }: WorldShellProps) 
         onPauseChange={() => void changePauseState()}
         onOpenForecast={() => void openForecastWorkspace()}
         onSpeedChange={() => void changeSpeed()}
-        paused={paused}
-        publicProbability={model.market.publicProbability}
-        primaryOutcomeLabel={model.market.primaryOutcome.shortLabel}
-        question={model.market.question}
+        paused={workspace === 'replay' ? false : paused}
+        publicProbability={ribbonModel.market.publicProbability}
+        primaryOutcomeLabel={ribbonModel.market.primaryOutcome.shortLabel}
+        question={ribbonModel.market.question}
         prefConnected={prefConnected}
         prefConnectionState={prefConnectionState}
         prefMode={prefMode}
         {...(resolvedOutcomeLabel ? { resolvedOutcomeLabel } : {})}
+        {...(workspace === 'replay' && replayProjection
+          ? { replaySequence: replayProjection.sequence }
+          : {})}
         runtimeState={runtimeState}
-        secondaryOutcomeLabel={model.market.secondaryOutcome.shortLabel}
+        secondaryOutcomeLabel={ribbonModel.market.secondaryOutcome.shortLabel}
         speed={speed}
         streamStatus={eventStreamStatus}
-        teamProbability={model.market.teamProbability}
+        teamProbability={ribbonModel.market.teamProbability}
       />
 
       {streamBoundaryError && (
@@ -1476,9 +1488,11 @@ export function WorldShell({ initialProjection, onOpenLobby }: WorldShellProps) 
             setRuntimeState('ready');
             setAnnouncement('Fixture resolution recorded and final projection verified.');
           }}
+          onReplayProjectionChange={setReplayProjection}
           onClose={() => {
             setWorkspace('world');
             setReplayInitialSequence(undefined);
+            setReplayProjection(undefined);
             void refreshProjection().catch((error: unknown) => {
               const message =
                 error instanceof Error ? error.message : 'World projection failed to refresh.';

@@ -202,3 +202,20 @@ unstaged.
   dominant reference-view surface; the compact mission sheet fits the full 720 x 450 viewport.
 - Validation: web typecheck passed; 12 web test files / 29 tests passed; the focused 720 x 450
   Playwright authored-guidance test passed. Full repository gates remain for completion.
+
+### Responsive archive and coherent replay
+
+- Archive and Replay now own their scroll containers at 720 x 450 instead of placing zero-height
+  result bodies inside the shell's clipped world row. Search results, selected records, sequence
+  controls, replay projection, and forecast path remain keyboard reachable.
+- Replay replaces live sidebars and the command tray with a full-width case-file surface. Its
+  market ribbon is rebuilt from the selected historical projection, identifies the selected
+  sequence, and disables forecast/simulation controls as read-only.
+- Specialized Source Inspector, Forecast, and Runtime dialogs now size against the dialog layer's
+  content box at compact widths rather than adding viewport-derived width to the layer padding.
+- Reviewed screenshots: `/tmp/archive-720.png`, `/tmp/replay-720.png`, and
+  `/tmp/replay-1440.png`. Measured Archive scroll height is 656 px in a 290 px viewport with a
+  315 px record body; Replay scroll height is 1,174 px in a 378 px viewport with a 797 px body.
+- Validation: web typecheck passed; 12 web test files / 29 tests passed; three focused Replay and
+  Archive Playwright journeys covering reflow and historical scrubbing exited successfully. Full
+  repository gates remain for completion.

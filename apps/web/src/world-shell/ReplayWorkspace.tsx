@@ -15,6 +15,7 @@ export interface ReplayWorkspaceProps {
   initialSequence?: number;
   onAuthoritativeProjectionChange: (projection: WorldProjection) => void;
   onClose: () => void;
+  onReplayProjectionChange: (projection: WorldProjection) => void;
 }
 
 function sentenceCase(value: string): string {
@@ -50,6 +51,7 @@ export function ReplayWorkspace({
   initialSequence,
   onAuthoritativeProjectionChange,
   onClose,
+  onReplayProjectionChange,
 }: ReplayWorkspaceProps) {
   const [replay, setReplay] = useState<ReplayProjectionResponse>();
   const [caseFile, setCaseFile] = useState<SignalAtlasCaseFile>();
@@ -69,6 +71,7 @@ export function ReplayWorkspace({
         const nextReplay = await fetchReplayProjection(expeditionId, sequence);
         if (requestId !== requestIdRef.current) return;
         setReplay(nextReplay);
+        onReplayProjectionChange(nextReplay.projection);
         setStatus(`World projection moved to sequence ${sequence}.`);
       } catch (caught: unknown) {
         if (requestId !== requestIdRef.current) return;
@@ -79,7 +82,7 @@ export function ReplayWorkspace({
         if (requestId === requestIdRef.current) setLoading(false);
       }
     },
-    [expeditionId],
+    [expeditionId, onReplayProjectionChange],
   );
 
   useEffect(() => {
@@ -93,6 +96,7 @@ export function ReplayWorkspace({
         if (!active || requestId !== requestIdRef.current) return;
         setReplay(nextReplay);
         setCaseFile(nextCaseFile);
+        onReplayProjectionChange(nextReplay.projection);
         setStatus(
           `Replay loaded at sequence ${nextReplay.sequence} of ${nextReplay.latestSequence}.`,
         );
@@ -110,7 +114,7 @@ export function ReplayWorkspace({
     return () => {
       active = false;
     };
-  }, [expeditionId, initialSequence]);
+  }, [expeditionId, initialSequence, onReplayProjectionChange]);
 
   const resolveCase = async () => {
     setResolving(true);
@@ -123,6 +127,7 @@ export function ReplayWorkspace({
       ]);
       setReplay(nextReplay);
       setCaseFile(nextCaseFile);
+      onReplayProjectionChange(nextReplay.projection);
       onAuthoritativeProjectionChange(nextReplay.projection);
       setStatus(
         resolution.duplicate

@@ -14,6 +14,7 @@ export interface MarketRibbonProps {
   prefConnected: boolean;
   prefConnectionState: string;
   prefMode: 'fixture' | 'live' | 'unknown';
+  replaySequence?: number;
   runtimeState: RuntimeState;
   streamStatus: EventStreamStatus;
   speed: 1 | 2 | 4;
@@ -47,6 +48,7 @@ export function MarketRibbon({
   publicProbability,
   primaryOutcomeLabel,
   question,
+  replaySequence,
   resolvedOutcomeLabel,
   runtimeState,
   secondaryOutcomeLabel,
@@ -55,6 +57,7 @@ export function MarketRibbon({
   teamProbability,
 }: MarketRibbonProps) {
   const resolved = resolvedOutcomeLabel !== undefined;
+  const replaying = replaySequence !== undefined;
   const probabilityStyle = {
     '--atlas-public-probability': `${publicProbability}%`,
     '--atlas-team-probability': `${teamProbability}%`,
@@ -62,8 +65,9 @@ export function MarketRibbon({
   const streamUnavailable = ['reconnecting', 'schema_error', 'boundary_error'].includes(
     streamStatus.phase,
   );
-  const runtimeLabel =
-    runtimeState === 'loading'
+  const runtimeLabel = replaying
+    ? `◇ Replay · sequence ${replaySequence}`
+    : runtimeState === 'loading'
       ? '◌ Loading expedition'
       : runtimeState === 'disconnected'
         ? '△ Orchestrator offline'
@@ -122,7 +126,11 @@ export function MarketRibbon({
         <span className="atlas-market-summary">
           Public {publicProbability}% · Team {teamProbability}% · {resolved ? 'Resolved' : 'Due'}{' '}
           {resolvedOutcomeLabel ?? deadlineLabel} ·{' '}
-          {prefMode === 'live' && prefConnected ? 'Live sources' : 'Offline sources'}
+          {replaying
+            ? `Replay sequence ${replaySequence}`
+            : prefMode === 'live' && prefConnected
+              ? 'Live sources'
+              : 'Offline sources'}
         </span>
       </div>
 
@@ -154,17 +162,18 @@ export function MarketRibbon({
       <div className="atlas-ribbon-actions">
         <button
           className="atlas-forecast-open"
-          disabled={resolved}
+          disabled={resolved || replaying}
           onClick={onOpenForecast}
           type="button"
         >
-          <span aria-hidden="true">◒</span> {resolved ? 'Forecast closed' : 'Commit Forecast'}
+          <span aria-hidden="true">◒</span>{' '}
+          {replaying ? 'Replay read-only' : resolved ? 'Forecast closed' : 'Commit Forecast'}
         </button>
         <Badge
           className="atlas-runtime-badge"
           title={streamStatus.message}
           tone={
-            runtimeState === 'disconnected' || streamUnavailable || !prefConnected
+            !replaying && (runtimeState === 'disconnected' || streamUnavailable || !prefConnected)
               ? 'disputed'
               : 'context'
           }
@@ -178,7 +187,7 @@ export function MarketRibbon({
         <button
           aria-label={paused ? 'Resume simulation' : 'Pause simulation'}
           className="atlas-compact-control"
-          disabled={resolved}
+          disabled={resolved || replaying}
           onClick={onPauseChange}
           type="button"
         >
@@ -187,7 +196,7 @@ export function MarketRibbon({
         <button
           aria-label={`Simulation speed ${speed} times`}
           className="atlas-compact-control"
-          disabled={resolved}
+          disabled={resolved || replaying}
           onClick={onSpeedChange}
           type="button"
         >
@@ -196,6 +205,7 @@ export function MarketRibbon({
         <button
           aria-label={`Experience mode: ${mode}`}
           className="atlas-mode-control"
+          disabled={replaying}
           onClick={onModeChange}
           type="button"
         >

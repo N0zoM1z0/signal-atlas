@@ -55,7 +55,11 @@ async function reachResolvedReplay(page: Page) {
     replay.getByText(/Does not launch before the deadline · 30 Sept 2027/u),
   ).toBeVisible();
   const marketRibbon = page.getByRole('banner', { name: 'Market overview' });
-  await expect(marketRibbon.getByRole('button', { name: 'Forecast closed' })).toBeDisabled();
+  await expect(marketRibbon.getByRole('button', { name: 'Replay read-only' })).toBeDisabled();
+  await expect(marketRibbon).toContainText(/Replay · sequence \d+/u);
+  await expect(page.locator('.atlas-agent-dock')).toBeHidden();
+  await expect(page.locator('.atlas-signal-rail')).toBeHidden();
+  await expect(page.locator('.atlas-command-tray')).toBeHidden();
   await expect(marketRibbon).toContainText('ResolvedNO');
   return replay;
 }
@@ -86,12 +90,18 @@ test('resolved replay scrubs to evidence entry, verifies score, and exports publ
   expect(markerSequence).toBeTruthy();
   await sourceMarker.click();
   await expect(slider).toHaveValue(markerSequence ?? '');
+  await expect(page.getByRole('banner', { name: 'Market overview' })).toContainText(
+    `Replay · sequence ${markerSequence}`,
+  );
   await expect(projection).toContainText('Source Recorded');
   await expect(projection).toContainText('Sources1');
 
   await slider.focus();
   await page.keyboard.press('Home');
   await expect(slider).toHaveValue('0');
+  await expect(page.getByRole('banner', { name: 'Market overview' })).toContainText(
+    'Replay · sequence 0',
+  );
   await expect(projection).toContainText('Genesis state');
   await expect(projection).toContainText('Sources0');
 
@@ -131,6 +141,26 @@ test('resolved replay scrubs to evidence entry, verifies score, and exports publ
   );
   expect(exported.events.length).toBeGreaterThan(0);
   expect(exportedText).not.toContain(privateMemo);
+});
+
+test('replay controls and selected projection remain reachable at 200 percent reflow', async ({
+  page,
+}) => {
+  const replay = await reachResolvedReplay(page);
+  await page.setViewportSize({ width: 720, height: 450 });
+
+  const projection = replay.getByRole('region', { name: 'Selected world projection' });
+  await expect(projection).toBeVisible();
+  const slider = replay.getByRole('slider', { name: 'Replay sequence' });
+  await slider.focus();
+  await expect(slider).toBeFocused();
+  const dimensions = await replay.evaluate((element) => ({
+    bodyHeight: element.querySelector('.atlas-replay-body')?.clientHeight ?? 0,
+    clientHeight: element.clientHeight,
+    scrollHeight: element.scrollHeight,
+  }));
+  expect(dimensions.bodyHeight).toBeGreaterThan(0);
+  expect(dimensions.scrollHeight).toBeGreaterThan(dimensions.clientHeight);
 });
 
 test('@visual resolved case replay keeps landmarks, projection, and scoring legible', async ({

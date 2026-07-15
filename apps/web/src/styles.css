@@ -569,6 +569,23 @@ textarea {
   --atlas-tray-size: min(var(--sa-size-command-tray-expanded), 38vh);
 }
 
+.signal-atlas-shell[data-workspace='replay'] {
+  --atlas-left-size: 0px;
+  --atlas-right-size: 0px;
+  --atlas-tray-size: 0px;
+}
+
+.signal-atlas-shell[data-workspace='replay'] > .atlas-agent-dock,
+.signal-atlas-shell[data-workspace='replay'] > .atlas-signal-rail,
+.signal-atlas-shell[data-workspace='replay'] > .atlas-command-tray {
+  display: none;
+}
+
+.signal-atlas-shell[data-workspace='replay'] .atlas-compact-control,
+.signal-atlas-shell[data-workspace='replay'] .atlas-mode-control {
+  display: none;
+}
+
 .signal-atlas-shell button,
 .signal-atlas-shell input {
   border-radius: var(--sa-radius-small);
@@ -2576,6 +2593,44 @@ kbd {
   }
 }
 
+@media (max-width: 760px) {
+  .atlas-archive-workspace {
+    display: block;
+    overflow: auto;
+  }
+
+  .atlas-archive-header {
+    align-items: start;
+  }
+
+  .atlas-archive-header p {
+    display: none;
+  }
+
+  .atlas-archive-search {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .atlas-archive-query {
+    grid-column: 1 / -1;
+  }
+
+  .atlas-archive-body {
+    display: block;
+  }
+
+  .atlas-archive-shelves,
+  .atlas-archive-inspector {
+    min-height: auto;
+    overflow: visible;
+  }
+
+  .atlas-archive-shelves {
+    border-right: 0;
+    border-bottom: var(--sa-border-hairline) solid var(--sa-color-harbor-blue);
+  }
+}
+
 /* Case-file replay */
 
 .atlas-replay-workspace {
@@ -3116,6 +3171,11 @@ kbd {
 }
 
 @media (max-width: 760px) {
+  .atlas-replay-workspace {
+    display: block;
+    overflow: auto;
+  }
+
   .atlas-replay-header,
   .atlas-replay-resolution {
     align-items: stretch;
@@ -3133,7 +3193,7 @@ kbd {
 
   .atlas-replay-controls,
   .atlas-replay-body {
-    overflow: auto;
+    overflow: visible;
   }
 
   .atlas-replay-body {
@@ -6265,7 +6325,8 @@ kbd {
 
 @media (max-width: 720px) {
   .sa-dialog:has(.atlas-runtime-diagnostics) {
-    width: calc(100vw - var(--sa-spacing-4));
+    width: 100%;
+    max-height: 100%;
   }
 
   .atlas-runtime-driver dl,
@@ -7077,9 +7138,10 @@ kbd {
 }
 
 @media (max-width: 900px) {
+  .sa-dialog:has(.atlas-source-inspector),
   .sa-dialog:has(.atlas-forecast-dialog) {
-    width: calc(100vw - var(--sa-spacing-4));
-    max-height: calc(100vh - var(--sa-spacing-4));
+    width: 100%;
+    max-height: 100%;
   }
 
   .atlas-forecast-form {
