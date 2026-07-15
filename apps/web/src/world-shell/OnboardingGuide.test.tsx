@@ -15,8 +15,10 @@ describe('first expedition guide', () => {
         onOpenArchive={() => undefined}
         onOpenForecast={() => undefined}
         onOpenSignals={() => undefined}
+        onPrepareMission={() => undefined}
         onSelectGuideAgent={() => undefined}
         projection={projection}
+        seenSignalIds={[]}
         selectedAgentId="mira"
       />,
     );

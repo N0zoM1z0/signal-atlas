@@ -19,8 +19,8 @@ async function discoverHistoricalEvidence(page: Page) {
   await page
     .getByRole('textbox', { name: 'Command Orin' })
     .fill('Search historical delays in Archive Quarter');
-  await page.getByRole('button', { name: /Dispatch/ }).click();
-  await page.getByRole('button', { name: 'Confirm mission' }).click();
+  await page.getByRole('button', { name: 'Review mission' }).click();
+  await page.getByRole('button', { name: /^Confirm mission/ }).click();
   await expect(page.getByRole('heading', { name: historicalHeadline })).toBeVisible({
     timeout: 5_000,
   });
@@ -108,4 +108,29 @@ test('@visual Archive Quarter keeps search, shelf, inspector, and case file legi
     fullPage: true,
     maxDiffPixels: 100,
   });
+});
+
+test('Archive Quarter keeps results and record details reachable at 200 percent reflow', async ({
+  page,
+}) => {
+  await discoverHistoricalEvidence(page);
+  await page.setViewportSize({ width: 720, height: 450 });
+  await page.getByRole('main', { name: 'Interactive world stage' }).focus();
+  await page.keyboard.press('a');
+
+  const archive = page.getByRole('main', { name: 'Archive Quarter' });
+  await expect(archive.getByRole('region', { name: 'Archive results' })).toBeVisible();
+  await expect(
+    archive.getByRole('complementary', { name: 'Selected archive record' }),
+  ).toContainText('Case File: Twenty Comparable Coastal Launch Windows');
+
+  const dimensions = await archive.evaluate((element) => ({
+    bodyHeight: element.querySelector('.atlas-archive-body')?.clientHeight ?? 0,
+    clientHeight: element.clientHeight,
+    scrollHeight: element.scrollHeight,
+  }));
+  expect(dimensions.bodyHeight).toBeGreaterThan(0);
+  expect(dimensions.scrollHeight).toBeGreaterThan(dimensions.clientHeight);
+  await archive.getByRole('button', { name: /Case File: Twenty Comparable/ }).focus();
+  await expect(archive.getByRole('button', { name: /Case File: Twenty Comparable/ })).toBeFocused();
 });

@@ -1,5 +1,6 @@
 import { useId, useState, type KeyboardEvent } from 'react';
 
+import type { MissionSuggestion } from './mission-suggestions.js';
 import type { ShellSignal } from './model.js';
 
 const tabs = ['new', 'pinned', 'disputed', 'all'] as const;
@@ -12,6 +13,8 @@ export interface SignalRailProps {
   pinnedSignalIds: readonly string[];
   seenSignalIds: readonly string[];
   signals: readonly ShellSignal[];
+  emptyMissionSuggestion: MissionSuggestion | undefined;
+  onPrepareMission: (suggestion: MissionSuggestion) => void;
   onInspect: (signalId: string) => void;
   onPin: (signalId: string) => void;
   onToggleCollapsed: () => void;
@@ -24,9 +27,11 @@ function tabLabel(tab: SignalTab, counts: Record<SignalTab, number>): string {
 export function SignalRail({
   archivedSignalIds,
   collapsed,
+  emptyMissionSuggestion,
   mobileOpen,
   onInspect,
   onPin,
+  onPrepareMission,
   onToggleCollapsed,
   pinnedSignalIds,
   seenSignalIds,
@@ -61,6 +66,28 @@ export function SignalRail({
     number
   >;
   const visibleSignals = signalSets[selectedTab];
+  const emptyState =
+    selectedTab === 'new' && signals.length > 0
+      ? {
+          title: "You're caught up",
+          copy: 'Every discovered signal has been reviewed. New evidence will appear here.',
+          action: 'View all signals',
+        }
+      : selectedTab === 'pinned'
+        ? {
+            title: 'No pinned signals',
+            copy: 'Pin the evidence you want to compare, ask about, or use in a forecast.',
+          }
+        : selectedTab === 'disputed'
+          ? {
+              title: 'No disputed signals',
+              copy: 'Signals with explicit evidence conflicts will collect here.',
+            }
+          : {
+              title: 'No signals yet',
+              copy: 'Send an agent to gather the first source-linked piece of evidence.',
+              action: emptyMissionSuggestion ? 'Prepare first mission' : undefined,
+            };
 
   return (
     <aside
@@ -113,8 +140,22 @@ export function SignalRail({
         {visibleSignals.length === 0 ? (
           <div className="atlas-empty-rail">
             <span aria-hidden="true">◇</span>
-            <strong>No {selectedTab} signals</strong>
-            <p>Evidence will remain source-linked when it arrives.</p>
+            <strong>{emptyState.title}</strong>
+            <p>{emptyState.copy}</p>
+            {emptyState.action && (
+              <button
+                onClick={() => {
+                  if (selectedTab === 'new' && signals.length > 0) {
+                    setSelectedTab('all');
+                  } else if (emptyMissionSuggestion) {
+                    onPrepareMission(emptyMissionSuggestion);
+                  }
+                }}
+                type="button"
+              >
+                {emptyState.action}
+              </button>
+            )}
           </div>
         ) : (
           visibleSignals.map((signal) => {

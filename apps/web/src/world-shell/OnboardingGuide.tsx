@@ -1,13 +1,17 @@
 import type { WorldProjection } from '@signal-atlas/simulation';
 import { useState } from 'react';
 
+import { missionSuggestionForPlace, type MissionSuggestion } from './mission-suggestions.js';
+
 export interface OnboardingGuideProps {
   inspectedSignalId: string | undefined;
   onOpenArchive: () => void;
   onOpenForecast: () => void;
   onOpenSignals: () => void;
+  onPrepareMission: (suggestion: MissionSuggestion, agentId: string) => void;
   onSelectGuideAgent: (agentId: string) => void;
   projection: WorldProjection;
+  seenSignalIds: readonly string[];
   selectedAgentId: string;
 }
 
@@ -37,8 +41,10 @@ export function OnboardingGuide({
   onOpenArchive,
   onOpenForecast,
   onOpenSignals,
+  onPrepareMission,
   onSelectGuideAgent,
   projection,
+  seenSignalIds,
   selectedAgentId,
 }: OnboardingGuideProps) {
   const [open, setOpen] = useState(() => initiallyOpen(projection.expedition.id));
@@ -79,9 +85,14 @@ export function OnboardingGuide({
   const revisedForecast = [...projection.forecasts]
     .reverse()
     .find((forecast) => forecast.actor.kind === 'player' && forecast.evidenceSignalIds.length >= 2);
+  const evidenceMission = missionSuggestionForPlace(evidencePlace);
+  const archiveMission = missionSuggestionForPlace(archivePlace);
+  const guideHasMissionHistory = Object.values(projection.missionsById).some(
+    (mission) => mission.assignedAgentId === guideAgent?.id,
+  );
   const steps = [
     {
-      done: Boolean(guideAgent && selectedAgentId === guideAgent.id),
+      done: Boolean(guideAgent && (selectedAgentId === guideAgent.id || guideHasMissionHistory)),
       label: guideAgent
         ? `Select ${guideAgent.displayName} for field research.`
         : 'Select an agent.',
@@ -94,7 +105,10 @@ export function OnboardingGuide({
           : 'Collect the first source-linked signal.',
     },
     {
-      done: Boolean(evidenceSignal && inspectedSignalId === evidenceSignal.id),
+      done: Boolean(
+        evidenceSignal &&
+        (inspectedSignalId === evidenceSignal.id || seenSignalIds.includes(evidenceSignal.id)),
+      ),
       label: `Inspect ${guideAgent?.displayName ?? 'the agent'}’s source-linked signal.`,
     },
     {
@@ -110,6 +124,32 @@ export function OnboardingGuide({
     },
   ];
   const completed = steps.filter((step) => step.done).length;
+  const currentStepIndex = steps.findIndex((step) => !step.done);
+  const currentStep = steps[currentStepIndex === -1 ? steps.length - 1 : currentStepIndex];
+  const currentAction =
+    currentStepIndex === 0
+      ? {
+          label: `Select ${guideAgent?.displayName ?? 'agent'}`,
+          run: () => guideAgent && onSelectGuideAgent(guideAgent.id),
+          disabled: !guideAgent,
+        }
+      : currentStepIndex === 1 && evidenceMission && guideAgent
+        ? {
+            label: `Prepare mission for ${guideAgent.displayName}`,
+            run: () => onPrepareMission(evidenceMission, guideAgent.id),
+            disabled: false,
+          }
+        : currentStepIndex === 2
+          ? { label: 'Open new signal', run: onOpenSignals, disabled: false }
+          : currentStepIndex === 3 && archiveMission && historyAgent
+            ? {
+                label: `Prepare mission for ${historyAgent.displayName}`,
+                run: () => onPrepareMission(archiveMission, historyAgent.id),
+                disabled: false,
+              }
+            : currentStepIndex === 4
+              ? { label: 'Open forecast desk', run: onOpenForecast, disabled: false }
+              : { label: 'Open case archive', run: onOpenArchive, disabled: false };
 
   if (!open) {
     return (
@@ -126,6 +166,7 @@ export function OnboardingGuide({
           <span className="atlas-kicker">First expedition</span>
           <strong>Follow evidence to a forecast</strong>
         </div>
+        <span className="atlas-onboarding__count">{completed} / 5</span>
         <button
           aria-label="Skip first expedition guide"
           onClick={() => {
@@ -137,32 +178,30 @@ export function OnboardingGuide({
           Skip
         </button>
       </header>
-      <ol>
+      <div className="atlas-onboarding__current">
+        <span>
+          {currentStepIndex === -1
+            ? 'Journey complete'
+            : `Next · Step ${currentStepIndex + 1} of 5`}
+        </span>
+        <strong>{currentStep?.label ?? 'Continue exploring the evidence trail.'}</strong>
+        <button disabled={currentAction.disabled} onClick={currentAction.run} type="button">
+          {currentAction.label}
+        </button>
+      </div>
+      <ol aria-label="First expedition progress">
         {steps.map((step, index) => (
-          <li data-complete={step.done} key={step.label}>
+          <li
+            aria-current={index === currentStepIndex ? 'step' : undefined}
+            aria-label={`${step.done ? 'Complete' : index === currentStepIndex ? 'Current' : 'Upcoming'}: ${step.label}`}
+            data-complete={step.done}
+            data-current={index === currentStepIndex}
+            key={step.label}
+          >
             <span aria-hidden="true">{step.done ? '✓' : index + 1}</span>
-            {step.label}
           </li>
         ))}
       </ol>
-      <div>
-        <button
-          disabled={!guideAgent}
-          onClick={() => guideAgent && onSelectGuideAgent(guideAgent.id)}
-          type="button"
-        >
-          Select {guideAgent?.displayName ?? 'agent'}
-        </button>
-        <button onClick={onOpenSignals} type="button">
-          Signals
-        </button>
-        <button onClick={onOpenArchive} type="button">
-          Archive
-        </button>
-        <button onClick={onOpenForecast} type="button">
-          Forecast
-        </button>
-      </div>
     </aside>
   );
 }

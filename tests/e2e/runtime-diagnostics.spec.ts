@@ -54,8 +54,8 @@ test('runtime diagnostics expose the scripted driver, scheduler, and persisted t
   await page
     .getByRole('textbox', { name: 'Command Mira' })
     .fill('Check latest weather at Galehaven Weather Tower');
-  await page.getByRole('button', { name: /Dispatch/ }).click();
-  await page.getByRole('button', { name: 'Confirm mission' }).click();
+  await page.getByRole('button', { name: 'Review mission' }).click();
+  await page.getByRole('button', { name: /^Confirm mission/ }).click();
   await expect(
     page.getByRole('heading', { name: 'Crosswind advisory overlaps launch window' }),
   ).toBeVisible({ timeout: 6_000 });

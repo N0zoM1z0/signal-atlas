@@ -24,6 +24,7 @@ import { MarketRibbon } from './MarketRibbon.js';
 import { MeetingWorkspace } from './MeetingWorkspace.js';
 import { ForecastWorkspace, type ForecastCommitInput } from './ForecastWorkspace.js';
 import { createShellModel } from './model.js';
+import { missionSuggestionsForPlaces, type MissionSuggestion } from './mission-suggestions.js';
 import { OnboardingGuide } from './OnboardingGuide.js';
 import { enablePresentationAudio, playPresentationTone } from './presentation-audio.js';
 import { presentationCuesForEvents, type ShellPresentationCue } from './presentation-cues.js';
@@ -85,6 +86,13 @@ function captureModeFromLocation(): boolean {
   return (
     typeof window !== 'undefined' &&
     new URLSearchParams(window.location.search).get('capture') === '1'
+  );
+}
+
+function debugControlsFromLocation(): boolean {
+  return (
+    typeof window !== 'undefined' &&
+    new URLSearchParams(window.location.search).get('debug') === '1'
   );
 }
 
@@ -170,6 +178,7 @@ export function WorldShell({ initialProjection, onOpenLobby }: WorldShellProps) 
   const [reducedMotion, setReducedMotion] = useState(false);
   const forcedRuntimeState = forcedRuntimeStateFromLocation();
   const captureMode = captureModeFromLocation();
+  const showFixtureControls = debugControlsFromLocation();
   const [runtimeState, setRuntimeState] = useState<RuntimeState>(forcedRuntimeState ?? 'loading');
   const [prefConnected, setPrefConnected] = useState(false);
   const [prefMode, setPrefMode] = useState<'fixture' | 'live' | 'unknown'>('unknown');
@@ -191,6 +200,7 @@ export function WorldShell({ initialProjection, onOpenLobby }: WorldShellProps) 
   const [fixtureScenario, setFixtureScenario] = useState<FixtureMissionScenario>('success');
   const [workspace, setWorkspace] = useState<Workspace>('world');
   const [replayInitialSequence, setReplayInitialSequence] = useState<number>();
+  const [replayProjection, setReplayProjection] = useState<WorldProjection>();
   const [forecastOpen, setForecastOpen] = useState(false);
   const [runtimeDiagnosticsOpen, setRuntimeDiagnosticsOpen] = useState(false);
   const [archiveEvents, setArchiveEvents] = useState<WorldEvent[]>([]);
@@ -1056,6 +1066,31 @@ export function WorldShell({ initialProjection, onOpenLobby }: WorldShellProps) 
     }
   };
 
+  const prepareSuggestedMission = (suggestion: MissionSuggestion, agentId = selectedAgent.id) => {
+    const agent = model.agents.find((candidate) => candidate.id === agentId) ?? selectedAgent;
+    const createdAt = new Date().toISOString();
+    setSelectedAgentId(agent.id);
+    setCommand(suggestion.objective);
+    setMissionDraft({
+      status: 'ready',
+      objective: suggestion.objective,
+      assignedAgentId: agent.id,
+      destinationPlaceId: suggestion.destinationPlaceId,
+      verb: suggestion.verb,
+      candidateAgentIds: [agent.id],
+      candidatePlaceIds: [suggestion.destinationPlaceId],
+      missing: [],
+      explanation: 'This authored suggestion has an explicit agent, destination, and mission type.',
+      submissionId: createClientId('suggested-mission'),
+      createdAt,
+    });
+    setCommandError(undefined);
+    setTrayExpanded(true);
+    setAnnouncement(
+      `Mission route prepared for ${agent.name}. Review it before sending the agent.`,
+    );
+  };
+
   const updateMissionDraft = (patch: Partial<MissionDraft>) => {
     setMissionDraft((current) => {
       if (!current) return current;
@@ -1260,14 +1295,21 @@ export function WorldShell({ initialProjection, onOpenLobby }: WorldShellProps) 
     setCommandError(undefined);
   };
 
-  const resolvedOutcomeLabel = projection.market.outcomes.find(
-    (outcome) => outcome.id === projection.market.resolvedOutcomeId,
+  const ribbonProjection =
+    workspace === 'replay' && replayProjection ? replayProjection : projection;
+  const ribbonModel =
+    workspace === 'replay' && replayProjection ? createShellModel(replayProjection) : model;
+  const resolvedOutcomeLabel = ribbonProjection.market.outcomes.find(
+    (outcome) => outcome.id === ribbonProjection.market.resolvedOutcomeId,
   )?.shortLabel;
-  const marketKindLabel = projection.market.tags.includes('fictional')
-    ? 'Fictional sandbox market'
-    : projection.expedition.settings.fixtureMode
-      ? 'Offline research scenario'
-      : 'Read-only market research';
+  const marketKindLabel =
+    workspace === 'replay'
+      ? 'Read-only case-file replay'
+      : projection.market.tags.includes('fictional')
+        ? 'Fictional sandbox market'
+        : projection.expedition.settings.fixtureMode
+          ? 'Offline research scenario'
+          : 'Read-only market research';
   const commandDisabledReason = workspacePersistenceIssue
     ? 'Workspace persistence paused; commands are closed.'
     : ['resolved', 'archived'].includes(projection.expedition.status)
@@ -1283,14 +1325,15 @@ export function WorldShell({ initialProjection, onOpenLobby }: WorldShellProps) 
       data-capture-mode={captureMode}
       data-signal-collapsed={signalRailCollapsed}
       data-tray-expanded={trayExpanded}
+      data-workspace={workspace}
     >
       <a className="atlas-skip-link" href="#world-stage">
         Skip to world stage
       </a>
 
       <MarketRibbon
-        deadlineLabel={shortDateLabel(model.market.closesAt)}
-        expeditionName={model.market.expeditionName}
+        deadlineLabel={shortDateLabel(ribbonModel.market.closesAt)}
+        expeditionName={ribbonModel.market.expeditionName}
         marketKindLabel={marketKindLabel}
         mode={mode}
         onModeChange={() =>
@@ -1300,19 +1343,22 @@ export function WorldShell({ initialProjection, onOpenLobby }: WorldShellProps) 
         onPauseChange={() => void changePauseState()}
         onOpenForecast={() => void openForecastWorkspace()}
         onSpeedChange={() => void changeSpeed()}
-        paused={paused}
-        publicProbability={model.market.publicProbability}
-        primaryOutcomeLabel={model.market.primaryOutcome.shortLabel}
-        question={model.market.question}
+        paused={workspace === 'replay' ? false : paused}
+        publicProbability={ribbonModel.market.publicProbability}
+        primaryOutcomeLabel={ribbonModel.market.primaryOutcome.shortLabel}
+        question={ribbonModel.market.question}
         prefConnected={prefConnected}
         prefConnectionState={prefConnectionState}
         prefMode={prefMode}
         {...(resolvedOutcomeLabel ? { resolvedOutcomeLabel } : {})}
+        {...(workspace === 'replay' && replayProjection
+          ? { replaySequence: replayProjection.sequence }
+          : {})}
         runtimeState={runtimeState}
-        secondaryOutcomeLabel={model.market.secondaryOutcome.shortLabel}
+        secondaryOutcomeLabel={ribbonModel.market.secondaryOutcome.shortLabel}
         speed={speed}
         streamStatus={eventStreamStatus}
-        teamProbability={model.market.teamProbability}
+        teamProbability={ribbonModel.market.teamProbability}
       />
 
       {streamBoundaryError && (
@@ -1365,8 +1411,8 @@ export function WorldShell({ initialProjection, onOpenLobby }: WorldShellProps) 
           setRuntimeDiagnosticsOpen(true);
           setAnnouncement('Codex runtime diagnostics opened.');
         }}
-        onPrepareMission={(objective) => {
-          if (objective) void prepareMissionDraft(objective);
+        onPrepareMission={(suggestion) => {
+          if (suggestion) prepareSuggestedMission(suggestion);
           else directDraft();
         }}
         onSelectAgent={(agentId) => {
@@ -1442,9 +1488,11 @@ export function WorldShell({ initialProjection, onOpenLobby }: WorldShellProps) 
             setRuntimeState('ready');
             setAnnouncement('Fixture resolution recorded and final projection verified.');
           }}
+          onReplayProjectionChange={setReplayProjection}
           onClose={() => {
             setWorkspace('world');
             setReplayInitialSequence(undefined);
+            setReplayProjection(undefined);
             void refreshProjection().catch((error: unknown) => {
               const message =
                 error instanceof Error ? error.message : 'World projection failed to refresh.';
@@ -1475,6 +1523,9 @@ export function WorldShell({ initialProjection, onOpenLobby }: WorldShellProps) 
                       : undefined;
                   setMobilePanel('signals');
                 }}
+                onPrepareMission={(suggestion, agentId) =>
+                  prepareSuggestedMission(suggestion, agentId)
+                }
                 onSelectGuideAgent={(agentId) => {
                   const agent = projection.agentsById[agentId];
                   setSelectedAgentId(agentId);
@@ -1483,6 +1534,7 @@ export function WorldShell({ initialProjection, onOpenLobby }: WorldShellProps) 
                   );
                 }}
                 projection={projection}
+                seenSignalIds={evidencePreferences.seenSignalIds}
                 selectedAgentId={selectedAgentId}
               />
             )
@@ -1538,9 +1590,11 @@ export function WorldShell({ initialProjection, onOpenLobby }: WorldShellProps) 
       <SignalRail
         archivedSignalIds={evidencePreferences.archivedSignalIds}
         collapsed={signalRailCollapsed}
+        emptyMissionSuggestion={missionSuggestionsForPlaces(model.places)[0]}
         mobileOpen={mobilePanel === 'signals'}
         onInspect={inspectSignal}
         onPin={togglePinnedSignal}
+        onPrepareMission={prepareSuggestedMission}
         onToggleCollapsed={() => setSignalRailCollapsed((current) => !current)}
         pinnedSignalIds={evidencePreferences.pinnedSignalIds}
         seenSignalIds={evidencePreferences.seenSignalIds}
@@ -1621,12 +1675,14 @@ export function WorldShell({ initialProjection, onOpenLobby }: WorldShellProps) 
         onDraftChange={updateMissionDraft}
         onExpandedChange={() => setTrayExpanded((current) => !current)}
         onMoveMission={(missionId, direction) => void moveMission(missionId, direction)}
+        onPrepareSuggestedMission={prepareSuggestedMission}
         onRetryMission={(mission) => void retryMission(mission)}
         onScenarioChange={(scenario) => void changeFixtureScenario(scenario)}
         places={model.places}
         scenario={fixtureScenario}
         selectedAgent={selectedAgent}
         sequence={projection.sequence}
+        showFixtureControls={showFixtureControls}
       />
 
       <p aria-live="polite" className="atlas-visually-hidden" role="status">

@@ -43,7 +43,7 @@ test('local Codex unavailability names the fallback boundary without changing th
   await expect(dialog).toContainText('The configured local Codex executable is unavailable.');
   await dialog.getByRole('button', { name: 'Done' }).click();
   await expect(shell).toHaveAttribute('data-event-stream-sequence', sequence ?? '2');
-  await expect(page.getByText('● Fixture ready')).toBeVisible();
+  await expect(page.getByText('● Offline sources ready')).toBeVisible();
 });
 
 test('Pref unavailability is distinct, reversible, and preserves the projection', async ({
@@ -77,19 +77,19 @@ test('Pref unavailability is distinct, reversible, and preserves the projection'
     'connected',
   );
   await dialog.getByRole('button', { name: 'Done' }).click();
-  await expect(page.getByText('● Fixture ready')).toBeVisible();
+  await expect(page.getByText('● Offline sources ready')).toBeVisible();
 });
 
 test('an invalid agent output records a sanitized schema failure and applies no evidence', async ({
   page,
 }) => {
-  await page.goto('/');
+  await page.goto('/?debug=1');
   await page.getByRole('button', { name: /Mission queue/ }).click();
   await page.getByLabel('Offline mission result').selectOption('invalid_result');
   await page.getByRole('button', { name: 'Close mission queue' }).click();
 
-  await page.getByRole('button', { name: /Dispatch/ }).click();
-  await page.getByRole('button', { name: 'Confirm mission' }).click();
+  await page.getByRole('button', { name: 'Review mission' }).click();
+  await page.getByRole('button', { name: /^Confirm mission/ }).click();
   await page.getByRole('button', { name: 'Skip travel' }).click();
   await expect(page.getByText('Mira → Galehaven Weather Tower · failed')).toBeVisible({
     timeout: 6_000,

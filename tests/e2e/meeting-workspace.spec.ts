@@ -20,8 +20,8 @@ async function completeEvidenceMission(
   await page.locator(`.atlas-agent-card[data-agent="${agentId}"]`).click();
   const agentName = agentId === 'mira' ? 'Mira' : 'Orin';
   await page.getByRole('textbox', { name: `Command ${agentName}` }).fill(objective);
-  await page.getByRole('button', { name: /Dispatch/ }).click();
-  await page.getByRole('button', { name: 'Confirm mission' }).click();
+  await page.getByRole('button', { name: 'Review mission' }).click();
+  await page.getByRole('button', { name: /^Confirm mission/ }).click();
   await expect(page.getByRole('heading', { name: headline })).toBeVisible({ timeout: 6_000 });
   await page.getByRole('button', { name: 'Close mission queue' }).click();
 }
@@ -63,6 +63,10 @@ test('Lantern Square preserves asymmetry, shares signals, and files a skippable 
   await expect(mira).toContainText(weatherHeadline);
   await expect(orin).toContainText(historicalHeadline);
   await expect(kestrel).toContainText('No mission signals');
+  const shared = meeting.getByRole('region', { name: 'Shared signals' });
+  await expect(shared).toContainText('2 signals queued to share');
+  await expect(shared).toContainText('Held before meeting by Mira');
+  await expect(shared).toContainText('Held before meeting by Orin');
 
   await meeting.getByRole('button', { name: 'Skip arrivals' }).click();
   await expect(meeting.getByRole('heading', { name: 'Exchange recorded' })).toBeVisible();
@@ -72,8 +76,7 @@ test('Lantern Square preserves asymmetry, shares signals, and files a skippable 
   await expect(kestrel).toContainText(weatherHeadline);
   await expect(kestrel).toContainText(historicalHeadline);
 
-  const shared = meeting.getByRole('region', { name: 'Shared signals' });
-  await expect(shared).toContainText('2 signals in common');
+  await expect(shared).toContainText('2 signals now shared');
   await expect(shared).toContainText('Mira shared to Orin, Kestrel');
   await expect(shared).toContainText('Orin shared to Mira, Kestrel');
 

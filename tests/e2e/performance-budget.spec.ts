@@ -20,8 +20,8 @@ test('world input remains responsive during active work and meets the scene budg
   expect(Number(await scene.getAttribute('data-fps-p10'))).toBeGreaterThan(30);
   const idleSampleCount = Number(await scene.getAttribute('data-fps-sample-count'));
 
-  await page.getByRole('button', { name: /Dispatch/ }).click();
-  await page.getByRole('button', { name: 'Confirm mission' }).click();
+  await page.getByRole('button', { name: 'Review mission' }).click();
+  await page.getByRole('button', { name: /^Confirm mission/ }).click();
   await expect(page.locator('[data-agent="mira"] .atlas-agent-card__status')).toContainText(
     'Traveling',
   );

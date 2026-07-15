@@ -28,7 +28,7 @@ test('truthful startup, onboarding, and synthesized sound controls remain explic
   );
   releaseSnapshot();
   await navigation;
-  await expect(page.getByText('● Fixture ready')).toBeVisible();
+  await expect(page.getByText('● Offline sources ready')).toBeVisible();
   const guide = page.getByRole('complementary', { name: 'First expedition guide' });
   await expect(guide).toBeVisible();
   await expect(guide).toContainText('Follow evidence to a forecast');
@@ -52,7 +52,7 @@ test('capture mode removes healthy test chrome but preserves authoritative statu
   page,
 }) => {
   await page.goto('/?capture=1');
-  await expect(page.getByText('● Fixture ready')).toBeVisible();
+  await expect(page.getByText('● Offline sources ready')).toBeVisible();
   await expect(page.getByRole('complementary', { name: 'First expedition guide' })).toHaveCount(0);
   await expect(page.locator('.atlas-scene-diagnostic')).toHaveCount(0);
 
@@ -62,8 +62,8 @@ test('capture mode removes healthy test chrome but preserves authoritative statu
 
 test('committed mission events drive the ticker and canvas cue', async ({ page }) => {
   await page.goto('/?capture=1');
-  await page.getByRole('button', { name: /Dispatch/ }).click();
-  await page.getByRole('button', { name: 'Confirm mission' }).click();
+  await page.getByRole('button', { name: 'Review mission' }).click();
+  await page.getByRole('button', { name: /^Confirm mission/ }).click();
   await page.getByRole('button', { name: 'Skip travel' }).click();
 
   const scene = page.locator('.atlas-world-canvas');

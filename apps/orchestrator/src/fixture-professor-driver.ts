@@ -222,13 +222,32 @@ export function createScriptedProfessorResponse(
   const allowedSignalIds = new Set(evidence.signals.map((signal) => signal.id));
   const allowedSourceIds = new Set(evidence.sources.map((source) => source.id));
   const authored = fixture.professorFixture;
+  const authoredEvidenceUsed = authored.evidenceUsed.filter((item) =>
+    item.type === 'signal' ? allowedSignalIds.has(item.id) : allowedSourceIds.has(item.id),
+  );
+  const authoredSignalIds = new Set(
+    authoredEvidenceUsed.filter((item) => item.type === 'signal').map((item) => item.id),
+  );
+  const linkedSourceIds = new Set(
+    evidence.signals
+      .filter((signal) => authoredSignalIds.has(signal.id))
+      .flatMap((signal) => signal.sourceIds),
+  );
+  const selectedLinkedSources = evidence.sources
+    .filter((source) => linkedSourceIds.has(source.id))
+    .map((source) => ({ type: 'source' as const, id: source.id }));
+  const seenEvidence = new Set<string>();
+  const boundedEvidenceUsed = [...authoredEvidenceUsed, ...selectedLinkedSources].filter((item) => {
+    const key = `${item.type}:${item.id}`;
+    if (seenEvidence.has(key)) return false;
+    seenEvidence.add(key);
+    return true;
+  });
   return {
     ...structuredClone(authored),
     queryId: query.id,
     mode: query.mode,
     selectedSignalIds: evidence.signals.map((signal) => signal.id),
-    evidenceUsed: authored.evidenceUsed.filter((item) =>
-      item.type === 'signal' ? allowedSignalIds.has(item.id) : allowedSourceIds.has(item.id),
-    ),
+    evidenceUsed: boundedEvidenceUsed,
   };
 }

@@ -1,7 +1,7 @@
 import { Dialog } from '@signal-atlas/ui';
 import { binaryMarketOutcomes, type ProbabilityRange } from '@signal-atlas/contracts';
 import type { ForecastProjection, WorldProjection } from '@signal-atlas/simulation';
-import { useMemo, useState, type CSSProperties, type FormEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent } from 'react';
 
 export interface ForecastCommitInput {
   primaryProbability: number;
@@ -90,11 +90,12 @@ export function ForecastWorkspace({
   const currentForecast = projection.forecasts.at(-1);
   const teamForecast = latestForActor(projection.forecasts, 'team');
   const playerForecast = latestForActor(projection.forecasts, 'player');
-  const baseline = percent(
+  const liveBaseline = percent(
     currentForecast?.newProbabilities[primaryOutcome.id] ??
       projection.market.currentPublicProbabilities?.[primaryOutcome.id] ??
       0.5,
   );
+  const [baseline, setBaseline] = useState(liveBaseline);
   const [primaryProbability, setPrimaryProbability] = useState(baseline);
   const [selectedSignalIds, setSelectedSignalIds] = useState(() =>
     initialEvidence(projection, preferredSignalIds),
@@ -107,6 +108,25 @@ export function ForecastWorkspace({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   const [success, setSuccess] = useState<string>();
+  const [submittedSignature, setSubmittedSignature] = useState<string>();
+  const previousOpenRef = useRef(false);
+
+  useEffect(() => {
+    if (open && !previousOpenRef.current) {
+      setBaseline(liveBaseline);
+      setPrimaryProbability(liveBaseline);
+      setSelectedSignalIds(initialEvidence(projection, preferredSignalIds));
+      setPublicNote('');
+      setPrivateMemo('');
+      setShowUncertainty(false);
+      setUncertaintyLow(Math.max(0, liveBaseline - 4));
+      setUncertaintyHigh(Math.min(100, liveBaseline + 4));
+      setError(undefined);
+      setSuccess(undefined);
+      setSubmittedSignature(undefined);
+    }
+    previousOpenRef.current = open;
+  }, [liveBaseline, open, preferredSignalIds, projection]);
 
   const signals = useMemo(
     () =>
@@ -121,6 +141,16 @@ export function ForecastWorkspace({
     .filter((signal) => signal !== undefined);
   const remainingSignals = signals.filter((signal) => !selectedSignalIds.includes(signal.id));
   const isHold = primaryProbability === baseline;
+  const draftSignature = JSON.stringify({
+    primaryProbability,
+    privateMemo: privateMemo.trim(),
+    publicNote: publicNote.trim(),
+    selectedSignalIds,
+    showUncertainty,
+    uncertaintyHigh,
+    uncertaintyLow,
+  });
+  const duplicateSubmission = submittedSignature === draftSignature;
   const validationErrors = [
     ...(primaryProbability < 0 || primaryProbability > 100
       ? ['Probability must be between 0 and 100.']
@@ -146,6 +176,7 @@ export function ForecastWorkspace({
   };
 
   const moveEvidence = (signalId: string, direction: -1 | 1) => {
+    setSuccess(undefined);
     setSelectedSignalIds((current) => {
       const index = current.indexOf(signalId);
       const target = index + direction;
@@ -158,7 +189,7 @@ export function ForecastWorkspace({
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
-    if (validationErrors.length > 0 || busy) return;
+    if (validationErrors.length > 0 || busy || duplicateSubmission) return;
     setBusy(true);
     setError(undefined);
     setSuccess(undefined);
@@ -187,7 +218,7 @@ export function ForecastWorkspace({
       setSuccess(
         `${isHold ? 'Hold' : 'Revision'} committed at ${primaryProbability}%. The event is now in forecast history.`,
       );
-      setPrivateMemo('');
+      setSubmittedSignature(draftSignature);
     } catch (commitError: unknown) {
       setError(commitError instanceof Error ? commitError.message : 'Forecast commit failed.');
     } finally {
@@ -312,7 +343,10 @@ export function ForecastWorkspace({
               <label className="atlas-switch-row">
                 <input
                   checked={showUncertainty}
-                  onChange={(event) => setShowUncertainty(event.currentTarget.checked)}
+                  onChange={(event) => {
+                    setShowUncertainty(event.currentTarget.checked);
+                    setSuccess(undefined);
+                  }}
                   type="checkbox"
                 />
                 <span>
@@ -328,7 +362,10 @@ export function ForecastWorkspace({
                       <input
                         max={primaryProbability}
                         min={0}
-                        onChange={(event) => setUncertaintyLow(Number(event.currentTarget.value))}
+                        onChange={(event) => {
+                          setUncertaintyLow(Number(event.currentTarget.value));
+                          setSuccess(undefined);
+                        }}
                         type="number"
                         value={uncertaintyLow}
                       />
@@ -342,7 +379,10 @@ export function ForecastWorkspace({
                       <input
                         max={100}
                         min={primaryProbability}
-                        onChange={(event) => setUncertaintyHigh(Number(event.currentTarget.value))}
+                        onChange={(event) => {
+                          setUncertaintyHigh(Number(event.currentTarget.value));
+                          setSuccess(undefined);
+                        }}
                         type="number"
                         value={uncertaintyHigh}
                       />
@@ -391,11 +431,12 @@ export function ForecastWorkspace({
                       </button>
                       <button
                         aria-label={`Remove ${signal.headline}`}
-                        onClick={() =>
+                        onClick={() => {
                           setSelectedSignalIds((current) =>
                             current.filter((id) => id !== signal.id),
-                          )
-                        }
+                          );
+                          setSuccess(undefined);
+                        }}
                         type="button"
                       >
                         ×
@@ -421,7 +462,10 @@ export function ForecastWorkspace({
                         <small>{signal.summary}</small>
                       </span>
                       <button
-                        onClick={() => setSelectedSignalIds((current) => [...current, signal.id])}
+                        onClick={() => {
+                          setSelectedSignalIds((current) => [...current, signal.id]);
+                          setSuccess(undefined);
+                        }}
                         type="button"
                       >
                         + Add
@@ -456,7 +500,10 @@ export function ForecastWorkspace({
                   <small>Optional · stored locally</small>
                 </span>
                 <textarea
-                  onChange={(event) => setPrivateMemo(event.currentTarget.value)}
+                  onChange={(event) => {
+                    setPrivateMemo(event.currentTarget.value);
+                    setSuccess(undefined);
+                  }}
                   placeholder="Assumptions or a reminder for your future review…"
                   rows={3}
                   value={privateMemo}
@@ -500,8 +547,15 @@ export function ForecastWorkspace({
               <button onClick={onClose} type="button">
                 Cancel
               </button>
-              <button disabled={busy || validationErrors.length > 0} type="submit">
-                {busy ? 'Recording forecast…' : `Commit Forecast · ${primaryProbability}%`}
+              <button
+                disabled={busy || validationErrors.length > 0 || duplicateSubmission}
+                type="submit"
+              >
+                {busy
+                  ? 'Recording forecast…'
+                  : duplicateSubmission
+                    ? `Forecast committed · ${primaryProbability}%`
+                    : `Commit Forecast · ${primaryProbability}%`}
               </button>
             </div>
           </section>

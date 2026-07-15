@@ -20,8 +20,8 @@ async function completeEvidenceMission(
   const agentName = agentId === 'mira' ? 'Mira' : 'Orin';
   await page.locator(`.atlas-agent-card[data-agent="${agentId}"]`).click();
   await page.getByRole('textbox', { name: `Command ${agentName}` }).fill(objective);
-  await page.getByRole('button', { name: /Dispatch/ }).click();
-  await page.getByRole('button', { name: 'Confirm mission' }).click();
+  await page.getByRole('button', { name: 'Review mission' }).click();
+  await page.getByRole('button', { name: /^Confirm mission/ }).click();
   await expect(page.getByRole('heading', { name: headline })).toBeVisible({ timeout: 6_000 });
   await page.getByRole('button', { name: 'Close mission queue' }).click();
 }
@@ -85,6 +85,8 @@ test('forecast commit validates probability, links evidence, and updates event h
   await commit.click();
 
   await expect(dialog.getByRole('status')).toContainText('Revision committed at 48%');
+  await expect(dialog.getByText('Revision · −7 pts')).toBeVisible();
+  await expect(dialog.getByRole('button', { name: 'Forecast committed · 48%' })).toBeDisabled();
   await expect(comparison).toContainText('Prior player48%');
   const history = dialog.getByRole('region', { name: 'Forecast path' });
   await expect(history).toContainText('2 commits');

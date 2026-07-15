@@ -44,7 +44,7 @@ function query(
 }
 
 describe('scripted Professor Vale driver', () => {
-  it('adapts the authored correlation answer to the current query without adding evidence', () => {
+  it('adapts the authored correlation answer to explicitly selected linked sources', () => {
     const selected = query('correlation_check', [
       'sig-crosswind',
       'sig-base-rate',
@@ -64,10 +64,14 @@ describe('scripted Professor Vale driver', () => {
     expect(response.evidenceUsed).toEqual([
       { type: 'signal', id: 'sig-crosswind' },
       { type: 'signal', id: 'sig-base-rate' },
+      { type: 'source', id: 'src-weather-bulletin-1' },
+      { type: 'source', id: 'src-archive-crosswind-1' },
     ]);
-    expect(
-      response.evidenceUsed.every((item) => selected.selectedSignalIds.includes(item.id)),
-    ).toBe(true);
+    const selectedEvidenceIds = new Set([
+      ...selected.selectedSignalIds,
+      ...selected.selectedSourceIds,
+    ]);
+    expect(response.evidenceUsed.every((item) => selectedEvidenceIds.has(item.id))).toBe(true);
   });
 
   it('states insufficiency instead of inventing a second signal', () => {

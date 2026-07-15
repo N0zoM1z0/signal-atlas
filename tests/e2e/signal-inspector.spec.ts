@@ -15,8 +15,8 @@ async function discoverWeatherSignal(page: Page) {
   await page.getByLabel('Skip travel').check();
   await page.getByRole('button', { name: 'Simulation speed 1 times' }).click();
   await page.getByRole('button', { name: 'Simulation speed 2 times' }).click();
-  await page.getByRole('button', { name: /Dispatch/ }).click();
-  await page.getByRole('button', { name: 'Confirm mission' }).click();
+  await page.getByRole('button', { name: 'Review mission' }).click();
+  await page.getByRole('button', { name: /^Confirm mission/ }).click();
   await page.getByRole('button', { name: 'Close mission queue' }).click();
   const card = page.locator('.atlas-signal-card').filter({ hasText: headline });
   await expect(card).toBeVisible({ timeout: 5_000 });
@@ -45,6 +45,8 @@ test('a discovered signal exposes source provenance and durable case-file action
   await expect(inspector).toContainText('Galehaven Crosswind Advisory 18:10Z');
   await expect(inspector).toContainText('Galehaven Weather Service');
   await expect(inspector).toContainText('Retrieved');
+  await expect(inspector.getByText('pref-fixture')).toBeHidden();
+  await inspector.getByText('Technical retrieval receipt').click();
   await expect(inspector).toContainText('pref-fixture');
   await expect(inspector).toContainText('fixture.weather.advisory');
   await expect(inspector).toContainText('call-src-weather-bulletin-1');

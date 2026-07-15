@@ -145,6 +145,19 @@ function ExpeditionBootstrap({ initialProjection }: AppProps) {
     return () => window.removeEventListener('popstate', onPopState);
   }, [expeditions, initialProjection, openExpedition, openLobby]);
 
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      const destination =
+        view === 'lobby'
+          ? document.querySelector<HTMLElement>('[data-atlas-view="lobby"]')
+          : view === 'world'
+            ? document.querySelector<HTMLElement>('#world-stage')
+            : undefined;
+      destination?.focus();
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [projection?.expedition.id, view]);
+
   const createScenarioExpedition = async (scenario: ScenarioListItem) => {
     const navigationEpoch = ++navigationEpochRef.current;
     setBusyScenarioId(scenario.id);
