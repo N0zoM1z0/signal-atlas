@@ -1,7 +1,13 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import {
+  InstalledScenarioCatalog,
+  createHeliosScenarioDefinition,
+} from '@signal-atlas/world-content';
 
 import { buildApp } from '../src/app.js';
+import { SqliteWorkspaceStore } from '../src/sqlite-workspace-store.js';
 import type { WorkspaceStore } from '../src/workspace-store.js';
+import { createTestRiverScenarioDefinition } from './support/scenario-definitions.js';
 
 const openApps: ReturnType<typeof buildApp>[] = [];
 
@@ -56,11 +62,75 @@ describe('orchestrator health endpoint', () => {
           id: 'exp-helios3-demo',
           latestSequence: 2,
           marketQuestion: 'Will the Helios-3 mission launch before September 30?',
+          scenarioId: 'helios-3-launch-window',
+          scenarioVersion: 1,
+          definitionHash: expect.any(String),
           status: 'active',
           title: 'Helios-3 Launch Window',
+          createdAt: '2027-09-26T18:00:00Z',
         },
       ],
     });
+  });
+
+  it('validates and idempotently creates an installed expedition through the public API', async () => {
+    const scenarioCatalog = new InstalledScenarioCatalog([
+      createHeliosScenarioDefinition(),
+      createTestRiverScenarioDefinition(),
+    ]);
+    const app = buildApp({
+      scenarioCatalog,
+      workspaceStore: new SqliteWorkspaceStore({ location: ':memory:' }),
+    });
+    openApps.push(app);
+
+    const malformed = await app.inject({
+      method: 'POST',
+      url: '/api/expeditions',
+      payload: { scenarioId: 'test-river-crossing', unexpected: true },
+    });
+    const missing = await app.inject({
+      method: 'POST',
+      url: '/api/expeditions',
+      payload: { scenarioId: 'missing-scenario', idempotencyKey: 'create:missing:1' },
+    });
+    const created = await app.inject({
+      method: 'POST',
+      url: '/api/expeditions',
+      payload: { scenarioId: 'test-river-crossing', idempotencyKey: 'create:test-river:api:1' },
+    });
+    const duplicate = await app.inject({
+      method: 'POST',
+      url: '/api/expeditions',
+      payload: { scenarioId: 'test-river-crossing', idempotencyKey: 'create:test-river:api:1' },
+    });
+    const riverSnapshot = await app.inject({
+      method: 'GET',
+      url: '/api/expeditions/exp-test-river-demo/snapshot',
+    });
+    const riverDiagnostics = await app.inject({
+      method: 'GET',
+      url: '/api/runtime/diagnostics?expeditionId=exp-test-river-demo',
+    });
+
+    expect(malformed.statusCode).toBe(400);
+    expect(malformed.json()).toMatchObject({ error: 'invalid_create_expedition_request' });
+    expect(missing.statusCode).toBe(404);
+    expect(missing.json()).toMatchObject({ error: 'scenario_not_installed' });
+    expect(created.statusCode).toBe(201);
+    expect(created.json()).toMatchObject({
+      created: true,
+      duplicate: false,
+      expedition: { id: 'exp-test-river-demo', scenarioId: 'test-river-crossing' },
+    });
+    expect(duplicate.statusCode).toBe(200);
+    expect(duplicate.json()).toMatchObject({ created: false, duplicate: true });
+    expect(riverSnapshot.statusCode).toBe(200);
+    expect(riverSnapshot.json()).toMatchObject({
+      projection: { expedition: { id: 'exp-test-river-demo' }, sequence: 2 },
+    });
+    expect(riverDiagnostics.statusCode).toBe(200);
+    expect(riverDiagnostics.json()).toMatchObject({ workspace: { latestSequence: 2 } });
   });
 
   it('lists safe installed scenario metadata without exposing fixture resolution content', async () => {
@@ -132,13 +202,14 @@ describe('orchestrator health endpoint', () => {
       },
       listExpeditions: () => [],
       storedScenarioDefinition: () => undefined,
+      expeditionCreationReceipt: () => undefined,
       commit: () => undefined,
       saveCheckpoint: () => undefined,
       checkpointsAtOrBefore: () => [],
       diagnostics: () => ({
         mode: 'sqlite',
         state: 'ready',
-        schemaVersion: 2,
+        schemaVersion: 3,
         location: '<test>',
         eventCount: 0,
         latestSequence: 0,

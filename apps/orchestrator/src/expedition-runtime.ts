@@ -66,6 +66,7 @@ import {
 import {
   WorkspacePersistenceError,
   type StoredCommandReceipt,
+  type StoredExpeditionCreationReceipt,
   type WorkspaceCheckpoint,
   type WorkspaceStore,
   type WorkspaceStoreDiagnostics,
@@ -183,6 +184,8 @@ export interface ExpeditionRuntimeOptions {
   workspaceStore?: WorkspaceStore;
   checkpointInterval?: number;
   scenarioDefinition?: ScenarioDefinition;
+  workspaceCreationReceipt?: StoredExpeditionCreationReceipt;
+  ownsWorkspaceStore?: boolean;
 }
 
 export interface SignalAtlasRuntimeDiagnostics extends CodexRuntimeDiagnostics {
@@ -284,6 +287,7 @@ export class ExpeditionRuntime {
   readonly #defaultTurnTimeoutMs: number;
   readonly #professorTimeoutMs: number;
   readonly #workspaceStore: WorkspaceStore | undefined;
+  readonly #ownsWorkspaceStore: boolean;
   readonly #checkpointInterval: number;
   #turnScheduler: CodexTurnScheduler<AgentTurnInput, ScriptedFixtureTurn> | undefined;
   #projection: WorldProjection;
@@ -319,6 +323,7 @@ export class ExpeditionRuntime {
     this.#defaultTurnTimeoutMs = options.defaultTurnTimeoutMs ?? 30_000;
     this.#professorTimeoutMs = options.professorTimeoutMs ?? 90_000;
     this.#workspaceStore = options.workspaceStore;
+    this.#ownsWorkspaceStore = options.ownsWorkspaceStore ?? true;
     this.#checkpointInterval = options.checkpointInterval ?? 50;
     if (!Number.isInteger(this.#maxConcurrentTurns) || this.#maxConcurrentTurns < 1) {
       throw new Error('Runtime turn concurrency must be a positive integer.');
@@ -345,6 +350,9 @@ export class ExpeditionRuntime {
         fixtureHash: canonicalHash(this.#fixture),
         definition: this.#scenarioDefinition,
         definitionHash: canonicalHash(this.#scenarioDefinition),
+        ...(options.workspaceCreationReceipt
+          ? { creationReceipt: options.workspaceCreationReceipt }
+          : {}),
         initialEvents: this.#fixture.initialEvents,
       });
       this.#events = loaded.events;
@@ -643,7 +651,7 @@ export class ExpeditionRuntime {
         this.#latchPersistenceFailure(error);
       }
     }
-    this.#workspaceStore?.close();
+    if (this.#ownsWorkspaceStore) this.#workspaceStore?.close();
     this.#closed = true;
   }
 
@@ -1825,6 +1833,7 @@ export class ExpeditionRuntime {
         expeditionId: this.expeditionId,
         expectedSequence,
         events,
+        expeditionStatus: nextProjection.expedition.status,
         ...(receipt ? { receipt } : {}),
         ...(shouldCheckpoint
           ? {
@@ -1891,7 +1900,7 @@ export class ExpeditionRuntime {
     let store: WorkspaceStoreDiagnostics | undefined;
     if (this.#workspaceStore && !this.#closed) {
       try {
-        store = this.#workspaceStore.diagnostics();
+        store = this.#workspaceStore.diagnostics(this.expeditionId);
       } catch {
         // The latched public issue is sufficient; diagnostics must never make runtime health fail.
       }

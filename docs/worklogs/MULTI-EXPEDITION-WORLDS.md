@@ -11,13 +11,20 @@ In progress.
 - `56942fc` removed the production fixture import from the web bootstrap and made the shell,
   onboarding, missions, meetings, forecasts, agent presentation, and Phaser landmark selection
   derive from authoritative expedition data and authored visual metadata.
-- The current persistence milestone adds the versioned `ScenarioDefinition` contract, safe installed
-  catalog metadata, SQLite schema v2 full-definition storage, canonical definition verification,
-  immutable identity triggers, and exact schema-v1 Helios backfill coverage.
+- `3e93dad` added the versioned `ScenarioDefinition` contract, safe installed catalog metadata,
+  SQLite schema v2 full-definition storage, canonical definition verification, immutable identity
+  triggers, and exact schema-v1 Helios backfill coverage.
+- The current registry milestone adds SQLite schema v3 durable status and append-only expedition
+  creation receipts, one shared multi-expedition store, lazy runtime restoration, strict
+  idempotent `POST /api/expeditions`, registry-routed HTTP/WebSocket endpoints, and restart coverage
+  proving that changing one expedition does not change another.
 - Focused validation after the first two commits: contracts 18/18, simulation 34/34, codex-runtime
   25/25, game-scene 13/13, archive 4/4, web 19/19, orchestrator 95/95, and repository lint with zero
   warnings. Persistence milestone validation currently passes contracts 19/19, world-content 2/2,
-  and orchestrator 98/98; full-repository validation remains scheduled after registry integration.
+  and orchestrator 98/98. Registry validation currently passes contracts 19/19 and orchestrator
+  102/102, plus full-workspace typecheck, schema artifact verification, and repository lint with
+  zero warnings. The global cross-runtime external-call gate remains the next registry follow-up
+  before the browser Lobby milestone.
 
 ## Goal
 

@@ -119,6 +119,10 @@ class FailingCommitStore implements WorkspaceStore {
     return undefined;
   }
 
+  expeditionCreationReceipt() {
+    return undefined;
+  }
+
   commit(_input: WorkspaceCommit): void {
     throw new WorkspacePersistenceError('Injected local database write failure.');
   }
@@ -133,7 +137,7 @@ class FailingCommitStore implements WorkspaceStore {
     return {
       mode: 'sqlite',
       state: 'ready',
-      schemaVersion: 2,
+      schemaVersion: 3,
       location: ':injected-failure:',
       eventCount: this.#request?.initialEvents.length ?? 0,
       latestSequence: this.#request?.initialEvents.at(-1)?.sequence ?? 0,
@@ -162,7 +166,7 @@ describe('SQLite workspace store', () => {
       receipts: [],
     });
     expect(first.diagnostics()).toMatchObject({
-      schemaVersion: 2,
+      schemaVersion: 3,
       eventCount: 2,
       latestSequence: 2,
       checkpointCount: 0,
@@ -179,7 +183,7 @@ describe('SQLite workspace store', () => {
     const database = new DatabaseSync(location);
     expect(
       database.prepare('SELECT version FROM schema_migrations ORDER BY version').all(),
-    ).toEqual([{ version: 1 }, { version: 2 }]);
+    ).toEqual([{ version: 1 }, { version: 2 }, { version: 3 }]);
     expect(database.prepare('PRAGMA foreign_keys').get()).toEqual({ foreign_keys: 1 });
     database.close();
   });
@@ -197,6 +201,7 @@ describe('SQLite workspace store', () => {
       expeditionId: fixture.expedition.id,
       expectedSequence: 2,
       events: accepted.events,
+      expeditionStatus: 'paused',
       receipt: {
         idempotencyKey: pauseCommand().idempotencyKey,
         commandId: pauseCommand().id,
@@ -220,6 +225,61 @@ describe('SQLite workspace store', () => {
     reopened.close();
   });
 
+  it('stores expedition creation idempotency in the same immutable transaction', () => {
+    const location = temporaryDatabasePath();
+    const request = openRequest();
+    const creationReceipt = {
+      idempotencyKey: 'create:helios:persistence:1',
+      requestHash: canonicalHash({
+        scenarioId: request.definition.scenario.id,
+        scenarioVersion: request.definition.scenario.version,
+      }),
+      scenarioId: request.definition.scenario.id,
+      scenarioVersion: request.definition.scenario.version,
+      expeditionId: request.expeditionId,
+      createdAt: '2027-09-26T17:59:00Z',
+      result: { expeditionId: request.expeditionId },
+    };
+    const store = new SqliteWorkspaceStore({ location });
+
+    expect(() =>
+      store.open({
+        ...request,
+        creationReceipt: { ...creationReceipt, scenarioId: 'different-scenario' },
+      }),
+    ).toThrow(WorkspacePersistenceError);
+    expect(store.listExpeditions()).toEqual([]);
+    expect(store.expeditionCreationReceipt(creationReceipt.idempotencyKey)).toBeUndefined();
+
+    expect(store.open({ ...request, creationReceipt })).toMatchObject({ created: true });
+    expect(store.expeditionCreationReceipt(creationReceipt.idempotencyKey)).toEqual(
+      creationReceipt,
+    );
+    expect(store.listExpeditions()).toEqual([
+      expect.objectContaining({
+        expeditionId: request.expeditionId,
+        createdAt: creationReceipt.createdAt,
+        currentStatus: 'active',
+      }),
+    ]);
+    store.close();
+
+    const database = new DatabaseSync(location);
+    expect(() =>
+      database
+        .prepare(
+          'UPDATE expedition_creation_receipts SET request_hash = ? WHERE idempotency_key = ?',
+        )
+        .run('replacement', creationReceipt.idempotencyKey),
+    ).toThrow(/append-only/u);
+    expect(() =>
+      database
+        .prepare('DELETE FROM expedition_creation_receipts WHERE idempotency_key = ?')
+        .run(creationReceipt.idempotencyKey),
+    ).toThrow(/append-only/u);
+    database.close();
+  });
+
   it('stores the full scenario definition and rejects every later identity change', () => {
     const location = temporaryDatabasePath();
     const request = openRequest();
@@ -238,6 +298,7 @@ describe('SQLite workspace store', () => {
         definitionSchemaVersion: request.definition.definitionSchemaVersion,
         definitionHash: request.definitionHash,
         latestSequence: 2,
+        currentStatus: 'active',
       }),
     ]);
     expect(store.storedScenarioDefinition(request.expeditionId)).toEqual(opened.definition);
@@ -367,6 +428,7 @@ describe('SQLite workspace store', () => {
         expeditionId: fixture.expedition.id,
         expectedSequence: 2,
         events: [duplicateIdentity],
+        expeditionStatus: 'paused',
         receipt: {
           idempotencyKey: pauseCommand().idempotencyKey,
           commandId: pauseCommand().id,
@@ -464,6 +526,7 @@ describe('SQLite workspace store', () => {
       expeditionId: fixture.expedition.id,
       expectedSequence: 2,
       events: accepted.events,
+      expeditionStatus: 'paused',
       receipt: {
         idempotencyKey: pauseCommand().idempotencyKey,
         commandId: pauseCommand().id,

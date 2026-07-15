@@ -118,4 +118,38 @@ export const workspaceMigrations: readonly WorkspaceMigration[] = [
       END;
     `,
   },
+  {
+    version: 3,
+    description: 'Add durable expedition status and idempotent creation receipts.',
+    sql: `
+      ALTER TABLE expeditions ADD COLUMN current_status TEXT
+        CHECK (current_status IS NULL OR current_status IN
+          ('setup', 'active', 'paused', 'resolved', 'archived'));
+      UPDATE expeditions
+         SET current_status = json_extract(definition_json, '$.fixture.expedition.status')
+       WHERE definition_json IS NOT NULL;
+
+      CREATE TABLE expedition_creation_receipts (
+        idempotency_key TEXT PRIMARY KEY,
+        request_hash TEXT NOT NULL,
+        scenario_id TEXT NOT NULL,
+        scenario_version INTEGER NOT NULL CHECK (scenario_version > 0),
+        expedition_id TEXT NOT NULL REFERENCES expeditions(expedition_id),
+        created_at TEXT NOT NULL,
+        result_json TEXT NOT NULL CHECK (json_valid(result_json))
+      ) STRICT;
+
+      CREATE TRIGGER expedition_creation_receipts_no_update
+      BEFORE UPDATE ON expedition_creation_receipts
+      BEGIN
+        SELECT RAISE(ABORT, 'expedition_creation_receipts is append-only');
+      END;
+
+      CREATE TRIGGER expedition_creation_receipts_no_delete
+      BEFORE DELETE ON expedition_creation_receipts
+      BEGIN
+        SELECT RAISE(ABORT, 'expedition_creation_receipts is append-only');
+      END;
+    `,
+  },
 ];

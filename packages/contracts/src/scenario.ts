@@ -31,6 +31,17 @@ export const ScenarioMetadataSchema = z.strictObject({
   preview: ScenarioPreviewSchema,
 });
 
+export const CreateExpeditionRequestSchema = z
+  .strictObject({
+    scenarioId: EntityIdSchema,
+    scenarioVersion: z.number().int().positive().optional(),
+    idempotencyKey: EntityIdSchema,
+  })
+  .meta({
+    id: 'https://signal-atlas.local/schemas/create-expedition-request.schema.json',
+    title: 'Signal Atlas Create Expedition Request',
+  });
+
 export const ScenarioDefinitionSchema = z
   .strictObject({
     definitionSchemaVersion: z.literal(SCENARIO_DEFINITION_SCHEMA_VERSION),
@@ -99,3 +110,4 @@ export function parseScenarioDefinition(input: unknown): ScenarioDefinition {
 export type ScenarioPreview = z.infer<typeof ScenarioPreviewSchema>;
 export type ScenarioMetadata = z.infer<typeof ScenarioMetadataSchema>;
 export type ScenarioDefinition = z.infer<typeof ScenarioDefinitionSchema>;
+export type CreateExpeditionRequest = z.infer<typeof CreateExpeditionRequestSchema>;

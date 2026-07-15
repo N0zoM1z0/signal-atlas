@@ -2,14 +2,15 @@ import Fastify, { type FastifyInstance } from 'fastify';
 import websocket from '@fastify/websocket';
 
 import {
+  CreateExpeditionRequestSchema,
   parseEventStreamEnvelope,
   SCHEMA_VERSION,
   type EventStreamEnvelope,
   type WorldEvent,
 } from '@signal-atlas/contracts';
 import {
-  createHeliosScenarioDefinition,
   installedScenarioCatalog,
+  type InstalledScenarioCatalog,
 } from '@signal-atlas/world-content';
 
 import {
@@ -17,6 +18,11 @@ import {
   FixtureResolutionConflictError,
   ReplaySequenceError,
 } from './expedition-runtime.js';
+import {
+  ExpeditionCreationConflictError,
+  ExpeditionRuntimeRegistry,
+  ScenarioNotInstalledError,
+} from './expedition-runtime-registry.js';
 import { fixtureMissionScenarios, type FixtureMissionScenario } from './fixture-mission-driver.js';
 import { interpretFixtureMission } from './fixture-mission-interpreter.js';
 import {
@@ -38,9 +44,11 @@ export interface HealthResponse {
 }
 
 export interface BuildAppOptions {
+  registry?: ExpeditionRuntimeRegistry;
   runtime?: ExpeditionRuntime;
   prefRuntime?: PrefRuntime;
   runScheduler?: boolean;
+  scenarioCatalog?: InstalledScenarioCatalog;
   workspaceStore?: WorkspaceStore;
 }
 
@@ -58,6 +66,10 @@ interface ReplayQuery {
 
 interface StreamQuery {
   after?: string;
+}
+
+interface RuntimeDiagnosticsQuery {
+  expeditionId?: string;
 }
 
 interface InterpretMissionBody {
@@ -138,9 +150,13 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
       process.env['NODE_ENV'] === 'test' ? false : { level: process.env['LOG_LEVEL'] ?? 'warn' },
   });
   const prefRuntime = options.prefRuntime ?? createConfiguredPrefRuntime();
+  if (options.registry && (options.runtime || options.workspaceStore)) {
+    throw new Error('An injected registry cannot be combined with a runtime or workspace store.');
+  }
   if (options.runtime && options.workspaceStore) {
     throw new Error('Inject a workspace store through ExpeditionRuntime when supplying a runtime.');
   }
+  const scenarioCatalog = options.scenarioCatalog ?? installedScenarioCatalog;
   const workspaceStore = options.runtime
     ? undefined
     : (options.workspaceStore ?? configuredWorkspaceStore());
@@ -155,49 +171,56 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
     if (!hasRejectedBrowserOrigin(origin) && !crossSite) return;
     return reply.code(403).send({ error: 'browser_origin_not_allowed' });
   });
-  const runtime =
-    options.runtime ??
-    (() => {
-      const installedDefinition = createHeliosScenarioDefinition();
-      const scenarioDefinition =
-        workspaceStore?.storedScenarioDefinition(installedDefinition.fixture.expedition.id)
-          ?.definition ?? installedDefinition;
-      const fixture = structuredClone(scenarioDefinition.fixture);
-      const mode: CodexMissionMode =
-        process.env['SIGNAL_ATLAS_CODEX_MODE'] === 'local' ? 'local' : 'scripted';
-      const runtimeRoot =
-        process.env['SIGNAL_ATLAS_CODEX_RUNTIME_ROOT'] ?? defaultCodexRuntimeRoot();
-      const localCodexOptions = {
-        mode,
-        ...(process.env['SIGNAL_ATLAS_CODEX_EXECUTABLE']
-          ? { executable: process.env['SIGNAL_ATLAS_CODEX_EXECUTABLE'] }
-          : {}),
-        ...(process.env['SIGNAL_ATLAS_CODEX_MODEL']
-          ? { model: process.env['SIGNAL_ATLAS_CODEX_MODEL'] }
-          : {}),
-        runtimeRoot,
-      };
-      try {
-        return new ExpeditionRuntime(fixture, {
-          ...(workspaceStore ? { workspaceStore } : {}),
-          checkpointInterval: configuredCheckpointInterval(),
-          scenarioDefinition,
-          professorDriver: createConfiguredProfessorDriver(localCodexOptions),
-          missionDriverFactory: (scenario) => {
-            const fallback = createConfiguredMissionDriver(fixture, scenario, localCodexOptions);
-            const gateway = prefRuntime.gateway();
-            return gateway ? createPrefAgentProxyDriver({ fixture, gateway, fallback }) : fallback;
-          },
-        });
-      } catch (error: unknown) {
-        try {
-          workspaceStore?.close();
-        } catch {
-          // Preserve the startup boundary error that explains why the workspace was rejected.
-        }
-        throw error;
-      }
-    })();
+  const mode: CodexMissionMode =
+    process.env['SIGNAL_ATLAS_CODEX_MODE'] === 'local' ? 'local' : 'scripted';
+  const runtimeRoot = process.env['SIGNAL_ATLAS_CODEX_RUNTIME_ROOT'] ?? defaultCodexRuntimeRoot();
+  const localCodexOptions = {
+    mode,
+    ...(process.env['SIGNAL_ATLAS_CODEX_EXECUTABLE']
+      ? { executable: process.env['SIGNAL_ATLAS_CODEX_EXECUTABLE'] }
+      : {}),
+    ...(process.env['SIGNAL_ATLAS_CODEX_MODEL']
+      ? { model: process.env['SIGNAL_ATLAS_CODEX_MODEL'] }
+      : {}),
+    runtimeRoot,
+  };
+  let registry: ExpeditionRuntimeRegistry;
+  try {
+    registry =
+      options.registry ??
+      new ExpeditionRuntimeRegistry({
+        catalog: scenarioCatalog,
+        ...(options.runtime ? { initialRuntimes: [options.runtime] } : {}),
+        ...(workspaceStore ? { workspaceStore } : {}),
+        runtimeFactory: (scenarioDefinition, context) => {
+          const fixture = structuredClone(scenarioDefinition.fixture);
+          return new ExpeditionRuntime(fixture, {
+            ...(context.workspaceStore ? { workspaceStore: context.workspaceStore } : {}),
+            ...(context.creationReceipt
+              ? { workspaceCreationReceipt: context.creationReceipt }
+              : {}),
+            ownsWorkspaceStore: false,
+            checkpointInterval: configuredCheckpointInterval(),
+            scenarioDefinition,
+            professorDriver: createConfiguredProfessorDriver(localCodexOptions),
+            missionDriverFactory: (scenario) => {
+              const fallback = createConfiguredMissionDriver(fixture, scenario, localCodexOptions);
+              const gateway = prefRuntime.gateway();
+              return gateway
+                ? createPrefAgentProxyDriver({ fixture, gateway, fallback })
+                : fallback;
+            },
+          });
+        },
+      });
+  } catch (error: unknown) {
+    try {
+      workspaceStore?.close();
+    } catch {
+      // Preserve the startup boundary error that explains why the workspace was rejected.
+    }
+    throw error;
+  }
   const runScheduler = options.runScheduler ?? process.env['NODE_ENV'] !== 'test';
   let scheduler: ReturnType<typeof setInterval> | undefined;
   if (runScheduler) {
@@ -205,7 +228,7 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
     scheduler = setInterval(() => {
       const currentTick = Date.now();
       try {
-        runtime.advance(currentTick - previousTick, new Date(currentTick).toISOString());
+        registry.advance(currentTick - previousTick, new Date(currentTick).toISOString());
       } catch (error: unknown) {
         app.log.error(
           {
@@ -223,8 +246,8 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   }
   app.addHook('onClose', async () => {
     if (scheduler) clearInterval(scheduler);
-    await runtime.waitForRuntimeIdle();
-    runtime.close();
+    await registry.waitForIdle();
+    registry.close();
     await prefRuntime.disconnect();
   });
 
@@ -235,10 +258,18 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
     version: '0.0.0',
   }));
 
-  app.get('/api/runtime/diagnostics', async () => runtime.runtimeDiagnostics());
+  app.get<{ Querystring: RuntimeDiagnosticsQuery }>(
+    '/api/runtime/diagnostics',
+    async (request, reply) => {
+      const requestedId = request.query.expeditionId;
+      const runtime = requestedId ? registry.get(requestedId) : registry.primary();
+      if (!runtime) return reply.code(404).send({ error: 'expedition_not_found' });
+      return runtime.runtimeDiagnostics();
+    },
+  );
 
   app.get('/api/scenarios', async () => ({
-    scenarios: installedScenarioCatalog.list().map((scenario) => ({
+    scenarios: scenarioCatalog.list().map((scenario) => ({
       ...scenario,
       available: true,
       availabilityReason:
@@ -249,18 +280,37 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   }));
 
   app.get('/api/expeditions', async () => {
-    const projection = runtime.snapshot();
-    return {
-      expeditions: [
-        {
-          id: projection.expedition.id,
-          latestSequence: projection.sequence,
-          marketQuestion: projection.market.question,
-          status: projection.expedition.status,
-          title: projection.expedition.title,
-        },
-      ],
-    };
+    return { expeditions: registry.list() };
+  });
+
+  app.post<{ Body: unknown }>('/api/expeditions', async (request, reply) => {
+    const parsed = CreateExpeditionRequestSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.code(400).send({
+        error: 'invalid_create_expedition_request',
+        issues: parsed.error.issues.map((issue) => ({ path: issue.path, message: issue.message })),
+      });
+    }
+    try {
+      const result = registry.create({
+        scenarioId: parsed.data.scenarioId,
+        idempotencyKey: parsed.data.idempotencyKey,
+        ...(parsed.data.scenarioVersion === undefined
+          ? {}
+          : { scenarioVersion: parsed.data.scenarioVersion }),
+      });
+      return reply.code(result.duplicate ? 200 : 201).send(result);
+    } catch (error: unknown) {
+      if (error instanceof ScenarioNotInstalledError) {
+        return reply.code(404).send({ error: 'scenario_not_installed', message: error.message });
+      }
+      if (error instanceof ExpeditionCreationConflictError) {
+        return reply
+          .code(409)
+          .send({ error: 'expedition_creation_conflict', message: error.message });
+      }
+      throw error;
+    }
   });
 
   app.get('/api/runtime/pref', async () => prefRuntime.diagnostics());
@@ -270,18 +320,16 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   app.post('/api/runtime/pref/disconnect', async () => prefRuntime.disconnect());
 
   app.get<{ Params: ExpeditionParams }>('/api/expeditions/:id/snapshot', async (request, reply) => {
-    if (request.params.id !== runtime.expeditionId) {
-      return reply.code(404).send({ error: 'expedition_not_found' });
-    }
+    const runtime = registry.get(request.params.id);
+    if (!runtime) return reply.code(404).send({ error: 'expedition_not_found' });
     return { projection: runtime.snapshot() };
   });
 
   app.get<{ Params: ExpeditionParams; Querystring: EventsQuery }>(
     '/api/expeditions/:id/events',
     async (request, reply) => {
-      if (request.params.id !== runtime.expeditionId) {
-        return reply.code(404).send({ error: 'expedition_not_found' });
-      }
+      const runtime = registry.get(request.params.id);
+      if (!runtime) return reply.code(404).send({ error: 'expedition_not_found' });
       const after = Number(request.query.after ?? 0);
       if (!Number.isInteger(after) || after < 0) {
         return reply.code(400).send({ error: 'invalid_sequence' });
@@ -297,6 +345,11 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
       (socket, request) => {
         if (hasRejectedBrowserOrigin(request.headers.origin)) {
           socket.close(1008, 'browser_origin_not_allowed');
+          return;
+        }
+        const runtime = registry.get(request.params.id);
+        if (!runtime) {
+          socket.close(1008, 'expedition_not_found');
           return;
         }
         let cursor = Number(request.query.after ?? 0);
@@ -330,11 +383,6 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
           socket.close(1008, 'unsupported_client_message');
         });
 
-        if (request.params.id !== runtime.expeditionId) {
-          sendError('invalid_cursor', 'The requested expedition does not exist.');
-          socket.close(1008, 'expedition_not_found');
-          return;
-        }
         const latestSequence = runtime.snapshot().sequence;
         if (!Number.isInteger(cursor) || cursor < 0 || cursor > latestSequence) {
           cursor = latestSequence;
@@ -388,9 +436,8 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   app.get<{ Params: ExpeditionParams; Querystring: ReplayQuery }>(
     '/api/expeditions/:id/replay',
     async (request, reply) => {
-      if (request.params.id !== runtime.expeditionId) {
-        return reply.code(404).send({ error: 'expedition_not_found' });
-      }
+      const runtime = registry.get(request.params.id);
+      if (!runtime) return reply.code(404).send({ error: 'expedition_not_found' });
       const sequence = Number(request.query.sequence ?? runtime.snapshot().sequence);
       try {
         return runtime.replayAt(sequence);
@@ -406,9 +453,8 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   app.get<{ Params: ExpeditionParams }>(
     '/api/expeditions/:id/case-file',
     async (request, reply) => {
-      if (request.params.id !== runtime.expeditionId) {
-        return reply.code(404).send({ error: 'expedition_not_found' });
-      }
+      const runtime = registry.get(request.params.id);
+      if (!runtime) return reply.code(404).send({ error: 'expedition_not_found' });
       reply.header(
         'content-disposition',
         `attachment; filename="signal-atlas-${runtime.expeditionId}-case-file.json"`,
@@ -420,9 +466,8 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   app.post<{ Params: ExpeditionParams; Body: unknown }>(
     '/api/expeditions/:id/resolve-fixture',
     async (request, reply) => {
-      if (request.params.id !== runtime.expeditionId) {
-        return reply.code(404).send({ error: 'expedition_not_found' });
-      }
+      const runtime = registry.get(request.params.id);
+      if (!runtime) return reply.code(404).send({ error: 'expedition_not_found' });
       if (
         request.body !== undefined &&
         (request.body === null ||
@@ -449,9 +494,8 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   app.get<{ Params: ExpeditionParams }>(
     '/api/expeditions/:id/fixture-configuration',
     async (request, reply) => {
-      if (request.params.id !== runtime.expeditionId) {
-        return reply.code(404).send({ error: 'expedition_not_found' });
-      }
+      const runtime = registry.get(request.params.id);
+      if (!runtime) return reply.code(404).send({ error: 'expedition_not_found' });
       return runtime.fixtureConfiguration();
     },
   );
@@ -459,9 +503,8 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   app.put<{ Params: ExpeditionParams; Body: FixtureScenarioBody }>(
     '/api/expeditions/:id/fixture-configuration',
     async (request, reply) => {
-      if (request.params.id !== runtime.expeditionId) {
-        return reply.code(404).send({ error: 'expedition_not_found' });
-      }
+      const runtime = registry.get(request.params.id);
+      if (!runtime) return reply.code(404).send({ error: 'expedition_not_found' });
       const scenario = request.body?.missionScenario;
       if (
         typeof scenario !== 'string' ||
@@ -480,9 +523,8 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   app.post<{ Params: ExpeditionParams; Body: InterpretMissionBody }>(
     '/api/expeditions/:id/mission-drafts/interpret',
     async (request, reply) => {
-      if (request.params.id !== runtime.expeditionId) {
-        return reply.code(404).send({ error: 'expedition_not_found' });
-      }
+      const runtime = registry.get(request.params.id);
+      if (!runtime) return reply.code(404).send({ error: 'expedition_not_found' });
       if (typeof request.body?.text !== 'string' || request.body.text.trim().length === 0) {
         return reply.code(400).send({ error: 'mission_text_required' });
       }
@@ -505,9 +547,8 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   app.post<{ Params: ExpeditionParams; Body: unknown }>(
     '/api/expeditions/:id/commands',
     async (request, reply) => {
-      if (request.params.id !== runtime.expeditionId) {
-        return reply.code(404).send({ error: 'expedition_not_found' });
-      }
+      const runtime = registry.get(request.params.id);
+      if (!runtime) return reply.code(404).send({ error: 'expedition_not_found' });
       if (hasDisallowedPublicCommandActor(request.body)) {
         return reply.code(403).send({ error: 'command_actor_not_allowed' });
       }
@@ -531,16 +572,21 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
     };
     app.post('/api/testing/reset', async () => {
       closeEventStreams(1012, 'fixture_reset');
+      const runtime = registry.primary();
       runtime.resetToFixture();
       return { reset: true, sequence: runtime.snapshot().sequence };
     });
 
-    app.post('/api/testing/disconnect-streams', async () => ({
-      disconnected: closeEventStreams(1012, 'injected_temporary_outage'),
-      sequence: runtime.snapshot().sequence,
-    }));
+    app.post('/api/testing/disconnect-streams', async () => {
+      const runtime = registry.primary();
+      return {
+        disconnected: closeEventStreams(1012, 'injected_temporary_outage'),
+        sequence: runtime.snapshot().sequence,
+      };
+    });
 
     app.post('/api/testing/emit-invalid-stream-envelope', async () => {
+      const runtime = registry.primary();
       let sent = 0;
       for (const client of app.websocketServer.clients) {
         if (client.readyState !== 1) continue;

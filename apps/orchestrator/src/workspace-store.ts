@@ -1,13 +1,23 @@
-import type { ScenarioDefinition, WorldEvent } from '@signal-atlas/contracts';
+import type { Expedition, ScenarioDefinition, WorldEvent } from '@signal-atlas/contracts';
 import type { WorldProjection } from '@signal-atlas/simulation';
 
-export const WORKSPACE_SCHEMA_VERSION = 2;
+export const WORKSPACE_SCHEMA_VERSION = 3;
 
 export interface StoredCommandReceipt {
   idempotencyKey: string;
   commandId: string;
   commandHash: string;
   acceptedAt: string;
+  result: unknown;
+}
+
+export interface StoredExpeditionCreationReceipt {
+  idempotencyKey: string;
+  requestHash: string;
+  scenarioId: string;
+  scenarioVersion: number;
+  expeditionId: string;
+  createdAt: string;
   result: unknown;
 }
 
@@ -26,6 +36,7 @@ export interface WorkspaceLoadRequest {
   fixtureHash: string;
   definition: ScenarioDefinition;
   definitionHash: string;
+  creationReceipt?: StoredExpeditionCreationReceipt;
   initialEvents: readonly WorldEvent[];
 }
 
@@ -47,6 +58,7 @@ export interface StoredExpeditionRecord {
   fixtureHash: string;
   createdAt: string;
   latestSequence: number;
+  currentStatus?: Expedition['status'];
   scenarioId?: string;
   scenarioVersion?: number;
   definitionSchemaVersion?: number;
@@ -66,6 +78,7 @@ export interface WorkspaceCommit {
   expeditionId: string;
   expectedSequence: number;
   events: readonly WorldEvent[];
+  expeditionStatus: Expedition['status'];
   receipt?: StoredCommandReceipt;
   checkpoint?: WorkspaceCheckpointInput;
 }
@@ -85,10 +98,11 @@ export interface WorkspaceStore {
   open(request: WorkspaceLoadRequest): WorkspaceLoadResult;
   listExpeditions(): StoredExpeditionRecord[];
   storedScenarioDefinition(expeditionId: string): StoredScenarioDefinition | undefined;
+  expeditionCreationReceipt(idempotencyKey: string): StoredExpeditionCreationReceipt | undefined;
   commit(input: WorkspaceCommit): void;
   saveCheckpoint(input: WorkspaceCheckpointInput): void;
   checkpointsAtOrBefore(expeditionId: string, sequence: number): WorkspaceCheckpoint[];
-  diagnostics(): WorkspaceStoreDiagnostics;
+  diagnostics(expeditionId?: string): WorkspaceStoreDiagnostics;
   close(): void;
 }
 

@@ -18,6 +18,7 @@ import {
   WorkspacePersistenceError,
   WorkspaceSchemaError,
   type StoredCommandReceipt,
+  type StoredExpeditionCreationReceipt,
   type StoredExpeditionRecord,
   type StoredScenarioDefinition,
   type WorkspaceCheckpoint,
@@ -43,6 +44,7 @@ interface ExpeditionRow {
   definition_schema_version?: number;
   definition_hash?: string;
   definition_json?: string;
+  current_status?: StoredExpeditionRecord['currentStatus'];
 }
 
 interface EventRow {
@@ -106,6 +108,27 @@ function optionalIntegerField(
   return value;
 }
 
+const expeditionStatuses: ReadonlySet<string> = new Set([
+  'setup',
+  'active',
+  'paused',
+  'resolved',
+  'archived',
+]);
+
+function optionalExpeditionStatusField(
+  row: Record<string, unknown>,
+  key: string,
+  context: string,
+): StoredExpeditionRecord['currentStatus'] | undefined {
+  const value = optionalStringField(row, key, context);
+  if (value === undefined) return undefined;
+  if (!expeditionStatuses.has(value)) {
+    throw new WorkspacePersistenceError(`SQLite ${context}.${key} is not an expedition status.`);
+  }
+  return value as StoredExpeditionRecord['currentStatus'];
+}
+
 function parseJson(input: string, context: string): unknown {
   try {
     return JSON.parse(input) as unknown;
@@ -125,7 +148,7 @@ export class SqliteWorkspaceStore implements WorkspaceStore {
   readonly #database: DatabaseSync;
   readonly #location: string;
   #closed = false;
-  #expeditionId: string | undefined;
+  readonly #openedExpeditionIds = new Set<string>();
 
   constructor(options: SqliteWorkspaceStoreOptions) {
     this.#location = options.location;
@@ -147,11 +170,6 @@ export class SqliteWorkspaceStore implements WorkspaceStore {
 
   open(request: WorkspaceLoadRequest): WorkspaceLoadResult {
     this.#assertOpen();
-    if (this.#expeditionId && this.#expeditionId !== request.expeditionId) {
-      throw new WorkspacePersistenceError(
-        `This workspace store is already open for expedition ${this.#expeditionId}.`,
-      );
-    }
 
     try {
       const definition = this.#validateLoadRequest(request);
@@ -168,6 +186,11 @@ export class SqliteWorkspaceStore implements WorkspaceStore {
             );
           }
           this.#backfillOrValidateDefinition(request.expeditionId, existing, request, definition);
+          if (request.creationReceipt) {
+            throw new WorkspacePersistenceError(
+              `Expedition ${request.expeditionId} already exists and cannot receive a new creation receipt.`,
+            );
+          }
           return;
         }
 
@@ -177,24 +200,26 @@ export class SqliteWorkspaceStore implements WorkspaceStore {
             `INSERT INTO expeditions
               (expedition_id, fixture_seed, fixture_hash, created_at, latest_sequence,
                scenario_id, scenario_version, definition_schema_version,
-               definition_hash, definition_json)
-             VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?, ?)`,
+               definition_hash, definition_json, current_status)
+             VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?)`,
           )
           .run(
             request.expeditionId,
             request.fixtureSeed,
             request.fixtureHash,
-            new Date().toISOString(),
+            request.creationReceipt?.createdAt ?? new Date().toISOString(),
             definition.scenario.id,
             definition.scenario.version,
             definition.definitionSchemaVersion,
             request.definitionHash,
             JSON.stringify(definition),
+            definition.fixture.expedition.status,
           );
         this.#appendEvents(request.expeditionId, 0, request.initialEvents);
+        if (request.creationReceipt) this.#insertCreationReceipt(request.creationReceipt);
       });
 
-      this.#expeditionId = request.expeditionId;
+      this.#openedExpeditionIds.add(request.expeditionId);
       const events = this.#loadEvents(request.expeditionId);
       const latestSequence = events.at(-1)?.sequence ?? 0;
       const expedition = this.#expeditionRow(request.expeditionId);
@@ -228,7 +253,8 @@ export class SqliteWorkspaceStore implements WorkspaceStore {
       const rows = this.#database
         .prepare(
           `SELECT expedition_id, fixture_seed, fixture_hash, created_at, latest_sequence,
-                  scenario_id, scenario_version, definition_schema_version, definition_hash
+                  scenario_id, scenario_version, definition_schema_version, definition_hash,
+                  current_status
              FROM expeditions
             ORDER BY created_at ASC, expedition_id ASC`,
         )
@@ -243,12 +269,18 @@ export class SqliteWorkspaceStore implements WorkspaceStore {
           'expedition listing',
         );
         const definitionHash = optionalStringField(row, 'definition_hash', 'expedition listing');
+        const currentStatus = optionalExpeditionStatusField(
+          row,
+          'current_status',
+          'expedition listing',
+        );
         return {
           expeditionId: stringField(row, 'expedition_id', 'expedition listing'),
           fixtureSeed: stringField(row, 'fixture_seed', 'expedition listing'),
           fixtureHash: stringField(row, 'fixture_hash', 'expedition listing'),
           createdAt: stringField(row, 'created_at', 'expedition listing'),
           latestSequence: integerField(row, 'latest_sequence', 'expedition listing'),
+          ...(currentStatus ? { currentStatus } : {}),
           ...(scenarioId ? { scenarioId } : {}),
           ...(scenarioVersion === undefined ? {} : { scenarioVersion }),
           ...(definitionSchemaVersion === undefined ? {} : { definitionSchemaVersion }),
@@ -270,11 +302,44 @@ export class SqliteWorkspaceStore implements WorkspaceStore {
     }
   }
 
+  expeditionCreationReceipt(idempotencyKey: string): StoredExpeditionCreationReceipt | undefined {
+    this.#assertOpen();
+    try {
+      const value = this.#database
+        .prepare(
+          `SELECT idempotency_key, request_hash, scenario_id, scenario_version,
+                  expedition_id, created_at, result_json
+             FROM expedition_creation_receipts
+            WHERE idempotency_key = ?`,
+        )
+        .get(idempotencyKey);
+      if (!value) return undefined;
+      const row = asRecord(value, 'expedition creation receipt');
+      return {
+        idempotencyKey: stringField(row, 'idempotency_key', 'expedition creation receipt'),
+        requestHash: stringField(row, 'request_hash', 'expedition creation receipt'),
+        scenarioId: stringField(row, 'scenario_id', 'expedition creation receipt'),
+        scenarioVersion: integerField(row, 'scenario_version', 'expedition creation receipt'),
+        expeditionId: stringField(row, 'expedition_id', 'expedition creation receipt'),
+        createdAt: stringField(row, 'created_at', 'expedition creation receipt'),
+        result: parseJson(
+          stringField(row, 'result_json', 'expedition creation receipt'),
+          'expedition creation receipt result_json',
+        ),
+      };
+    } catch (error: unknown) {
+      throw publicPersistenceError('expedition creation receipt read', error);
+    }
+  }
+
   commit(input: WorkspaceCommit): void {
     this.#assertExpedition(input.expeditionId);
     try {
       this.#transaction(() => {
         this.#appendEvents(input.expeditionId, input.expectedSequence, input.events);
+        this.#database
+          .prepare('UPDATE expeditions SET current_status = ? WHERE expedition_id = ?')
+          .run(input.expeditionStatus, input.expeditionId);
         if (input.receipt) this.#insertReceipt(input.expeditionId, input.receipt);
         if (input.checkpoint) this.#insertCheckpoint(input.checkpoint);
       });
@@ -327,10 +392,12 @@ export class SqliteWorkspaceStore implements WorkspaceStore {
     }
   }
 
-  diagnostics(): WorkspaceStoreDiagnostics {
+  diagnostics(expeditionId?: string): WorkspaceStoreDiagnostics {
     this.#assertOpen();
-    const expeditionId = this.#expeditionId;
-    if (!expeditionId) {
+    const selectedExpeditionId =
+      expeditionId ??
+      (this.#openedExpeditionIds.size === 1 ? [...this.#openedExpeditionIds][0] : undefined);
+    if (!selectedExpeditionId) {
       return {
         mode: 'sqlite',
         state: 'ready',
@@ -347,7 +414,7 @@ export class SqliteWorkspaceStore implements WorkspaceStore {
           `SELECT COUNT(*) AS event_count, COALESCE(MAX(sequence), 0) AS latest_sequence
              FROM world_events WHERE expedition_id = ?`,
         )
-        .get(expeditionId),
+        .get(selectedExpeditionId),
       'event diagnostics',
     );
     const checkpointRow = asRecord(
@@ -356,7 +423,7 @@ export class SqliteWorkspaceStore implements WorkspaceStore {
           `SELECT COUNT(*) AS checkpoint_count, MAX(sequence) AS latest_checkpoint_sequence
              FROM world_checkpoints WHERE expedition_id = ?`,
         )
-        .get(expeditionId),
+        .get(selectedExpeditionId),
       'checkpoint diagnostics',
     );
     const latestCheckpoint = checkpointRow['latest_checkpoint_sequence'];
@@ -377,6 +444,7 @@ export class SqliteWorkspaceStore implements WorkspaceStore {
   close(): void {
     if (this.#closed) return;
     this.#database.close();
+    this.#openedExpeditionIds.clear();
     this.#closed = true;
   }
 
@@ -457,7 +525,7 @@ export class SqliteWorkspaceStore implements WorkspaceStore {
         .prepare(
           `UPDATE expeditions
               SET scenario_id = ?, scenario_version = ?, definition_schema_version = ?,
-                  definition_hash = ?, definition_json = ?
+                  definition_hash = ?, definition_json = ?, current_status = ?
             WHERE expedition_id = ? AND definition_json IS NULL`,
         )
         .run(
@@ -466,6 +534,7 @@ export class SqliteWorkspaceStore implements WorkspaceStore {
           definition.definitionSchemaVersion,
           request.definitionHash,
           JSON.stringify(definition),
+          definition.fixture.expedition.status,
           expeditionId,
         );
       return;
@@ -479,6 +548,11 @@ export class SqliteWorkspaceStore implements WorkspaceStore {
       throw new WorkspaceSchemaError(
         `Stored expedition ${expeditionId} was created from a different immutable scenario definition.`,
       );
+    }
+    if (!existing.current_status) {
+      this.#database
+        .prepare('UPDATE expeditions SET current_status = ? WHERE expedition_id = ?')
+        .run(stored.definition.fixture.expedition.status, expeditionId);
     }
   }
 
@@ -603,6 +677,38 @@ export class SqliteWorkspaceStore implements WorkspaceStore {
       );
   }
 
+  #insertCreationReceipt(receipt: StoredExpeditionCreationReceipt): void {
+    const expedition = this.#expeditionRow(receipt.expeditionId);
+    const stored = expedition
+      ? this.#storedDefinitionFromRow(receipt.expeditionId, expedition)
+      : undefined;
+    if (
+      !stored ||
+      stored.definition.scenario.id !== receipt.scenarioId ||
+      stored.definition.scenario.version !== receipt.scenarioVersion
+    ) {
+      throw new WorkspacePersistenceError(
+        `Creation receipt ${receipt.idempotencyKey} does not match expedition ${receipt.expeditionId}.`,
+      );
+    }
+    this.#database
+      .prepare(
+        `INSERT INTO expedition_creation_receipts
+          (idempotency_key, request_hash, scenario_id, scenario_version,
+           expedition_id, created_at, result_json)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        receipt.idempotencyKey,
+        receipt.requestHash,
+        receipt.scenarioId,
+        receipt.scenarioVersion,
+        receipt.expeditionId,
+        receipt.createdAt,
+        JSON.stringify(receipt.result),
+      );
+  }
+
   #insertCheckpoint(input: WorkspaceCheckpointInput): void {
     const expedition = this.#expeditionRow(input.expeditionId);
     if (!expedition || input.sequence > expedition.latest_sequence) {
@@ -663,7 +769,7 @@ export class SqliteWorkspaceStore implements WorkspaceStore {
       .prepare(
         `SELECT fixture_seed, fixture_hash, created_at, latest_sequence,
                 scenario_id, scenario_version, definition_schema_version,
-                definition_hash, definition_json
+                definition_hash, definition_json, current_status
            FROM expeditions WHERE expedition_id = ?`,
       )
       .get(expeditionId);
@@ -678,6 +784,7 @@ export class SqliteWorkspaceStore implements WorkspaceStore {
     );
     const definitionHash = optionalStringField(row, 'definition_hash', 'expedition');
     const definitionJson = optionalStringField(row, 'definition_json', 'expedition');
+    const currentStatus = optionalExpeditionStatusField(row, 'current_status', 'expedition');
     return {
       fixture_seed: stringField(row, 'fixture_seed', 'expedition'),
       fixture_hash: stringField(row, 'fixture_hash', 'expedition'),
@@ -690,6 +797,7 @@ export class SqliteWorkspaceStore implements WorkspaceStore {
         : { definition_schema_version: definitionSchemaVersion }),
       ...(definitionHash ? { definition_hash: definitionHash } : {}),
       ...(definitionJson ? { definition_json: definitionJson } : {}),
+      ...(currentStatus ? { current_status: currentStatus } : {}),
     };
   }
 
@@ -711,7 +819,7 @@ export class SqliteWorkspaceStore implements WorkspaceStore {
 
   #assertExpedition(expeditionId: string): void {
     this.#assertOpen();
-    if (this.#expeditionId !== expeditionId) {
+    if (!this.#openedExpeditionIds.has(expeditionId)) {
       throw new WorkspacePersistenceError(
         `Workspace store is not open for expedition ${expeditionId}.`,
       );
