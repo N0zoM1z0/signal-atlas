@@ -3469,6 +3469,10 @@ kbd {
   margin-top: var(--sa-spacing-2);
 }
 
+.atlas-draft-form fieldset {
+  display: contents;
+}
+
 .atlas-draft-form label {
   display: grid;
   min-width: 0;
@@ -3499,18 +3503,21 @@ kbd {
   grid-column: 1 / -1;
 }
 
-.atlas-draft-form > p {
+.atlas-draft-form > p,
+.atlas-draft-form fieldset > p {
   align-self: center;
   grid-column: 1 / 3;
   color: var(--sa-color-window-gold);
   font-size: 9px;
 }
 
-.atlas-draft-form > p[data-ready='true'] {
+.atlas-draft-form > p[data-ready='true'],
+.atlas-draft-form fieldset > p[data-ready='true'] {
   color: var(--sa-color-moss-signal);
 }
 
-.atlas-draft-form > .atlas-command-error {
+.atlas-draft-form > .atlas-command-error,
+.atlas-draft-form fieldset > .atlas-command-error {
   grid-column: 1 / -1;
   color: var(--sa-color-alert-coral);
 }

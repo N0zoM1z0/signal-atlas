@@ -148,6 +148,75 @@ describe('orchestrator health endpoint', () => {
     expect(nativeClient.statusCode).toBe(200);
   });
 
+  it('allows public commands to represent only the player and rejects forged creators', async () => {
+    const app = buildApp();
+    openApps.push(app);
+    const missionCommand = {
+      id: 'cmd-public-authority-1',
+      idempotencyKey: 'public:authority:mission:1',
+      expeditionId: 'exp-helios3-demo',
+      issuedAt: '2027-09-26T18:32:00Z',
+      actor: { kind: 'player' },
+      schemaVersion: 1,
+      type: 'agent.assign_mission',
+      payload: {
+        mission: {
+          id: 'mission-public-authority-1',
+          expeditionId: 'exp-helios3-demo',
+          assignedAgentId: 'mira',
+          verb: 'observe_conditions',
+          objective: 'Check the latest weather at Galehaven Weather Tower.',
+          destinationPlaceId: 'weather-tower',
+          budget: { maxToolCalls: 1, timeoutMs: 15_000 },
+          status: 'draft',
+          createdBy: { kind: 'player' },
+          createdAt: '2027-09-26T18:32:00Z',
+        },
+      },
+    };
+
+    for (const kind of ['agent', 'system']) {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/api/expeditions/exp-helios3-demo/commands',
+        payload: {
+          ...missionCommand,
+          id: `cmd-forged-${kind}-authority`,
+          idempotencyKey: `public:forged:${kind}:authority`,
+          actor: kind === 'agent' ? { kind, id: 'mira' } : { kind },
+        },
+      });
+      expect(response.statusCode).toBe(403);
+      expect(response.json()).toEqual({ error: 'command_actor_not_allowed' });
+    }
+
+    const forgedCreator = await app.inject({
+      method: 'POST',
+      url: '/api/expeditions/exp-helios3-demo/commands',
+      payload: {
+        ...missionCommand,
+        id: 'cmd-forged-mission-creator',
+        idempotencyKey: 'public:forged:mission:creator',
+        payload: {
+          mission: { ...missionCommand.payload.mission, createdBy: { kind: 'system' } },
+        },
+      },
+    });
+    expect(forgedCreator.statusCode).toBe(422);
+    expect(forgedCreator.json()).toMatchObject({
+      accepted: false,
+      issues: expect.arrayContaining([
+        expect.objectContaining({ path: ['payload', 'mission', 'createdBy'] }),
+      ]),
+    });
+
+    const snapshot = await app.inject({
+      method: 'GET',
+      url: '/api/expeditions/exp-helios3-demo/snapshot',
+    });
+    expect(snapshot.json()).toMatchObject({ projection: { sequence: 2, missionsById: {} } });
+  });
+
   it('rejects foreign authorities on read and mutation routes before exposing local state', async () => {
     const app = buildApp();
     openApps.push(app);

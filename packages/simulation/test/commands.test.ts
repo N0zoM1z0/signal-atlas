@@ -201,6 +201,86 @@ describe('pure command validation', () => {
       accepted: false,
       issues: expect.arrayContaining([expect.objectContaining({ code: 'missing_reference' })]),
     });
+
+    const forgedCreator = structuredClone(command);
+    forgedCreator.payload.mission.createdBy = { kind: 'system' } as never;
+    expect(validateWorldCommand(forgedCreator, state)).toMatchObject({
+      accepted: false,
+      issues: expect.arrayContaining([
+        expect.objectContaining({
+          code: 'invalid_reference',
+          path: ['payload', 'mission', 'createdBy'],
+        }),
+      ]),
+    });
+  });
+
+  it('rejects every new command after expedition finality', () => {
+    const state = replayFixture(fixture).projection;
+    state.expedition.status = 'resolved';
+    state.market.status = 'resolved';
+    const commands = [
+      {
+        ...baseCommand,
+        id: 'cmd-final-mission',
+        idempotencyKey: 'final:mission:0001',
+        type: 'agent.assign_mission',
+        payload: {
+          mission: {
+            id: 'mission-after-finality',
+            expeditionId: fixture.expedition.id,
+            assignedAgentId: 'mira',
+            verb: 'observe_conditions',
+            objective: 'This research must not start after resolution.',
+            destinationPlaceId: 'weather-tower',
+            budget: { maxToolCalls: 1, timeoutMs: 15_000 },
+            status: 'draft',
+            createdBy: { kind: 'player' },
+            createdAt: baseCommand.issuedAt,
+          },
+        },
+      },
+      {
+        ...baseCommand,
+        id: 'cmd-final-meeting',
+        idempotencyKey: 'final:meeting:0001',
+        type: 'meeting.request',
+        payload: {
+          meetingId: 'meeting-after-finality',
+          placeId: 'square',
+          participantAgentIds: ['mira', 'orin'],
+        },
+      },
+      {
+        ...baseCommand,
+        id: 'cmd-final-professor',
+        idempotencyKey: 'final:professor:0001',
+        type: 'professor.query',
+        payload: {
+          query: {
+            id: 'query-after-finality',
+            expeditionId: fixture.expedition.id,
+            mode: 'missing_evidence',
+            question: 'Can final history still be rewritten?',
+            selectedSourceIds: [],
+            selectedSignalIds: [],
+            createdAt: baseCommand.issuedAt,
+          },
+        },
+      },
+    ];
+
+    for (const command of commands) {
+      expect(validateWorldCommand(command, state)).toMatchObject({
+        accepted: false,
+        issues: expect.arrayContaining([
+          expect.objectContaining({
+            code: 'invalid_state',
+            message: 'Cannot append commands after the expedition is resolved.',
+          }),
+        ]),
+      });
+    }
   });
 
   it('rejects duplicate meeting participants', () => {
@@ -279,6 +359,23 @@ describe('pure command validation', () => {
     };
 
     expect(validateWorldCommand(hold, state)).toMatchObject({ accepted: true });
+    expect(
+      validateWorldCommand(
+        {
+          ...hold,
+          id: 'cmd-forged-team-forecast',
+          idempotencyKey: 'forecast:forged:team:1',
+          actor: { kind: 'system' },
+          payload: { commit: { ...hold.payload.commit, actor: { kind: 'team' } } },
+        },
+        state,
+      ),
+    ).toMatchObject({
+      accepted: false,
+      issues: expect.arrayContaining([
+        expect.objectContaining({ path: ['payload', 'commit', 'actor'] }),
+      ]),
+    });
     expect(
       validateWorldCommand(
         {

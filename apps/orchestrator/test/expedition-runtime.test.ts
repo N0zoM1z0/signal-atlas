@@ -751,6 +751,62 @@ describe('ExpeditionRuntime commands', () => {
     expect(runtime.snapshot().market.status).toBe('open');
   });
 
+  it('keeps sequence and hash final after fixture resolution', () => {
+    const runtime = new ExpeditionRuntime(createHelios3ExpeditionFixture());
+    runtime.resolveFromFixture();
+    const before = runtime.replayAt(runtime.snapshot().sequence);
+    const commands = [
+      assignmentCommand({
+        id: 'cmd-after-resolution',
+        idempotencyKey: 'mission:after:resolution:1',
+      }),
+      {
+        id: 'cmd-meeting-after-resolution',
+        idempotencyKey: 'meeting:after:resolution:1',
+        expeditionId: 'exp-helios3-demo',
+        issuedAt,
+        actor: { kind: 'player' },
+        schemaVersion: 1,
+        type: 'meeting.request',
+        payload: {
+          meetingId: 'meeting-after-resolution',
+          placeId: 'square',
+          participantAgentIds: ['mira', 'orin'],
+        },
+      },
+      {
+        id: 'cmd-professor-after-resolution',
+        idempotencyKey: 'professor:after:resolution:1',
+        expeditionId: 'exp-helios3-demo',
+        issuedAt,
+        actor: { kind: 'player' },
+        schemaVersion: 1,
+        type: 'professor.query',
+        payload: {
+          query: {
+            id: 'query-after-resolution',
+            expeditionId: 'exp-helios3-demo',
+            mode: 'missing_evidence',
+            question: 'Can final history still be rewritten?',
+            selectedSourceIds: [],
+            selectedSignalIds: [],
+            createdAt: issuedAt,
+          },
+        },
+      },
+    ];
+
+    for (const command of commands) {
+      expect(runtime.submit(command)).toMatchObject({
+        accepted: false,
+        issues: expect.arrayContaining([expect.objectContaining({ code: 'invalid_state' })]),
+      });
+    }
+    const after = runtime.replayAt(runtime.snapshot().sequence);
+    expect(after.sequence).toBe(before.sequence);
+    expect(after.hash).toBe(before.hash);
+  });
+
   it.each(['timeout', 'invalid_result'] as const)(
     'records a recoverable %s failure and completes a later successful retry',
     (scenario) => {

@@ -62,6 +62,13 @@ function sameProbabilities(
   );
 }
 
+function sameActor(
+  left: { kind: string; id?: string | undefined },
+  right: { kind: string; id?: string | undefined },
+): boolean {
+  return left.kind === right.kind && left.id === right.id;
+}
+
 function unknownCommand(command: never): never {
   throw new Error(`Unhandled command type: ${(command as { type: string }).type}.`);
 }
@@ -111,6 +118,14 @@ export function validateWorldCommand(
       'idempotency_conflict',
       ['idempotencyKey'],
       `Idempotency key is already bound to command ${existingCommand.commandId} with different content.`,
+    );
+  }
+
+  if (['resolved', 'archived'].includes(state.expedition.status)) {
+    addIssue(
+      'invalid_state',
+      ['type'],
+      `Cannot append commands after the expedition is ${state.expedition.status}.`,
     );
   }
 
@@ -172,6 +187,13 @@ export function validateWorldCommand(
       break;
     case 'agent.assign_mission': {
       const mission = command.payload.mission;
+      if (!sameActor(mission.createdBy, command.actor)) {
+        addIssue(
+          'invalid_reference',
+          ['payload', 'mission', 'createdBy'],
+          'Mission creator must match the submitting command actor.',
+        );
+      }
       if (hasOwnEntry(state.missionsById, mission.id)) {
         addIssue(
           'invalid_reference',
@@ -460,10 +482,7 @@ export function validateWorldCommand(
           'A forecast revision requires at least one linked signal.',
         );
       }
-      if (
-        (command.actor.kind === 'agent' || command.actor.kind === 'player') &&
-        (commit.actor.kind !== command.actor.kind || commit.actor.id !== command.actor.id)
-      ) {
+      if (!sameActor(commit.actor, command.actor)) {
         addIssue(
           'invalid_reference',
           ['payload', 'commit', 'actor'],

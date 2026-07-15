@@ -12,6 +12,7 @@ export interface CommandTrayProps {
   agents: readonly ShellAgent[];
   busy: boolean;
   command: string;
+  disabledReason?: string;
   draft: MissionDraft | undefined;
   error: string | undefined;
   expanded: boolean;
@@ -59,6 +60,7 @@ export function CommandTray({
   agents,
   busy,
   command,
+  disabledReason,
   draft,
   error,
   expanded,
@@ -121,13 +123,17 @@ export function CommandTray({
         <span aria-hidden="true">›</span>
         <input
           autoComplete="off"
+          disabled={Boolean(disabledReason)}
           id="atlas-command-input"
           onChange={(event) => onCommandChange(event.target.value)}
           placeholder={`Give ${selectedAgent.name} a research objective…`}
           ref={inputRef}
           value={command}
         />
-        <button disabled={busy || command.trim().length === 0} type="submit">
+        <button
+          disabled={Boolean(disabledReason) || busy || command.trim().length === 0}
+          type="submit"
+        >
           {busy ? 'Reading…' : 'Dispatch'} <kbd>↵</kbd>
         </button>
       </form>
@@ -135,7 +141,12 @@ export function CommandTray({
       <div className="atlas-command-suggestions" aria-label="Suggested commands">
         <small>Suggested</small>
         {suggestions.map((suggestion) => (
-          <button key={suggestion} onClick={() => onCommandChange(suggestion)} type="button">
+          <button
+            disabled={Boolean(disabledReason)}
+            key={suggestion}
+            onClick={() => onCommandChange(suggestion)}
+            type="button"
+          >
             {suggestion}
           </button>
         ))}
@@ -155,7 +166,7 @@ export function CommandTray({
 
       <div className="atlas-command-status">
         <i aria-hidden="true" />
-        <small>World live</small>
+        <small>{disabledReason ?? 'World live'}</small>
         <strong>SEQ {String(sequence).padStart(2, '0')}</strong>
       </div>
 
@@ -168,7 +179,12 @@ export function CommandTray({
                 <h2 id="queue-heading">{draft ? 'Mission draft' : 'Mission queue'}</h2>
               </div>
               {!draft && (
-                <button className="atlas-secondary-action" onClick={onDirectDraft} type="button">
+                <button
+                  className="atlas-secondary-action"
+                  disabled={Boolean(disabledReason)}
+                  onClick={onDirectDraft}
+                  type="button"
+                >
                   Build mission
                 </button>
               )}
@@ -182,88 +198,92 @@ export function CommandTray({
                   if (draftReady) onConfirmDraft();
                 }}
               >
-                <label>
-                  Agent
-                  <select
-                    aria-label="Mission agent"
-                    onChange={(event) =>
-                      onDraftChange({ assignedAgentId: event.target.value || undefined })
-                    }
-                    value={draft.assignedAgentId ?? ''}
-                  >
-                    <option value="">Choose an agent</option>
-                    {agents.map((agent) => (
-                      <option key={agent.id} value={agent.id}>
-                        {agent.name} · {agent.role}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  Destination
-                  <select
-                    aria-label="Mission destination"
-                    onChange={(event) => {
-                      const place = places.find((candidate) => candidate.id === event.target.value);
-                      const nextVerb = place?.missionVerbs.includes(draft.verb as MissionVerb)
-                        ? draft.verb
-                        : undefined;
-                      onDraftChange({
-                        destinationPlaceId: event.target.value || undefined,
-                        verb: nextVerb,
-                      });
-                    }}
-                    value={draft.destinationPlaceId ?? ''}
-                  >
-                    <option value="">Choose a place</option>
-                    {places.map((place) => (
-                      <option key={place.id} value={place.id}>
-                        {place.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  Mission type
-                  <select
-                    aria-label="Mission type"
-                    disabled={!selectedPlace}
-                    onChange={(event) =>
-                      onDraftChange({ verb: (event.target.value || undefined) as MissionVerb })
-                    }
-                    value={draft.verb ?? ''}
-                  >
-                    <option value="">Choose an action</option>
-                    {supportedVerbs.map((verb) => (
-                      <option key={verb} value={verb}>
-                        {sentenceCase(verb)}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="atlas-draft-objective">
-                  Objective
-                  <input
-                    aria-label="Mission objective"
-                    onChange={(event) => onDraftChange({ objective: event.target.value })}
-                    value={draft.objective}
-                  />
-                </label>
-                <p data-ready={draftReady} role="status">
-                  {draftReady
-                    ? 'Ready to append validated mission events.'
-                    : draft.explanation ||
-                      'Resolve the highlighted mission fields before confirming.'}
-                </p>
-                {error && <p className="atlas-command-error">{error}</p>}
-                <div className="atlas-draft-actions">
-                  <button onClick={onCancelDraft} type="button">
-                    Keep editing later
-                  </button>
-                  <button disabled={!draftReady || busy} type="submit">
-                    {busy ? 'Submitting…' : 'Confirm mission'}
-                  </button>
-                </div>
+                <fieldset disabled={Boolean(disabledReason)}>
+                  <label>
+                    Agent
+                    <select
+                      aria-label="Mission agent"
+                      onChange={(event) =>
+                        onDraftChange({ assignedAgentId: event.target.value || undefined })
+                      }
+                      value={draft.assignedAgentId ?? ''}
+                    >
+                      <option value="">Choose an agent</option>
+                      {agents.map((agent) => (
+                        <option key={agent.id} value={agent.id}>
+                          {agent.name} · {agent.role}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    Destination
+                    <select
+                      aria-label="Mission destination"
+                      onChange={(event) => {
+                        const place = places.find(
+                          (candidate) => candidate.id === event.target.value,
+                        );
+                        const nextVerb = place?.missionVerbs.includes(draft.verb as MissionVerb)
+                          ? draft.verb
+                          : undefined;
+                        onDraftChange({
+                          destinationPlaceId: event.target.value || undefined,
+                          verb: nextVerb,
+                        });
+                      }}
+                      value={draft.destinationPlaceId ?? ''}
+                    >
+                      <option value="">Choose a place</option>
+                      {places.map((place) => (
+                        <option key={place.id} value={place.id}>
+                          {place.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    Mission type
+                    <select
+                      aria-label="Mission type"
+                      disabled={!selectedPlace}
+                      onChange={(event) =>
+                        onDraftChange({ verb: (event.target.value || undefined) as MissionVerb })
+                      }
+                      value={draft.verb ?? ''}
+                    >
+                      <option value="">Choose an action</option>
+                      {supportedVerbs.map((verb) => (
+                        <option key={verb} value={verb}>
+                          {sentenceCase(verb)}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="atlas-draft-objective">
+                    Objective
+                    <input
+                      aria-label="Mission objective"
+                      onChange={(event) => onDraftChange({ objective: event.target.value })}
+                      value={draft.objective}
+                    />
+                  </label>
+                  <p data-ready={draftReady} role="status">
+                    {draftReady
+                      ? 'Ready to append validated mission events.'
+                      : draft.explanation ||
+                        'Resolve the highlighted mission fields before confirming.'}
+                  </p>
+                  {error && <p className="atlas-command-error">{error}</p>}
+                  <div className="atlas-draft-actions">
+                    <button onClick={onCancelDraft} type="button">
+                      Keep editing later
+                    </button>
+                    <button disabled={!draftReady || busy} type="submit">
+                      {busy ? 'Submitting…' : 'Confirm mission'}
+                    </button>
+                  </div>
+                </fieldset>
               </form>
             ) : (
               <p>
@@ -285,7 +305,7 @@ export function CommandTray({
                 Offline result
                 <select
                   aria-label="Offline mission result"
-                  disabled={busy}
+                  disabled={Boolean(disabledReason) || busy}
                   onChange={(event) =>
                     onScenarioChange(event.target.value as FixtureMissionScenario)
                   }
@@ -327,7 +347,12 @@ export function CommandTray({
                       <span className="atlas-queue-actions">
                         <button
                           aria-label={`Move ${mission.objective} earlier`}
-                          disabled={busy || mission.status !== 'queued' || agentIndex <= 0}
+                          disabled={
+                            Boolean(disabledReason) ||
+                            busy ||
+                            mission.status !== 'queued' ||
+                            agentIndex <= 0
+                          }
                           onClick={() => onMoveMission(mission.id, -1)}
                           type="button"
                         >
@@ -336,6 +361,7 @@ export function CommandTray({
                         <button
                           aria-label={`Move ${mission.objective} later`}
                           disabled={
+                            Boolean(disabledReason) ||
                             busy ||
                             mission.status !== 'queued' ||
                             agentIndex === agentMissions.length - 1
@@ -348,7 +374,7 @@ export function CommandTray({
                         {mission.status === 'failed' && mission.failedTurnId ? (
                           <button
                             aria-label={`Retry ${mission.objective}`}
-                            disabled={busy}
+                            disabled={Boolean(disabledReason) || busy}
                             onClick={() => onRetryMission(mission)}
                             type="button"
                           >
@@ -357,7 +383,7 @@ export function CommandTray({
                         ) : (
                           <button
                             aria-label={`Cancel ${mission.objective}`}
-                            disabled={busy}
+                            disabled={Boolean(disabledReason) || busy}
                             onClick={() => onCancelMission(mission.id)}
                             type="button"
                           >

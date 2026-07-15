@@ -103,6 +103,14 @@ function statusForRejectedCommand(issues: readonly { code: string }[]): number {
   return issues.some((issue) => issue.code === 'idempotency_conflict') ? 409 : 422;
 }
 
+function hasDisallowedPublicCommandActor(input: unknown): boolean {
+  if (input === null || typeof input !== 'object' || Array.isArray(input)) return false;
+  const actor = (input as Record<string, unknown>)['actor'];
+  if (actor === null || typeof actor !== 'object' || Array.isArray(actor)) return false;
+  const record = actor as Record<string, unknown>;
+  return record['kind'] !== 'player' || record['id'] !== undefined;
+}
+
 export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   const app = Fastify({
     logger:
@@ -414,6 +422,9 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
     async (request, reply) => {
       if (request.params.id !== runtime.expeditionId) {
         return reply.code(404).send({ error: 'expedition_not_found' });
+      }
+      if (hasDisallowedPublicCommandActor(request.body)) {
+        return reply.code(403).send({ error: 'command_actor_not_allowed' });
       }
       const result = runtime.submit(request.body);
       if (!result.accepted) {

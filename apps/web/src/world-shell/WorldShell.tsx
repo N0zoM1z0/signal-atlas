@@ -1020,6 +1020,9 @@ export function WorldShell() {
   const resolvedOutcomeLabel = projection.market.outcomes.find(
     (outcome) => outcome.id === projection.market.resolvedOutcomeId,
   )?.shortLabel;
+  const commandDisabledReason = ['resolved', 'archived'].includes(projection.expedition.status)
+    ? `Expedition ${projection.expedition.status}; commands are closed.`
+    : undefined;
 
   return (
     <div
@@ -1268,6 +1271,7 @@ export function WorldShell() {
         agents={model.agents}
         busy={commandBusy}
         command={command}
+        {...(commandDisabledReason ? { disabledReason: commandDisabledReason } : {})}
         draft={missionDraft}
         error={commandError}
         expanded={trayExpanded}
