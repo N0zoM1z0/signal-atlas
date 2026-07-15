@@ -47,11 +47,15 @@ function nonEmptyString(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim().length > 0 ? value.trim() : undefined;
 }
 
-/** Resolve the explicit real-world proxy mapping authored on the weather-tower binding. */
+/** Resolve the explicit real-world proxy mapping authored on a local-conditions binding. */
 export function resolvePrefWeatherProxyConfiguration(
   fixture: ExpeditionFixture,
 ): PrefWeatherProxyConfiguration {
-  const place = fixture.worldManifest.places.find((candidate) => candidate.id === 'weather-tower');
+  const place = fixture.worldManifest.places.find((candidate) =>
+    candidate.capabilityBindings.some(
+      (binding) => binding.canonicalCapability === 'local_conditions',
+    ),
+  );
   const binding = place?.capabilityBindings.find(
     (candidate) => candidate.canonicalCapability === 'local_conditions',
   );
@@ -151,7 +155,7 @@ function materializeLiveWeatherTurn(
     extractor: { kind: 'agent', id: input.agentId },
     qualifiers: [
       `real-world proxy for ${proxy.fictionalPlaceName}`,
-      'not an observation of fictional Galehaven or Helios-3',
+      `not a direct observation of the scenario market: ${fixture.market.question}`,
       'context only; no directional market inference',
       `provider retrieved at ${evidence.providerRetrievedAt}`,
       cacheQualifier,
@@ -170,14 +174,14 @@ function materializeLiveWeatherTurn(
     headline: `${stale ? 'Stale cached proxy weather' : 'Live proxy weather'} — ${evidence.weatherDescription}`,
     summary: `${
       stale ? 'This cached observation is stale. ' : ''
-    }Real-world ${proxy.displayLabel} context only; it does not measure fictional Galehaven and supports neither market outcome.`,
+    }Real-world ${proxy.displayLabel} context only; it does not directly observe the authored scenario and supports neither market outcome.`,
     direction: 'context',
     impact: { label: 'unknown' },
     reliability: {
       label: 'unverified',
       reasons: [
         'The payload matched the approved Preference weather contract.',
-        'The observation is for a disclosed real-world proxy, not fictional Galehaven.',
+        `The observation is for a disclosed real-world proxy, not ${proxy.fictionalPlaceName} itself.`,
         ...(stale
           ? ['The live provider was unavailable, so the last validated result was reused.']
           : []),
@@ -191,8 +195,8 @@ function materializeLiveWeatherTurn(
     status: state.status,
   });
   const dialogue = stale
-    ? `I could only recover a stale cached observation for the ${proxy.displayLabel}. It is real-world proxy context, not Galehaven evidence, so I made no market-direction claim.`
-    : `I checked the ${proxy.displayLabel}: ${conditionsSentence(evidence)}. This is a disclosed real-world proxy, not Galehaven evidence, so it carries no market direction or probability impact.`;
+    ? `I could only recover a stale cached observation for the ${proxy.displayLabel}. It is real-world proxy context, not direct evidence from ${proxy.fictionalPlaceName}, so I made no market-direction claim.`
+    : `I checked the ${proxy.displayLabel}: ${conditionsSentence(evidence)}. This is a disclosed real-world proxy, not direct evidence from ${proxy.fictionalPlaceName}, so it carries no market direction or probability impact.`;
   const output: AgentTurnOutput = AgentTurnOutputSchema.parse({
     schemaVersion: 1,
     agentId: input.agentId,
@@ -218,13 +222,13 @@ function materializeLiveWeatherTurn(
       },
     ],
     rationale:
-      'Recorded the validated live weather result as disclosed proxy context without changing the fictional market forecast.',
+      'Recorded the validated live conditions result as disclosed proxy context without changing the scenario forecast.',
     assumptions: [
       `${proxy.displayLabel} is configured only as an interface-testing proxy for ${proxy.fictionalPlaceName}.`,
     ],
     unknowns: [
-      'Actual conditions at fictional Galehaven remain unknown.',
-      'This real-world observation establishes no direction or probability impact for Helios-3.',
+      `Actual conditions at ${proxy.fictionalPlaceName} remain unknown.`,
+      `This real-world observation establishes no direction or probability impact for "${fixture.market.question}".`,
     ],
   });
   return {

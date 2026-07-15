@@ -3,7 +3,13 @@ import { join } from 'node:path';
 
 import agentTurnOutputSchema from '../../../schemas/agent-turn-output.codex.schema.json' with { type: 'json' };
 
-import type { AgentTurnInput, AgentTurnOutput, ExpeditionFixture } from '@signal-atlas/contracts';
+import {
+  binaryMarketOutcomes,
+  type AgentTurnInput,
+  type AgentTurnOutput,
+  type ExpeditionFixture,
+  type Market,
+} from '@signal-atlas/contracts';
 import {
   buildKnowledgePacket,
   CodexUnavailableFallbackDriver,
@@ -39,6 +45,35 @@ export interface CreateConfiguredMissionDriverOptions {
   processRunner?: CodexProcessRunner;
   isAvailable?: (executable: string, environment: NodeJS.ProcessEnv) => boolean;
   sessionRegistry?: AgentSessionRegistry;
+}
+
+function schemaRecord(value: unknown, context: string): Record<string, unknown> {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error(`The Codex output schema is missing ${context}.`);
+  }
+  return value as Record<string, unknown>;
+}
+
+/** Create a strict binary transport schema using the market's exact authored outcome IDs. */
+export function codexAgentTurnOutputSchemaForMarket(market: Market): Record<string, unknown> {
+  const schema = structuredClone(agentTurnOutputSchema) as Record<string, unknown>;
+  const definitions = schemaRecord(schema['$defs'], '$defs');
+  const distribution = schemaRecord(
+    definitions['probabilityDistribution'],
+    '$defs.probabilityDistribution',
+  );
+  const uncertainty = schemaRecord(definitions['uncertainty'], '$defs.uncertainty');
+  const { primary, secondary } = binaryMarketOutcomes(market);
+  const outcomeIds = [primary.id, secondary.id];
+  distribution['properties'] = Object.fromEntries(
+    outcomeIds.map((outcomeId) => [outcomeId, { $ref: '#/$defs/probability' }]),
+  );
+  distribution['required'] = outcomeIds;
+  uncertainty['properties'] = Object.fromEntries(
+    outcomeIds.map((outcomeId) => [outcomeId, { $ref: '#/$defs/probabilityRange' }]),
+  );
+  uncertainty['required'] = outcomeIds;
+  return schema;
 }
 
 export function buildFixtureCodexPromptContext(
@@ -224,7 +259,7 @@ export function createConfiguredMissionDriver(
 
   const local = new LocalCodexExecDriver<ScriptedFixtureTurn>({
     id: 'local-codex-cli',
-    outputSchema: agentTurnOutputSchema as Record<string, unknown>,
+    outputSchema: codexAgentTurnOutputSchemaForMarket(fixture.market),
     promptContext: (input) => buildFixtureCodexPromptContext(fixture, input),
     materializeArtifacts: (input, output, metadata) =>
       materializeLocalTurn(fixture, input, output, metadata),

@@ -177,7 +177,7 @@ export function createFixtureCodexDriver(
 ): CodexDriver<AgentTurnInput, ScriptedFixtureTurn> {
   return new ScriptedCodexDriver({
     id: 'fixture-scripted-codex',
-    description: 'Deterministic Helios-3 scripted mission driver.',
+    description: 'Deterministic authored-scenario mission driver.',
     run: (input, context) => {
       if (context.signal.aborted) throw context.signal.reason;
       const turn = createScriptedFixtureTurn(fixture, {

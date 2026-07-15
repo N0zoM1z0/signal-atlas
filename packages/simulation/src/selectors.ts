@@ -1,4 +1,4 @@
-import type { Agent, AgentKnowledge, Place, Signal } from '@signal-atlas/contracts';
+import type { Agent, AgentKnowledge, Market, Place, Signal } from '@signal-atlas/contracts';
 
 import type { ForecastProjection, WorldProjection } from './state.js';
 
@@ -33,6 +33,22 @@ export function selectActiveSignals(state: WorldProjection): Signal[] {
       (left, right) =>
         right.createdAt.localeCompare(left.createdAt) || left.id.localeCompare(right.id),
     );
+}
+
+export type OutcomeRelativeSignalDirection = 'supports' | 'opposes' | 'context';
+
+/** Interpret a directional signal relative to an opaque outcome ID in the binary market. */
+export function signalDirectionRelativeToOutcome(
+  signal: Signal,
+  outcomeId: string,
+  market: Market,
+): OutcomeRelativeSignalDirection {
+  if (signal.direction === 'context' || !signal.targetOutcomeId) return 'context';
+  const outcomeIds = new Set(market.outcomes.map((outcome) => outcome.id));
+  if (!outcomeIds.has(outcomeId) || !outcomeIds.has(signal.targetOutcomeId)) return 'context';
+  const targetsOutcome = signal.targetOutcomeId === outcomeId;
+  const supportsTarget = signal.direction === 'supports_outcome';
+  return supportsTarget === targetsOutcome ? 'supports' : 'opposes';
 }
 
 export function selectKnowledgeDistribution(state: WorldProjection): AgentKnowledgeSummary[] {

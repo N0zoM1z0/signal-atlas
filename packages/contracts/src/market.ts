@@ -70,3 +70,23 @@ export const MarketSchema = z
 
 export type MarketOutcome = z.infer<typeof MarketOutcomeSchema>;
 export type Market = z.infer<typeof MarketSchema>;
+
+export interface BinaryMarketOutcomes {
+  primary: MarketOutcome;
+  secondary: MarketOutcome;
+}
+
+/**
+ * Returns the authored display order for the currently binary market contract.
+ *
+ * Outcome IDs are deliberately opaque. Callers must never assume that they are `yes` and `no`;
+ * the first outcome is the primary probability displayed by the binary forecast control.
+ */
+export function binaryMarketOutcomes(market: Market): BinaryMarketOutcomes {
+  const primary = market.outcomes[0];
+  const secondary = market.outcomes[1];
+  if (!primary || !secondary) {
+    throw new Error(`Market ${market.id} does not contain the required binary outcome pair.`);
+  }
+  return { primary, secondary };
+}

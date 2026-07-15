@@ -10,7 +10,10 @@ import { createHelios3ExpeditionFixture } from '@signal-atlas/test-fixtures';
 import { describe, expect, it } from 'vitest';
 
 import { ExpeditionRuntime } from '../src/expedition-runtime.js';
-import { createConfiguredMissionDriver } from '../src/local-fixture-codex-driver.js';
+import {
+  codexAgentTurnOutputSchemaForMarket,
+  createConfiguredMissionDriver,
+} from '../src/local-fixture-codex-driver.js';
 
 function assignmentCommand(timeoutMs = 5_000) {
   return {
@@ -136,6 +139,29 @@ async function runWeatherTurn(runtime: ExpeditionRuntime): Promise<void> {
 }
 
 describe('local Codex world integration', () => {
+  it('builds the strict transport schema from opaque authored outcome IDs', () => {
+    const fixture = createHelios3ExpeditionFixture();
+    fixture.market.outcomes = [
+      { id: 'suspended', label: 'Suspended', shortLabel: 'SUSPENDED' },
+      { id: 'operating', label: 'Operating', shortLabel: 'OPERATING' },
+    ];
+    const schema = codexAgentTurnOutputSchemaForMarket(fixture.market);
+    const definitions = schema['$defs'] as Record<string, Record<string, unknown>>;
+
+    expect(definitions['probabilityDistribution']).toMatchObject({
+      additionalProperties: false,
+      properties: { suspended: expect.any(Object), operating: expect.any(Object) },
+      required: ['suspended', 'operating'],
+    });
+    expect(definitions['uncertainty']).toMatchObject({
+      additionalProperties: false,
+      properties: { suspended: expect.any(Object), operating: expect.any(Object) },
+      required: ['suspended', 'operating'],
+    });
+    expect(JSON.stringify(schema)).not.toContain('"yes"');
+    expect(JSON.stringify(schema)).not.toContain('"no"');
+  });
+
   it('lets Mira complete a bounded fixture mission through asynchronous local Codex', async () => {
     const requests: CodexProcessRequest[] = [];
     const runtime = localRuntime([JSON.stringify(validOutput())], requests);

@@ -1,6 +1,7 @@
 import {
   AgentTurnInputSchema,
   AgentTurnOutputSchema,
+  binaryMarketOutcomes,
   parseWorldEvent,
   ProfessorResponseSchema,
   SCHEMA_VERSION,
@@ -37,6 +38,7 @@ import {
   replayFixture,
   replayWorldEventsWithHash,
   selectRoutePlan,
+  signalDirectionRelativeToOutcome,
   validateWorldCommand,
   knowledgeKey,
   projectionHash,
@@ -998,7 +1000,7 @@ export class ExpeditionRuntime {
                 signalIds: selectedSignalIds,
                 relationship: 'possibly_correlated',
                 reasons: [
-                  'The selected records describe different evidence layers but may share a crosswind-delay mechanism.',
+                  'The selected records describe different evidence layers but may share an upstream mechanism.',
                   'Distinct sources and signal IDs do not establish statistical independence.',
                 ],
                 assessedAt: occurredAt,
@@ -1442,6 +1444,15 @@ export class ExpeditionRuntime {
   }
 
   #completeMeeting(meeting: ScheduledMeeting, occurredAt: string): WorldEvent[] {
+    const { primary: primaryOutcome, secondary: secondaryOutcome } = binaryMarketOutcomes(
+      this.#projection.market,
+    );
+    const meetingPlaceName =
+      this.#projection.worldManifest.places.find((place) => place.id === meeting.placeId)?.name ??
+      meeting.placeId;
+    const professorPlaceId = this.#projection.worldManifest.places.find(
+      (place) => place.archetype === 'professor',
+    )?.id;
     const appended: WorldEvent[] = [];
     const emit = (label: string, type: WorldEvent['type'], payload: unknown) => {
       const event = this.#appendSystemEvent(
@@ -1468,13 +1479,13 @@ export class ExpeditionRuntime {
     );
     if (knowledgeSignatures.size > 1) disagreementTypes.push('evidence');
     if (availableSignalIds.length > 1) disagreementTypes.push('model');
-    const yesProbabilities = meeting.participantAgentIds.flatMap((id) => {
-      const probability = this.#projection.agentsById[id]?.belief.probabilities['yes'];
+    const primaryProbabilities = meeting.participantAgentIds.flatMap((id) => {
+      const probability = this.#projection.agentsById[id]?.belief.probabilities[primaryOutcome.id];
       return probability === undefined ? [] : [probability];
     });
     if (
-      yesProbabilities.length > 1 &&
-      Math.max(...yesProbabilities) - Math.min(...yesProbabilities) >= 0.01
+      primaryProbabilities.length > 1 &&
+      Math.max(...primaryProbabilities) - Math.min(...primaryProbabilities) >= 0.01
     ) {
       disagreementTypes.push('prior');
     }
@@ -1528,7 +1539,13 @@ export class ExpeditionRuntime {
       );
       if (learnedSignalIds.length === 0) continue;
       emit(`belief-${agentId}`, 'belief.updated', {
-        update: this.#meetingBeliefUpdate(agentId, learnedSignalIds, occurredAt, meeting.meetingId),
+        update: this.#meetingBeliefUpdate(
+          agentId,
+          learnedSignalIds,
+          occurredAt,
+          meeting.meetingId,
+          meetingPlaceName,
+        ),
       });
     }
 
@@ -1536,19 +1553,24 @@ export class ExpeditionRuntime {
       (id) => this.#projection.agentsById[id]?.displayName ?? id,
     );
     const priorRange =
-      yesProbabilities.length > 0
-        ? `${Math.round(Math.min(...yesProbabilities) * 100)}–${Math.round(
-            Math.max(...yesProbabilities) * 100,
-          )}% YES`
+      primaryProbabilities.length > 0
+        ? `${Math.round(Math.min(...primaryProbabilities) * 100)}–${Math.round(
+            Math.max(...primaryProbabilities) * 100,
+          )}% ${primaryOutcome.shortLabel}`
         : 'unrecorded';
-    const negativeSignals = availableSignalIds.filter(
-      (id) => this.#projection.signalsById[id]?.direction === 'opposes_outcome',
-    );
+    const negativeSignals = availableSignalIds.filter((id) => {
+      const signal = this.#projection.signalsById[id];
+      return (
+        signal !== undefined &&
+        signalDirectionRelativeToOutcome(signal, primaryOutcome.id, this.#projection.market) ===
+          'opposes'
+      );
+    });
     const agreements = [
       `All ${participantNames.length} participants now hold ${availableSignalIds.length} shared signal${availableSignalIds.length === 1 ? '' : 's'}.`,
       ...(negativeSignals.length > 1
         ? [
-            'Current conditions and the historical base rate both press against YES without proving NO.',
+            `Multiple evidence layers press against ${primaryOutcome.shortLabel} without proving ${secondaryOutcome.shortLabel}.`,
           ]
         : ['Evidence direction remains provisional and should not be treated as certainty.']),
     ];
@@ -1558,7 +1580,7 @@ export class ExpeditionRuntime {
         : []),
       ...(disagreementTypes.includes('model')
         ? [
-            'Model: fresh conditions and historical cases may overlap; their independence is not yet established.',
+            'Model: current and historical evidence may overlap; their independence is not yet established.',
           ]
         : []),
       ...(disagreementTypes.includes('prior')
@@ -1568,18 +1590,18 @@ export class ExpeditionRuntime {
     emit('memo', 'meeting.memo_created', {
       meetingId: meeting.meetingId,
       memo: {
-        summary: `${participantNames.join(', ')} exchanged ${availableSignalIds.length} signal${availableSignalIds.length === 1 ? '' : 's'} at Lantern Square and preserved the unresolved independence question.`,
+        summary: `${participantNames.join(', ')} exchanged ${availableSignalIds.length} signal${availableSignalIds.length === 1 ? '' : 's'} at ${meetingPlaceName} and preserved the unresolved independence question.`,
         agreements,
         disagreements,
         followUpMissionProposals: [
           {
-            agentId: meeting.participantAgentIds.includes('kestrel')
-              ? 'kestrel'
-              : meeting.participantAgentIds[0],
+            agentId:
+              meeting.participantAgentIds.find(
+                (id) => this.#projection.agentsById[id]?.role === 'skeptic',
+              ) ?? meeting.participantAgentIds[0],
             verb: 'consult_professor',
-            objective:
-              'Ask Professor Vale whether the shared weather and historical signals are independent.',
-            destinationPlaceId: 'professor',
+            objective: 'Ask the Professor whether the shared evidence signals are independent.',
+            ...(professorPlaceId ? { destinationPlaceId: professorPlaceId } : {}),
           },
         ],
       },
@@ -1593,6 +1615,7 @@ export class ExpeditionRuntime {
     signalIds: readonly string[],
     occurredAt: string,
     meetingId: string,
+    meetingPlaceName: string,
   ) {
     const agent = this.#projection.agentsById[agentId];
     if (!agent) throw new Error(`Cannot update belief for missing agent ${agentId}.`);
@@ -1625,7 +1648,7 @@ export class ExpeditionRuntime {
       newProbabilities,
       rationale: `Reassessed after learning ${signalIds
         .map((id) => this.#projection.signalsById[id]?.headline ?? id)
-        .join('; ')} at Lantern Square.`,
+        .join('; ')} at ${meetingPlaceName}.`,
       evidenceSignalIds: [...signalIds],
       assumptions: ['Shared signals remain directional evidence; independence is unreviewed.'],
       createdAt: occurredAt,
@@ -2185,7 +2208,11 @@ export class ExpeditionRuntime {
             expeditionId: this.expeditionId,
             assignedAgentId: agentId,
             verb: 'meet_agent' as const,
-            objective: 'Join the team evidence exchange at Lantern Square.',
+            objective: `Join the team evidence exchange at ${
+              this.#projection.worldManifest.places.find(
+                (place) => place.id === command.payload.placeId,
+              )?.name ?? command.payload.placeId
+            }.`,
             destinationPlaceId: command.payload.placeId,
             targetAgentIds: command.payload.participantAgentIds.filter((id) => id !== agentId),
             budget: { maxToolCalls: 0, timeoutMs: 30_000 },
@@ -2270,7 +2297,7 @@ export class ExpeditionRuntime {
                 signalIds: selectedSignalIds,
                 relationship: 'possibly_correlated',
                 reasons: [
-                  'The selected records describe different evidence layers but may share a crosswind-delay mechanism.',
+                  'The selected records describe different evidence layers but may share an upstream mechanism.',
                   'Distinct sources and signal IDs do not establish statistical independence.',
                 ],
                 assessedAt: command.issuedAt,

@@ -10,6 +10,7 @@ import {
   WorldCommandSchema,
   WorldEventSchema,
   EntityIdSchema,
+  binaryMarketOutcomes,
   type ExpeditionFixture,
   MissionSchema,
 } from '../src/index.js';
@@ -46,6 +47,25 @@ function expectIssue(
 }
 
 describe('Helios-3 expedition fixture', () => {
+  it('exposes binary outcomes by authored order without interpreting their IDs', () => {
+    const fixture = cloneFixture();
+    fixture.market.outcomes[0] = {
+      id: 'open-before-cutoff',
+      label: 'Opens before the cutoff',
+      shortLabel: 'OPEN',
+    };
+    fixture.market.outcomes[1] = {
+      id: 'stays-closed',
+      label: 'Stays closed through the cutoff',
+      shortLabel: 'CLOSED',
+    };
+
+    expect(binaryMarketOutcomes(fixture.market)).toEqual({
+      primary: fixture.market.outcomes[0],
+      secondary: fixture.market.outcomes[1],
+    });
+  });
+
   it('rejects object-prototype names at every entity identity boundary', () => {
     const reserved = [
       'constructor',

@@ -306,7 +306,7 @@ describe('Pref agent proxy driver', () => {
       sourceIdsUsed: [source.id],
       proposedSignals: [{ direction: 'context', impactLabel: 'unknown' }],
       unknowns: [
-        'Actual conditions at fictional Galehaven remain unknown.',
+        'Actual conditions at Galehaven Weather Tower remain unknown.',
         expect.stringContaining('no direction'),
       ],
     });
@@ -317,7 +317,7 @@ describe('Pref agent proxy driver', () => {
         {
           sourceIds: [source.id],
           qualifiers: expect.arrayContaining([
-            'not an observation of fictional Galehaven or Helios-3',
+            `not a direct observation of the scenario market: ${fixture.market.question}`,
             'context only; no directional market inference',
             'provider retrieved at 2026-07-14T23:27:53.000Z',
           ]),

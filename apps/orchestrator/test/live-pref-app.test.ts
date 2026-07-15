@@ -213,7 +213,7 @@ describe('recorded live Pref application mission', () => {
     );
     expect(claim).toMatchObject({
       qualifiers: expect.arrayContaining([
-        'not an observation of fictional Galehaven or Helios-3',
+        `not a direct observation of the scenario market: ${fixture.market.question}`,
         `provider retrieved at ${providerRetrievedIso}`,
       ]),
     });

@@ -1,4 +1,4 @@
-import type { MissionVerb } from '@signal-atlas/contracts';
+import type { MissionVerb, Place } from '@signal-atlas/contracts';
 import type { WorldProjection } from '@signal-atlas/simulation';
 
 export interface MissionDraftInterpretation {
@@ -13,42 +13,52 @@ export interface MissionDraftInterpretation {
   explanation: string;
 }
 
-interface MissionAliasRule {
-  placeId: string;
+interface MissionArchetypeRule {
+  archetype: Place['archetype'];
   terms: readonly string[];
   defaultVerb: MissionVerb;
 }
 
-const fixtureAliasRules: readonly MissionAliasRule[] = [
+const archetypeRules: readonly MissionArchetypeRule[] = [
   {
-    placeId: 'weather-tower',
-    terms: ['weather', 'wind', 'crosswind', 'forecast', 'advisory', 'weather tower', 'galehaven'],
+    archetype: 'weather_tower',
+    terms: ['weather', 'wind', 'forecast', 'advisory', 'conditions', 'weather tower'],
     defaultVerb: 'observe_conditions',
   },
   {
-    placeId: 'archive',
-    terms: ['archive', 'history', 'historical', 'base rate', 'prior delay', 'case file'],
+    archetype: 'archive',
+    terms: ['archive', 'history', 'historical', 'base rate', 'prior cases', 'case file'],
     defaultVerb: 'search_history',
   },
   {
-    placeId: 'newsroom',
-    terms: ['newsroom', 'news', 'operations notice', 'launch notice', 'reporting'],
+    archetype: 'newsroom',
+    terms: ['newsroom', 'news', 'notice', 'bulletin', 'reporting'],
     defaultVerb: 'verify',
   },
   {
-    placeId: 'professor',
+    archetype: 'professor',
     terms: ['professor', 'correlation', 'scholar', 'challenge evidence'],
     defaultVerb: 'consult_professor',
   },
   {
-    placeId: 'square',
-    terms: ['lantern square', 'town square', 'meeting', 'meet'],
+    archetype: 'town_square',
+    terms: ['town square', 'public square', 'meeting', 'meet', 'exchange evidence'],
     defaultVerb: 'meet_agent',
   },
   {
-    placeId: 'observatory',
+    archetype: 'observatory',
     terms: ['observatory', 'home base'],
     defaultVerb: 'reassess_forecast',
+  },
+  {
+    archetype: 'exchange',
+    terms: ['exchange', 'market board', 'market data', 'market context'],
+    defaultVerb: 'investigate',
+  },
+  {
+    archetype: 'field_site',
+    terms: ['field site', 'site visit', 'on site', 'inspection'],
+    defaultVerb: 'investigate',
   },
 ] as const;
 
@@ -95,26 +105,34 @@ export function interpretFixtureMission(
     mentionedAgentIds.length > 0 ? mentionedAgentIds : hintedAgentId ? [hintedAgentId] : [],
   );
 
-  const knownPlaceIds = new Set(projection.worldManifest.places.map((place) => place.id));
   const namedPlaceIds = projection.worldManifest.places
     .filter((place) => {
       const name = place.name.toLocaleLowerCase('en-US');
       return includesTerm(text, name) || includesTerm(text, place.id.replaceAll('-', ' '));
     })
     .map((place) => place.id);
-  const aliasedRules = fixtureAliasRules.filter(
-    (rule) =>
-      knownPlaceIds.has(rule.placeId) && rule.terms.some((term) => includesTerm(text, term)),
-  );
-  const candidatePlaceIds = unique([...namedPlaceIds, ...aliasedRules.map((rule) => rule.placeId)]);
+  const semanticPlaceIds = projection.worldManifest.places
+    .filter((place) => {
+      const rule = archetypeRules.find((candidate) => candidate.archetype === place.archetype);
+      if (!rule) return false;
+      return (
+        rule.terms.some((term) => includesTerm(text, term)) ||
+        place.tags.some((tag) => includesTerm(text, tag.toLocaleLowerCase('en-US')))
+      );
+    })
+    .map((place) => place.id);
+  const candidatePlaceIds = unique([...namedPlaceIds, ...semanticPlaceIds]);
 
   const assignedAgentId = candidateAgentIds.length === 1 ? candidateAgentIds[0] : undefined;
   const destinationPlaceId = candidatePlaceIds.length === 1 ? candidatePlaceIds[0] : undefined;
-  const destinationRule = aliasedRules.find((rule) => rule.placeId === destinationPlaceId);
-  const verb = inferVerb(text, destinationRule?.defaultVerb);
   const destination = destinationPlaceId
     ? projection.worldManifest.places.find((place) => place.id === destinationPlaceId)
     : undefined;
+  const destinationRule = destination
+    ? archetypeRules.find((rule) => rule.archetype === destination.archetype)
+    : undefined;
+  const defaultVerb = destinationRule?.defaultVerb ?? destination?.missionVerbs[0];
+  const verb = inferVerb(text, defaultVerb);
   const supportedVerb = verb && destination?.missionVerbs.includes(verb) ? verb : undefined;
 
   const missing: MissionDraftInterpretation['missing'] = [];

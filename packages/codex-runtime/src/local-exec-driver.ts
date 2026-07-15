@@ -473,15 +473,17 @@ export class LocalCodexExecDriver<TArtifacts = LocalCodexTurnMetadata> implement
 
   #runtimePaths(input: AgentTurnInput, attempt: number) {
     mkdirSync(this.#runtimeRoot, { recursive: true, mode: 0o700 });
-    const workspacePath = join(this.#runtimeRoot, `agent-${safeSegment(input.agentId)}`);
+    const expeditionPath = join(this.#runtimeRoot, `expedition-${safeSegment(input.expeditionId)}`);
+    mkdirSync(expeditionPath, { recursive: true, mode: 0o700 });
+    const workspacePath = join(expeditionPath, `agent-${safeSegment(input.agentId)}`);
     mkdirSync(workspacePath, { recursive: true, mode: 0o700 });
-    const schemaPath = join(this.#runtimeRoot, 'agent-turn-output.codex.schema.json');
+    const schemaPath = join(expeditionPath, 'agent-turn-output.codex.schema.json');
     writeFileSync(schemaPath, `${JSON.stringify(this.#outputSchema, null, 2)}\n`, {
       encoding: 'utf8',
       mode: 0o600,
     });
     const outputPath = join(
-      this.#runtimeRoot,
+      expeditionPath,
       `${safeSegment(input.turnId)}-attempt-${attempt + 1}.json`,
     );
     rmSync(outputPath, { force: true });

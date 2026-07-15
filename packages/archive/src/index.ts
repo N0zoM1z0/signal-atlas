@@ -15,6 +15,7 @@ import type {
   WorldEvent,
   WorldEventType,
 } from '@signal-atlas/contracts';
+import { binaryMarketOutcomes } from '@signal-atlas/contracts';
 
 export type ArchiveEntryKind = 'source' | 'signal' | 'memo';
 
@@ -402,6 +403,7 @@ export function createCaseFileTurningPoints(
         ];
       case 'forecast.committed': {
         const forecast = projection.forecasts.find((candidate) => candidate.eventId === event.id);
+        const primaryOutcome = binaryMarketOutcomes(projection.market).primary;
         return [
           {
             sequence: event.sequence,
@@ -409,7 +411,7 @@ export function createCaseFileTurningPoints(
             eventType: event.type,
             occurredAt: event.occurredAt,
             kind: 'forecast',
-            label: `Forecast committed · ${Math.round((event.payload.newProbabilities['yes'] ?? 0) * 100)}% yes`,
+            label: `Forecast committed · ${Math.round((event.payload.newProbabilities[primaryOutcome.id] ?? 0) * 100)}% ${primaryOutcome.shortLabel}`,
             entityType: 'forecast',
             entityId: forecast?.id ?? event.id,
           },

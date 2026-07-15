@@ -216,6 +216,11 @@ describe('LocalCodexExecDriver', () => {
     expect(requests[0]?.args).toEqual(
       expect.arrayContaining(['exec', '--sandbox', 'read-only', '--json', '--output-schema', '-o']),
     );
+    const args = requests[0]?.args ?? [];
+    const schemaPath = args[args.indexOf('--output-schema') + 1];
+    const outputPath = args[args.indexOf('-o') + 1];
+    expect(schemaPath).toContain('expedition-exp-helios3-demo');
+    expect(outputPath).toContain('expedition-exp-helios3-demo');
     expect(requests[0]?.args).not.toContain('--dangerously-bypass-approvals-and-sandbox');
     expect(requests[0]?.stdin).toContain('<UNTRUSTED_EVIDENCE_PACKET>');
     expect(requests[0]?.stdin).toContain('never reveal private reasoning');

@@ -63,7 +63,11 @@ function genericResponse(
   query: ProfessorQuery,
   evidence: SelectedEvidence,
   mode: ProfessorMode,
+  projection: WorldProjection,
 ): ProfessorResponse {
+  const newsroomPlaceId = projection.worldManifest.places.find(
+    (place) => place.archetype === 'newsroom',
+  )?.id;
   const names = evidenceNames(evidence);
   const used = evidenceUsed(evidence);
   const selectedSignalIds = evidence.signals.map((signal) => signal.id);
@@ -89,7 +93,7 @@ function genericResponse(
         return insufficientResponse(query, evidence, 'select evidence to challenge');
       return {
         ...base,
-        answer: `The strongest challenge is scope: ${names}. Reliability labels and excerpts do not guarantee that the evidence applies to the full launch window.`,
+        answer: `The strongest challenge is scope: ${names}. Reliability labels and excerpts do not guarantee that the evidence covers the full resolution rule for “${projection.market.question}”`,
         assumptions: ['Published and retrieved timestamps accurately describe freshness.'],
         limitations: [
           ...evidence.signals.map(
@@ -135,12 +139,12 @@ function genericResponse(
           ...baseRateSources.map((source) => source.title),
         ].join(
           '; ',
-        )}. Apply it only to cases comparable on vehicle, wind, and launch-window conditions.`,
-        assumptions: ['The archived cases are comparable on the mechanism relevant to delay.'],
+        )}. Apply it only to cases comparable on the mechanism and resolution rule that matter here.`,
+        assumptions: ['The archived cases are comparable on the mechanism relevant to resolution.'],
         limitations: [
-          'A mixed historical sample may not transport cleanly to the current vehicle.',
+          'A mixed historical sample may not transport cleanly to the current market question.',
         ],
-        suggestedNextQuestion: 'Which archived cases most closely match this vehicle and window?',
+        suggestedNextQuestion: 'Which archived cases most closely match this resolution rule?',
       };
     }
     case 'missing_evidence':
@@ -149,15 +153,15 @@ function genericResponse(
         answer:
           used.length === 0
             ? 'Insufficient evidence: no case-file items are selected. Start with one primary current source and one genuinely comparable historical record.'
-            : `The selection covers ${names}, but still needs a direct launch-window timing source and an independence check before a confident revision.`,
-        assumptions: ['The forecast decision depends on timing as well as evidence direction.'],
+            : `The selection covers ${names}, but still needs a direct resolution-relevant source and an independence check before a confident revision.`,
+        assumptions: ['The forecast decision depends on timing, scope, and evidence direction.'],
         limitations: ['Missing-evidence analysis cannot prove that an unavailable source exists.'],
         suggestedNextQuestion:
-          'What current operational source gives the exact launch-window timing?',
+          'What current primary source most directly addresses the resolution rule?',
         suggestedMission: {
           verb: 'verify',
-          objective: 'Check the exact launch window and latest operational weather review.',
-          destinationPlaceId: 'newsroom',
+          objective: 'Check the latest primary record that directly addresses the resolution rule.',
+          ...(newsroomPlaceId ? { destinationPlaceId: newsroomPlaceId } : {}),
         },
       };
     case 'correlation_check':
@@ -211,7 +215,9 @@ export function createScriptedProfessorResponse(
     query.mode === 'correlation_check' &&
     fixtureSignalIds.length > 0 &&
     fixtureSignalIds.every((id) => evidence.signals.some((signal) => signal.id === id));
-  if (!matchesAuthoredCorrelationCase) return genericResponse(query, evidence, query.mode);
+  if (!matchesAuthoredCorrelationCase) {
+    return genericResponse(query, evidence, query.mode, projection);
+  }
 
   const allowedSignalIds = new Set(evidence.signals.map((signal) => signal.id));
   const allowedSourceIds = new Set(evidence.sources.map((source) => source.id));
