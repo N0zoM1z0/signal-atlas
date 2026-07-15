@@ -28,7 +28,7 @@ test('a discovered signal exposes source provenance and durable case-file action
 }) => {
   const card = await discoverWeatherSignal(page);
 
-  await expect(card).toContainText('↘ NO support');
+  await expect(card).toContainText('↘ Opposes YES');
   await expect(card).toContainText('Fresh');
   await expect(card).toContainText('1 · Official Primary');
   await expect(card).toContainText('Medium · −9 to −4 pp');

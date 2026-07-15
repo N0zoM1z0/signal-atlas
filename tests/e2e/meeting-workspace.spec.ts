@@ -86,7 +86,9 @@ test('Lantern Square preserves asymmetry, shares signals, and files a skippable 
   const memo = meeting.getByRole('region', { name: 'Meeting memo' });
   await expect(memo).toContainText('Concise meeting memo');
   await expect(memo).toContainText('independence is not yet established');
-  await expect(memo).toContainText('Ask Professor Vale whether the shared weather');
+  await expect(memo).toContainText(
+    'Ask the Professor whether the shared evidence signals are independent.',
+  );
   await expect(memo).toContainText(/SEQ \d+/);
 
   await page.keyboard.press('Escape');

@@ -12,7 +12,7 @@ test.afterEach(async ({ request }) => {
 test('local Codex unavailability names the fallback boundary without changing the world', async ({
   page,
 }) => {
-  await page.route('**/api/runtime/diagnostics', async (route) => {
+  await page.route('**/api/runtime/diagnostics*', async (route) => {
     const response = await route.fetch();
     const payload = (await response.json()) as { driver: Record<string, unknown> };
     payload.driver = {

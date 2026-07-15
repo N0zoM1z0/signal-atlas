@@ -22,7 +22,10 @@ test('truthful startup, onboarding, and synthesized sound controls remain explic
   });
   const navigation = page.goto('/');
 
-  await expect(page.getByText('◌ Loading fixture')).toBeVisible();
+  await expect(page.getByRole('status')).toContainText('Opening Signal Atlas…');
+  await expect(page.getByRole('status')).toContainText(
+    'Loading the local expedition catalog and authoritative snapshot.',
+  );
   releaseSnapshot();
   await navigation;
   await expect(page.getByText('● Fixture ready')).toBeVisible();

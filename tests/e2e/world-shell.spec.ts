@@ -169,8 +169,8 @@ test('fixture, loading, and disconnected runtime states are explicit', async ({ 
   await expect(page.getByText('● Fixture ready')).toBeVisible();
 
   await page.goto('/?state=loading');
-  await expect(page.getByText('◌ Loading fixture')).toBeVisible();
-  await expect(page.getByText('Charting Meridian Coast')).toBeVisible();
+  await expect(page.getByText('◌ Loading expedition')).toBeVisible();
+  await expect(page.getByText('Charting Helios-3 Launch Window')).toBeVisible();
   await expect(page.getByRole('main', { name: 'Interactive world stage' })).toHaveAttribute(
     'aria-busy',
     'true',

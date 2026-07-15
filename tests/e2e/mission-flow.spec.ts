@@ -132,7 +132,11 @@ test('injected failures remain visible and recover through an explicit retry', a
     page.getByText('The scripted source request exceeded its injected time limit.'),
   ).toBeVisible();
   await page.getByLabel('Offline mission result').selectOption('success');
-  await page.getByRole('button', { name: /Retry Check latest weather/ }).click();
+  await page
+    .getByRole('button', {
+      name: 'Retry Check the latest evidence at Galehaven Weather Tower',
+    })
+    .click();
 
   await expect(page.getByText('Mira → Galehaven Weather Tower · running')).toBeVisible();
   await expect(
