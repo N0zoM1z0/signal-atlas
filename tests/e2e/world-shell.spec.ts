@@ -166,7 +166,7 @@ test('narrow layout exposes mutually exclusive agent and signal drawers', async 
 test('fixture, loading, and disconnected runtime states are explicit', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto('/');
-  await expect(page.getByText('● Fixture ready')).toBeVisible();
+  await expect(page.getByText('● Offline sources ready')).toBeVisible();
 
   await page.goto('/?state=loading');
   await expect(page.getByText('◌ Loading expedition')).toBeVisible();

@@ -46,7 +46,7 @@ export function ExpeditionLobby({
   scenarios,
 }: ExpeditionLobbyProps) {
   return (
-    <main className="atlas-lobby">
+    <main className="atlas-lobby" data-atlas-view="lobby" tabIndex={-1}>
       <a className="atlas-skip-link" href="#scenario-catalog">
         Skip to expedition catalog
       </a>
@@ -71,12 +71,12 @@ export function ExpeditionLobby({
             <dd>{scenarios.length}</dd>
           </div>
           <div>
-            <dt>Local expeditions</dt>
+            <dt>Saved workspaces</dt>
             <dd>{expeditions.length}</dd>
           </div>
           <div>
-            <dt>Authority</dt>
-            <dd>Append-only</dd>
+            <dt>Data boundary</dt>
+            <dd>On this device</dd>
           </div>
         </dl>
       </header>
@@ -136,14 +136,29 @@ export function ExpeditionLobby({
                       {expedition ? readableLabel(expedition.status) : 'Not started'}
                     </span>
                   </div>
-                  <h3>{scenario.title}</h3>
+                  <div className="atlas-expedition-card__title-row">
+                    <h3>{scenario.title}</h3>
+                    <button
+                      aria-label={
+                        expedition ? `Continue ${expedition.title}` : `Start ${scenario.title}`
+                      }
+                      disabled={busy || !scenario.available}
+                      onClick={() => (expedition ? onOpen(expedition.id) : onCreate(scenario))}
+                      type="button"
+                    >
+                      {busy ? 'Opening…' : expedition ? 'Continue' : 'Start'}
+                    </button>
+                  </div>
                   <p className="atlas-expedition-card__tagline">{scenario.preview.tagline}</p>
                   <p>{scenario.summary}</p>
-                  <ul aria-label={`${scenario.title} research capabilities`}>
-                    {scenario.requiredCapabilities.map((capability) => (
-                      <li key={capability}>{readableLabel(capability)}</li>
-                    ))}
-                  </ul>
+                  <details className="atlas-expedition-card__capabilities">
+                    <summary>Research sources · {scenario.requiredCapabilities.length}</summary>
+                    <ul aria-label={`${scenario.title} research capabilities`}>
+                      {scenario.requiredCapabilities.map((capability) => (
+                        <li key={capability}>{readableLabel(capability)}</li>
+                      ))}
+                    </ul>
+                  </details>
                   {expedition && (
                     <dl className="atlas-expedition-card__saved">
                       <div>
@@ -151,8 +166,8 @@ export function ExpeditionLobby({
                         <dd>{expedition.marketQuestion}</dd>
                       </div>
                       <div>
-                        <dt>Durable cursor</dt>
-                        <dd>Sequence {expedition.latestSequence}</dd>
+                        <dt>Workspace progress</dt>
+                        <dd>{expedition.latestSequence} recorded events</dd>
                       </div>
                       <div>
                         <dt>Created</dt>
@@ -168,17 +183,6 @@ export function ExpeditionLobby({
 
                 <footer>
                   <span>{scenario.availabilityReason}</span>
-                  <button
-                    disabled={busy || !scenario.available}
-                    onClick={() => (expedition ? onOpen(expedition.id) : onCreate(scenario))}
-                    type="button"
-                  >
-                    {busy
-                      ? 'Opening…'
-                      : expedition
-                        ? `Enter ${expedition.title}`
-                        : `Create ${scenario.title}`}
-                  </button>
                 </footer>
               </article>
             );

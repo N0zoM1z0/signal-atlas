@@ -82,8 +82,8 @@ export function MarketRibbon({
                       ? '△ Pref status unavailable'
                       : `△ ${prefMode === 'live' ? 'Live Pref' : 'Fixture Pref'} disconnected`
                   : prefMode === 'live'
-                    ? '● Live Pref ready'
-                    : '● Fixture ready';
+                    ? '● Live sources connected'
+                    : '● Offline sources ready';
 
   return (
     <header className="atlas-market-ribbon" aria-label="Market overview">
@@ -99,7 +99,7 @@ export function MarketRibbon({
           </span>
           <span className="atlas-brand__copy">
             <strong>Signal Atlas</strong>
-            <small>{expeditionName}</small>
+            <small>Expeditions · {expeditionName}</small>
           </span>
         </button>
       ) : (
@@ -119,15 +119,20 @@ export function MarketRibbon({
           <i className="atlas-live-dot" aria-hidden="true" /> {marketKindLabel}
         </span>
         <h1>{question}</h1>
+        <span className="atlas-market-summary">
+          Public {publicProbability}% · Team {teamProbability}% · {resolved ? 'Resolved' : 'Due'}{' '}
+          {resolvedOutcomeLabel ?? deadlineLabel} ·{' '}
+          {prefMode === 'live' && prefConnected ? 'Live sources' : 'Offline sources'}
+        </span>
       </div>
 
       <div
         className="atlas-probability"
-        aria-label={`Public ${publicProbability} percent; team ${teamProbability} percent`}
+        aria-label={`Public forecast: ${publicProbability} percent ${primaryOutcomeLabel}; team forecast: ${teamProbability} percent ${primaryOutcomeLabel}`}
         style={probabilityStyle}
       >
         <span className="atlas-probability__value atlas-probability__value--public">
-          <small>Public</small>
+          <small>Public market</small>
           <strong>{publicProbability}%</strong>
         </span>
         <span className="atlas-worldline" aria-hidden="true">
@@ -141,7 +146,7 @@ export function MarketRibbon({
           </span>
         </span>
         <span className="atlas-probability__value atlas-probability__value--team">
-          <small>Team</small>
+          <small>Team forecast</small>
           <strong>{teamProbability}%</strong>
         </span>
       </div>
@@ -188,7 +193,12 @@ export function MarketRibbon({
         >
           {speed}×
         </button>
-        <button className="atlas-mode-control" onClick={onModeChange} type="button">
+        <button
+          aria-label={`Experience mode: ${mode}`}
+          className="atlas-mode-control"
+          onClick={onModeChange}
+          type="button"
+        >
           <i aria-hidden="true" /> {mode}
         </button>
       </div>

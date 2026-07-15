@@ -73,8 +73,8 @@ describe('Signal Atlas world shell', () => {
 
     expect(markup).toContain('Signal Atlas Expeditions');
     expect(markup).toContain('Available expeditions');
-    expect(markup).toContain('Sequence 42');
-    expect(markup).toContain('Enter Helios-3 Launch Window');
+    expect(markup).toContain('42 recorded events');
+    expect(markup).toContain('Continue Helios-3 Launch Window');
     expect(markup).toContain('No real trading path is enabled.');
   });
 

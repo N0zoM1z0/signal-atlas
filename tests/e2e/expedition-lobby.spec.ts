@@ -18,13 +18,13 @@ test('the lobby opens, tears down, and deep-links one complete world at a time',
   await expect(page.getByRole('heading', { name: 'Signal Atlas Expeditions' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Helios-3 Launch Window' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Northlight Harbor Watch' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Create Northlight Harbor Watch' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Start Northlight Harbor Watch' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Northbridge Monetary Council' })).toBeVisible();
   await expect(
-    page.getByRole('button', { name: 'Create Northbridge Monetary Council' }),
+    page.getByRole('button', { name: 'Start Northbridge Monetary Council' }),
   ).toBeVisible();
-  await expect(page.getByText('Sequence 2')).toBeVisible();
-  const enterWorld = page.getByRole('button', { name: 'Enter Helios-3 Launch Window' });
+  await expect(page.getByText('2 recorded events')).toBeVisible();
+  const enterWorld = page.getByRole('button', { name: 'Continue Helios-3 Launch Window' });
   await enterWorld.focus();
   await page.keyboard.press('Enter');
 
@@ -34,11 +34,13 @@ test('the lobby opens, tears down, and deep-links one complete world at a time',
     'live',
   );
   await expect(page.locator('.atlas-world-canvas canvas')).toHaveCount(1);
+  await expect(page.getByRole('main', { name: 'Interactive world stage' })).toBeFocused();
 
   await page.getByRole('button', { name: 'Open Expedition Lobby' }).click();
   await expect(page).toHaveURL(/\/lobby$/u);
   await expect(page.locator('.signal-atlas-shell')).toHaveCount(0);
   await expect(page.locator('.atlas-world-canvas canvas')).toHaveCount(0);
+  await expect(page.getByRole('main')).toBeFocused();
 
   await page.goBack();
   await expect(page.locator('.signal-atlas-shell')).toBeVisible();

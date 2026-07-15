@@ -224,7 +224,7 @@ body {
 
 .atlas-expedition-card {
   display: grid;
-  grid-template-rows: 8.5rem 1fr auto;
+  grid-template-rows: 7.5rem 1fr auto;
   overflow: hidden;
   border: var(--sa-border-pixel) solid var(--sa-color-slate-cloud);
   border-radius: var(--sa-radius-large);
@@ -369,9 +369,32 @@ body {
 }
 
 .atlas-expedition-card h3 {
-  margin: var(--sa-spacing-3) 0 var(--sa-spacing-2);
+  margin: 0;
   font-family: var(--sa-typography-display-family);
   font-size: var(--sa-typography-size-xl);
+}
+
+.atlas-expedition-card__title-row {
+  display: grid;
+  align-items: center;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--sa-spacing-3);
+  margin-top: var(--sa-spacing-3);
+}
+
+.atlas-expedition-card__title-row button {
+  min-width: 6.5rem;
+  padding: var(--sa-spacing-2) var(--sa-spacing-3);
+  border: var(--sa-border-pixel) solid var(--sa-color-weather-cyan);
+  color: var(--sa-color-atlas-night);
+  background: var(--sa-color-weather-cyan);
+  font-family: var(--sa-typography-mono-family);
+  font-size: var(--sa-typography-size-xs);
+  font-weight: var(--sa-typography-weight-bold);
+}
+
+.atlas-expedition-card__title-row button:hover:not(:disabled) {
+  background: var(--sa-color-paper-light);
 }
 
 .atlas-expedition-card__body > p {
@@ -383,6 +406,17 @@ body {
 .atlas-expedition-card__body .atlas-expedition-card__tagline {
   margin: 0;
   color: var(--sa-color-weather-cyan);
+  font-weight: var(--sa-typography-weight-semibold);
+}
+
+.atlas-expedition-card__capabilities {
+  margin-top: var(--sa-spacing-3);
+  color: var(--sa-color-muted-steel);
+  font-size: var(--sa-typography-size-xs);
+}
+
+.atlas-expedition-card__capabilities summary {
+  cursor: pointer;
   font-weight: var(--sa-typography-weight-semibold);
 }
 
@@ -424,8 +458,6 @@ body {
 }
 
 .atlas-expedition-card footer {
-  display: grid;
-  gap: var(--sa-spacing-3);
   padding: var(--sa-spacing-3) var(--sa-spacing-4);
   border-top: var(--sa-border-hairline) solid var(--sa-color-slate-cloud);
   background: var(--sa-color-deep-ink);
@@ -435,20 +467,6 @@ body {
   color: var(--sa-color-muted-steel);
   font-size: 10px;
   line-height: var(--sa-typography-line-height-normal);
-}
-
-.atlas-expedition-card footer button {
-  padding: var(--sa-spacing-2) var(--sa-spacing-4);
-  border: var(--sa-border-pixel) solid var(--sa-color-weather-cyan);
-  color: var(--sa-color-atlas-night);
-  background: var(--sa-color-weather-cyan);
-  font-family: var(--sa-typography-mono-family);
-  font-size: var(--sa-typography-size-xs);
-  font-weight: var(--sa-typography-weight-bold);
-}
-
-.atlas-expedition-card footer button:hover:not(:disabled) {
-  background: var(--sa-color-paper-light);
 }
 
 .atlas-lobby__footer {
@@ -724,12 +742,20 @@ textarea {
 
 .atlas-market-question h1 {
   margin: 0;
-  font-size: var(--sa-typography-size-sm);
+  font-size: var(--sa-typography-size-md);
   font-weight: var(--sa-typography-weight-semibold);
   letter-spacing: 0;
   line-height: var(--sa-typography-line-height-tight);
   text-wrap: balance;
   white-space: normal;
+}
+
+.atlas-market-summary {
+  display: none;
+  color: var(--sa-color-muted-steel);
+  font-family: var(--sa-typography-mono-family);
+  font-size: 10px;
+  white-space: nowrap;
 }
 
 .atlas-live-dot {
@@ -1438,7 +1464,8 @@ kbd {
 
 .atlas-connections > button {
   width: 100%;
-  padding: 0;
+  min-height: var(--sa-spacing-8);
+  padding: var(--sa-spacing-1) 0;
   border: 0;
   background: transparent;
   text-align: left;
@@ -7056,13 +7083,16 @@ kbd {
     gap: var(--sa-spacing-2);
   }
 
-  .atlas-brand__copy small,
-  .atlas-deadline {
+  .atlas-brand__copy small {
     display: none;
   }
 
   .atlas-brand__copy strong {
     font-size: var(--sa-typography-size-md);
+  }
+
+  .atlas-worldline > span {
+    display: none;
   }
 
   .atlas-command-tray {
@@ -7078,7 +7108,7 @@ kbd {
   }
 }
 
-@media (max-width: 1120px) {
+@media (max-width: 1280px) {
   .signal-atlas-shell,
   .signal-atlas-shell[data-agent-collapsed='true'],
   .signal-atlas-shell[data-signal-collapsed='true'] {
@@ -7095,7 +7125,7 @@ kbd {
     grid-template-columns: 160px minmax(220px, 1fr) 190px auto;
   }
 
-  .atlas-runtime-badge {
+  .atlas-mode-control {
     display: none;
   }
 
@@ -7165,6 +7195,11 @@ kbd {
   .atlas-panel-toggle {
     display: none;
   }
+
+  .atlas-mobile-drawers button {
+    border-color: var(--sa-color-slate-cloud);
+    background: var(--sa-color-atlas-night);
+  }
 }
 
 @media (max-width: 600px) {
@@ -7193,6 +7228,7 @@ kbd {
 
   .atlas-brand__copy,
   .atlas-probability,
+  .atlas-runtime-badge,
   .atlas-mode-control {
     display: none;
   }
@@ -7204,6 +7240,20 @@ kbd {
 
   .atlas-market-question h1 {
     font-size: var(--sa-typography-size-xs);
+  }
+
+  .atlas-market-question .atlas-kicker {
+    display: none;
+  }
+
+  .atlas-market-summary {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .atlas-world-crumb {
+    display: none;
   }
 
   .atlas-command-tray {
