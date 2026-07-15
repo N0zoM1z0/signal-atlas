@@ -5,6 +5,7 @@ import {
 } from '@signal-atlas/contracts';
 
 import { InMemoryRuntimeTurnStore, type RuntimeTurnStore } from './store.js';
+import { publicCodexError } from './public-error.js';
 import {
   CodexDriverError,
   CodexTurnCanceledError,
@@ -46,13 +47,11 @@ const statuses: RuntimeTurnStatus[] = [
 ];
 
 function errorDetails(error: unknown): NonNullable<RuntimeTurnRecord['error']> {
-  if (error instanceof CodexDriverError) {
-    return { code: error.code, message: error.message, recoverable: error.recoverable };
-  }
+  const normalized = publicCodexError(error);
   return {
-    code: 'runtime_driver_failed',
-    message: error instanceof Error ? error.message : String(error),
-    recoverable: true,
+    code: normalized.code,
+    message: normalized.message,
+    recoverable: normalized.recoverable,
   };
 }
 
@@ -245,8 +244,9 @@ export class CodexTurnScheduler<
           : error instanceof CodexTurnCanceledError
             ? 'canceled'
             : 'failed';
-      this.#finish(input, status, error, startedMs);
-      item.reject(error instanceof Error ? error : new Error(String(error)));
+      const publicError = publicCodexError(error);
+      this.#finish(input, status, publicError, startedMs);
+      item.reject(publicError);
     } finally {
       clearTimeout(timeout);
       this.#active.delete(input.turnId);

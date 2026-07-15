@@ -10,6 +10,7 @@ import {
 import {
   CodexDriverError,
   isPromiseLike,
+  publicCodexError,
   type CodexDriver,
   type CodexDriverContext,
   type CodexDriverDiagnostics,
@@ -344,8 +345,9 @@ export class PrefAgentProxyDriver implements CodexDriver<AgentTurnInput, Scripte
   ): MaybePromise<CodexTurnResult<ScriptedFixtureTurn>> {
     if (isPromiseLike(result)) {
       return result.catch((error: unknown) => {
-        this.#lastError = error instanceof Error ? error.message : 'The agent proxy failed.';
-        throw error;
+        const publicError = publicCodexError(error);
+        this.#lastError = publicError.message;
+        throw publicError;
       });
     }
     return result;

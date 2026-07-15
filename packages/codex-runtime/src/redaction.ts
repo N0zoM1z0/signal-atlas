@@ -3,10 +3,14 @@ const assignmentPattern =
 const bearerPattern = /\bBearer\s+[A-Za-z0-9._~+/=-]+/gi;
 const openAiKeyPattern = /\b(?:sk|sess)-[A-Za-z0-9_-]{12,}\b/g;
 const authPathPattern = /(?:\/[^\s"']+)*\/\.codex\/auth\.json/gi;
+const proxyAssignmentPattern = /\b((?:HTTP|HTTPS|ALL|NO)_PROXY)\s*[:=]\s*([^\s,;]+)/gi;
+const urlUserInfoPattern = /\b((?:https?|socks5h?|socks):\/\/)[^\s/@:]+:[^\s/@]+@/gi;
 
 /** Redact common credential forms before process output reaches diagnostics or errors. */
 export function redactSensitiveText(value: string, maxLength = 2_000): string {
   const redacted = value
+    .replace(proxyAssignmentPattern, '$1=[REDACTED]')
+    .replace(urlUserInfoPattern, '$1[REDACTED]@')
     .replace(assignmentPattern, '$1=[REDACTED]')
     .replace(bearerPattern, 'Bearer [REDACTED]')
     .replace(openAiKeyPattern, '[REDACTED]')

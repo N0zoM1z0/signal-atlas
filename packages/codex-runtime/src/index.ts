@@ -5,6 +5,7 @@ export * from './local-exec-driver.js';
 export * from './process.js';
 export * from './profiles.js';
 export * from './prompt.js';
+export * from './public-error.js';
 export * from './redaction.js';
 export * from './scheduler.js';
 export * from './session-registry.js';

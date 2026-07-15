@@ -354,7 +354,7 @@ describe('LocalCodexExecDriver', () => {
     });
   });
 
-  it('redacts process failure details before exposing them', async () => {
+  it('replaces process failure details before exposing them', async () => {
     const local = new LocalCodexExecDriver({
       executable: '/test/bin/codex',
       runtimeRoot: runtimeRoot(),
@@ -364,18 +364,23 @@ describe('LocalCodexExecDriver', () => {
         exitCode: 1,
         signal: null,
         stdout: '',
-        stderr: 'Authorization: Bearer sk-test-secret-value-123456789',
+        stderr:
+          'PROMPT-SENTINEL SOURCE-SENTINEL HTTP_PROXY=http://proxy-user:proxy-pass@127.0.0.1:7890 Authorization: Bearer sk-test-secret-value-123456789',
         aborted: false,
       }),
       isAvailable: () => true,
     });
     const emitted = driverContext();
 
-    await expect(local.runTurn(input(), emitted.context)).rejects.toThrow('[REDACTED]');
-    expect(local.diagnostics().lastError).not.toContain('test-secret');
+    await expect(local.runTurn(input(), emitted.context)).rejects.toThrow(
+      'The local Codex process failed before producing a validated result.',
+    );
+    expect(JSON.stringify(local.diagnostics())).not.toMatch(
+      /PROMPT-SENTINEL|SOURCE-SENTINEL|proxy-user|proxy-pass|test-secret/u,
+    );
   });
 
-  it('extracts a redacted actionable error from failed JSONL stdout', async () => {
+  it('does not expose failed JSONL error messages', async () => {
     const local = new LocalCodexExecDriver({
       executable: '/test/bin/codex',
       runtimeRoot: runtimeRoot(),
@@ -396,8 +401,9 @@ describe('LocalCodexExecDriver', () => {
     const emitted = driverContext();
 
     await expect(local.runTurn(input(), emitted.context)).rejects.toThrow(
-      'Schema rejected with OPENAI_API_KEY=[REDACTED]',
+      'The local Codex process failed before producing a validated result.',
     );
+    expect(JSON.stringify(local.diagnostics())).not.toContain('Schema rejected');
   });
 
   it('uses the scripted driver only when the local executable is absent', async () => {
@@ -441,8 +447,10 @@ describe('local Codex command and redaction helpers', () => {
 
   it('redacts tokens, secret assignments, and Codex auth paths', () => {
     const redacted = redactSensitiveText(
-      'OPENAI_API_KEY=sk-example-secret-123456 Bearer abc.def /home/test/.codex/auth.json',
+      'OPENAI_API_KEY=sk-example-secret-123456 Bearer abc.def /home/test/.codex/auth.json HTTP_PROXY=http://proxy-user:proxy-pass@127.0.0.1:7890 https://url-user:url-pass@example.test/path',
     );
-    expect(redacted).toBe('OPENAI_API_KEY=[REDACTED] Bearer [REDACTED] $CODEX_HOME/auth.json');
+    expect(redacted).toBe(
+      'OPENAI_API_KEY=[REDACTED] Bearer [REDACTED] $CODEX_HOME/auth.json HTTP_PROXY=[REDACTED] https://[REDACTED]@example.test/path',
+    );
   });
 });

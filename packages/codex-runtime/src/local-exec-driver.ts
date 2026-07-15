@@ -16,6 +16,7 @@ import {
   type CodexTurnPromptContext,
 } from './prompt.js';
 import { runCodexProcess, type CodexProcessRequest, type CodexProcessRunner } from './process.js';
+import { publicCodexError } from './public-error.js';
 import { redactSensitiveText } from './redaction.js';
 import { InMemoryAgentSessionRegistry, type AgentSessionRegistry } from './session-registry.js';
 import {
@@ -144,26 +145,6 @@ function commandDiagnostics(
     args: safeArgs,
     display: [safeExecutable, ...safeArgs].map(quoteForDisplay).join(' '),
   };
-}
-
-function processFailureDetail(stdout: string, stderr: string): string {
-  if (stderr.trim()) return redactSensitiveText(stderr.trim(), 500);
-  for (const line of stdout.split(/\r?\n/u)) {
-    if (!line.trim()) continue;
-    try {
-      const event = JSON.parse(line) as Record<string, unknown>;
-      if (event['type'] === 'error' && typeof event['message'] === 'string') {
-        return redactSensitiveText(event['message'], 500);
-      }
-      if (event['type'] === 'turn.failed' && event['error'] && typeof event['error'] === 'object') {
-        const message = (event['error'] as Record<string, unknown>)['message'];
-        if (typeof message === 'string') return redactSensitiveText(message, 500);
-      }
-    } catch {
-      // Non-JSON stdout is reported by the event parser on successful processes.
-    }
-  }
-  return '';
 }
 
 function commonArguments(schemaPath: string, outputPath: string, model?: string): string[] {
@@ -469,11 +450,9 @@ export class LocalCodexExecDriver<TArtifacts = LocalCodexTurnMetadata> implement
           )
         : error;
       if (unavailable) this.#available = false;
-      this.#lastError = redactSensitiveText(
-        normalized instanceof Error ? normalized.message : String(normalized),
-        500,
-      );
-      throw normalized;
+      const publicError = publicCodexError(normalized);
+      this.#lastError = publicError.message;
+      throw publicError;
     }
   }
 
@@ -555,10 +534,9 @@ export class LocalCodexExecDriver<TArtifacts = LocalCodexTurnMetadata> implement
     }
     if (processResult.exitCode !== 0) {
       rmSync(paths.outputPath, { force: true });
-      const detail = processFailureDetail(processResult.stdout, processResult.stderr);
       throw new CodexDriverError(
         'codex_process_failed',
-        `Local Codex exited with code ${String(processResult.exitCode)}${detail ? `: ${detail}` : '.'}`,
+        'The local Codex process failed before producing a validated result.',
         true,
       );
     }

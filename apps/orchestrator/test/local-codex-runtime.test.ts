@@ -242,4 +242,38 @@ describe('local Codex world integration', () => {
     });
     expect(runtime.snapshot().sourcesById['src-weather-bulletin-1']).toBeUndefined();
   });
+
+  it('keeps process prompt, source, and proxy details out of every world-facing surface', async () => {
+    const fixture = createHelios3ExpeditionFixture();
+    const sentinel =
+      'PROMPT-SENTINEL SOURCE-SENTINEL HTTPS_PROXY=https://proxy-user:proxy-pass@localhost:7890';
+    const runtime = new ExpeditionRuntime(fixture, {
+      missionDriverFactory: (scenario) =>
+        createConfiguredMissionDriver(fixture, scenario, {
+          mode: 'local',
+          executable: '/test/bin/codex',
+          isAvailable: () => true,
+          processRunner: async () => ({
+            exitCode: 1,
+            signal: null,
+            stdout: JSON.stringify({ type: 'error', message: sentinel }),
+            stderr: sentinel,
+            aborted: false,
+          }),
+        }),
+    });
+
+    await runWeatherTurn(runtime);
+
+    const serialized = JSON.stringify({
+      diagnostics: runtime.runtimeDiagnostics(),
+      projection: runtime.snapshot(),
+      events: runtime.eventsAfter(0),
+      caseFile: runtime.caseFile(),
+    });
+    expect(serialized).not.toMatch(/PROMPT-SENTINEL|SOURCE-SENTINEL|proxy-user|proxy-pass/u);
+    expect(serialized).toContain(
+      'The local Codex process failed before producing a validated result.',
+    );
+  });
 });

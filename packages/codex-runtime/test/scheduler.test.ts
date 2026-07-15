@@ -171,6 +171,25 @@ describe('CodexTurnScheduler', () => {
     expect(scheduler.diagnostics().totals.failed).toBe(1);
   });
 
+  it('replaces arbitrary driver errors before persistence and event publication', async () => {
+    const driver = new ScriptedCodexDriver({
+      run: () => {
+        throw new Error(
+          'PROMPT-SENTINEL SOURCE-SENTINEL HTTPS_PROXY=https://proxy-user:proxy-pass@localhost:7890',
+        );
+      },
+    });
+    const scheduler = new CodexTurnScheduler({ driver });
+    const turn = scheduler.submit(turnInput(1));
+
+    await expect(turn.completion).rejects.toMatchObject({
+      code: 'runtime_driver_failed',
+      message: 'The Codex runtime failed before a validated result was accepted.',
+    });
+    const serialized = JSON.stringify(scheduler.diagnostics());
+    expect(serialized).not.toMatch(/PROMPT-SENTINEL|SOURCE-SENTINEL|proxy-user|proxy-pass/u);
+  });
+
   it('reloads the latest terminal turn state from append-only JSONL persistence', async () => {
     const directory = mkdtempSync(join(tmpdir(), 'signal-atlas-codex-runtime-'));
     temporaryDirectories.push(directory);

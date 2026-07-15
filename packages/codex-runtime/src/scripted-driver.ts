@@ -7,6 +7,7 @@ import type {
   CodexTurnResult,
   MaybePromise,
 } from './types.js';
+import { publicCodexError } from './public-error.js';
 import { isPromiseLike } from './types.js';
 
 export interface ScriptedCodexDriverOptions<TInput extends AgentTurnInput, TArtifacts = unknown> {
@@ -42,14 +43,16 @@ export class ScriptedCodexDriver<
       const result = this.#run(input, context);
       if (isPromiseLike(result)) {
         return result.catch((error: unknown) => {
-          this.#lastError = error instanceof Error ? error.message : String(error);
-          throw error;
+          const publicError = publicCodexError(error);
+          this.#lastError = publicError.message;
+          throw publicError;
         });
       }
       return result;
     } catch (error: unknown) {
-      this.#lastError = error instanceof Error ? error.message : String(error);
-      throw error;
+      const publicError = publicCodexError(error);
+      this.#lastError = publicError.message;
+      throw publicError;
     }
   }
 

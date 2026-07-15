@@ -1,5 +1,7 @@
 import type { AgentTurnInput } from '@signal-atlas/contracts';
 
+import { publicCodexError } from './public-error.js';
+
 import {
   CodexDriverError,
   type CodexDriver,
@@ -55,8 +57,9 @@ export class CodexUnavailableFallbackDriver<TArtifacts> implements CodexDriver<
       if (error instanceof CodexDriverError && error.code === 'codex_unavailable') {
         return this.#runFallback(input, context, error.message);
       }
-      this.#lastError = error instanceof Error ? error.message : String(error);
-      throw error;
+      const publicError = publicCodexError(error);
+      this.#lastError = publicError.message;
+      throw publicError;
     }
   }
 
@@ -89,7 +92,9 @@ export class CodexUnavailableFallbackDriver<TArtifacts> implements CodexDriver<
     reason: string,
   ): Promise<CodexTurnResult<TArtifacts>> {
     this.#usedFallback = true;
-    this.#fallbackReason = reason;
+    this.#fallbackReason = publicCodexError(
+      new CodexDriverError('codex_unavailable', reason, true),
+    ).message;
     context.emit({ phase: 'scripted_fallback', reason: 'codex_unavailable' });
     return this.#fallback.runTurn(input, context);
   }

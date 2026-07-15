@@ -14,6 +14,7 @@ import {
   CodexTurnScheduler,
   getAgentRoleProfile,
   isPromiseLike,
+  publicCodexError,
   type CodexDriver,
   type CodexRuntimeDiagnostics,
   type CodexRuntimeEvent,
@@ -1020,21 +1021,11 @@ export class ExpeditionRuntime {
   }
 
   #runtimeError(error: unknown): NonNullable<ScheduledWork['error']> {
-    if (error && typeof error === 'object') {
-      const candidate = error as { code?: unknown; message?: unknown; recoverable?: unknown };
-      return {
-        code: typeof candidate.code === 'string' ? candidate.code : 'runtime_driver_failed',
-        message:
-          typeof candidate.message === 'string'
-            ? candidate.message
-            : 'The Codex runtime failed without a message.',
-        recoverable: typeof candidate.recoverable === 'boolean' ? candidate.recoverable : true,
-      };
-    }
+    const normalized = publicCodexError(error);
     return {
-      code: 'runtime_driver_failed',
-      message: String(error),
-      recoverable: true,
+      code: normalized.code,
+      message: normalized.message,
+      recoverable: normalized.recoverable,
     };
   }
 
