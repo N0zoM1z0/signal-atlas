@@ -25,6 +25,8 @@ The product is designed around three qualities:
 - `Signal_Atlas_Design_Bible.pdf` - a styled printable companion with the core design, diagrams, screen previews, architecture, roadmap, and Codex kickoff plan.
 - `SOURCES.md` - official technical references used for the Codex and MCP recommendations.
 - `VALIDATION_REPORT.md` - automated and visual quality checks performed before packaging.
+- `FINAL_REPORT.md` - the implemented vertical slice's exact release gates, definition-of-done audit, skips, and known limitations.
+- `docs/DEMO_SCRIPT.md` - a six-minute deterministic offline walkthrough.
 - `MANIFEST.sha256` - SHA-256 checksums for every packaged file except the manifest itself.
 - `tools/` - reproducible PDF-build and package-validation scripts.
 
