@@ -2,7 +2,7 @@
 
 ## Status
 
-In progress.
+Complete.
 
 ## Progress log
 
@@ -110,6 +110,13 @@ In progress.
   27/27, and orchestrator 115/115. The three-world Lobby and dedicated 1440 x 900 Northbridge
   journey pass Chromium, viewport, and serious/critical WCAG checks; the visual baseline is
   `tests/visual/northbridge-council-world-1440x900.png`.
+- `a1816df` aligned the legacy browser journeys with workspace-scoped diagnostics, provider-neutral
+  mission objectives, outcome-relative signal labels, and the separate catalog/snapshot loading
+  boundaries. The six regressions found by the first complete browser run then passed 6/6.
+- `a94e4a2` refreshed nine reviewed Helios baselines whose diffs were limited to scenario-authored
+  titles, capabilities, mission wording, agent assets, and outcome-relative evidence copy. A clean
+  non-update visual run subsequently passed all 12 screenshots, including the unchanged Lobby,
+  Northlight, and Northbridge baselines.
 
 ## Goal
 
@@ -309,3 +316,79 @@ pnpm --filter @signal-atlas/web test -- App.test.tsx
 pnpm --filter @signal-atlas/web typecheck
 pnpm exec playwright test tests/e2e/expedition-lobby.spec.ts tests/e2e/northbridge-council.spec.ts --update-snapshots
 ```
+
+## Completion validation - 2026-07-15
+
+The final repository gates ran from the repository root without live credentials or network access:
+
+```bash
+pnpm format:check
+pnpm typecheck
+pnpm lint
+pnpm test
+pnpm build
+pnpm test:e2e
+pnpm test:visual
+```
+
+Results:
+
+- formatting, strict TypeScript, and ESLint passed with zero errors or warnings;
+- all 11 applicable workspace builds completed; Vite reported only the known Phaser chunk-size
+  advisory;
+- 56 unit/integration files passed with 306 tests: contracts 20, UI 5, Codex runtime 27, game scene
+  13, Pref gateway 54, fixtures 3, simulation 34, archive 4, world content 4, orchestrator 115, and
+  web 27;
+- the complete non-visual Chromium suite passed 33/33 in 3.2 minutes after the six stale contract
+  assertions were corrected;
+- the clean visual suite passed 12/12, including the 1440 x 900 Lobby, Northlight, Northbridge,
+  Archive, Professor, Forecast, meeting, replay, and source-inspector states plus both shell sizes;
+- automated accessibility coverage found no serious or critical violations, and the new world
+  journeys also enforce viewport containment, semantic mirrors, canvas color diversity, and
+  non-black coverage.
+
+A process-level restart smoke used a disposable schema-v3 SQLite workspace on a separate localhost
+port. It created Northbridge, committed `expedition.paused` at sequence 3, stopped the process, and
+reopened the same database. The restored registry reported Northbridge as paused at sequence 3,
+while Helios remained active at sequence 2. Repeating both the expedition creation and pause command
+returned their durable receipts as duplicates without advancing the event log. The disposable
+workspace was removed afterward.
+
+A bounded read-only live Pref connection check ran inside the proxy-enabled localhost demo using the
+ignored local credential. The hosted gateway connected over Streamable HTTP and reported 31 tools,
+5 resources, 1 resource template, 3 prompts, and 547 indexed capabilities. The final mapping state
+is intentionally narrow:
+
+- `local_conditions` -> `weather.get_current_conditions`: valid;
+- `search_sources` -> `gdelt.context.search_context`: valid;
+- `search_resolution_history` -> `resolution.search_historical_resolutions`: valid;
+- `search_markets` -> `polymarket.discovery.search_markets`: disabled pending a closed output
+  contract and live gate;
+- `search_economic_series` and `read_economic_series` -> FRED: disabled because the cataloged
+  deployment does not currently expose a usable provider key.
+
+The persistent demo now opens all three expeditions. A real 1440 x 900 browser load of the
+Northbridge deep link showed the complete civic world, `Live Pref ready`, eight semantic places,
+three agents, and a live event stream at sequence 2.
+
+## Completion audit and deferred boundaries
+
+- Helios remains the golden deterministic fixture, while Northlight and Northbridge use opaque
+  outcome IDs, distinct agents, authored places, different presentation kits, and independently
+  replayable append-only histories.
+- Installed definitions are versioned, hashed, copied into SQLite, and restored from their stored
+  definition. Schema-v1 migration, checkpoint validation, registry isolation, durable idempotency,
+  and cross-expedition restart behavior are covered.
+- The Lobby opens one complete five-region world at a time. WebSocket, command, replay, export,
+  diagnostics, Professor, and Pref routes resolve through the registry, while one process-wide gate
+  bounds Pref/Codex/Professor work.
+- External content enters only through the Pref Gateway as bounded canonical source records. Agent
+  and Professor output remains schema-validated, source-ID constrained, and orchestrator-applied.
+- `search_official_records` remains an authored fixture-only capability until Pref exposes a closed,
+  cataloged, live-gated primitive. This is recorded in `docs/PREF_CAPABILITY_FEEDBACK.md`.
+- True multi-outcome markets remain a separate contract/UI milestone. This task deliberately keeps
+  the binary market model and does not present a partial probability editor as complete.
+- The 30-minute soak suite was not part of this content milestone and was not run. The complete unit,
+  integration, browser, visual, restart, and bounded live gates above are green.
+- No real trading, order placement, wallet, relayer, portfolio mutation, hosted authentication,
+  telemetry, write-capable Pref tool, or provider-specific microservice was added.
