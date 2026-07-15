@@ -16,6 +16,8 @@ interface FakeClientOptions {
   credentialProvider?: () => Promise<string | undefined>;
   failConnect?: boolean;
   driftMapping?: boolean;
+  securityTaskSupport?: string;
+  extraRequiredArgument?: boolean;
   oversized?: boolean;
   nativePrimitives?: boolean;
   credentialEcho?: 'server_version' | 'provider_payload';
@@ -184,15 +186,36 @@ class FakeSdkClient implements PrefMcpSdkClient {
                 input_schema: {
                   type: 'object',
                   additionalProperties: false,
-                  properties: { location: { type: 'string' } },
-                  required: ['location'],
+                  properties: {
+                    location: { type: 'string' },
+                    ...(this.#options.extraRequiredArgument
+                      ? { undocumented_required: { type: 'string' } }
+                      : {}),
+                  },
+                  required: [
+                    'location',
+                    ...(this.#options.extraRequiredArgument ? ['undocumented_required'] : []),
+                  ],
                 },
                 annotations: {
                   readOnlyHint: true,
                   destructiveHint: false,
                   idempotentHint: true,
                 },
-                security_hints: { side_effect: 'read_only' },
+                security_hints: {
+                  side_effect: 'read_only',
+                  task_support: this.#options.securityTaskSupport ?? 'optional',
+                },
+                output_schema: {
+                  type: 'object',
+                  additionalProperties: false,
+                  properties: {
+                    location: { type: 'object' },
+                    weather_description: { type: 'string' },
+                    weather_category: { type: 'string' },
+                    retrieved_at: { type: 'number' },
+                  },
+                },
               },
             ],
             _meta: { snapshot_version: 'snapshot-v1' },
@@ -284,6 +307,11 @@ describe('Streamable HTTP Pref connection', () => {
           toolRef: 'weather.get_current_conditions',
           status: 'valid',
         },
+        {
+          canonicalName: 'search_sources',
+          toolRef: 'gdelt.context.search_context',
+          status: 'disabled',
+        },
       ],
     });
     expect(diagnostics.inventory.tools.map((tool) => tool.name)).toEqual([
@@ -359,6 +387,22 @@ describe('Streamable HTTP Pref connection', () => {
       status: 'invalid',
       message: 'The discovered Pref contract does not match the approved mapping.',
     });
+    await expect(
+      fixture.connection.callProviderTool('weather.get_current_conditions', {
+        location: 'Galehaven',
+      }),
+    ).rejects.toMatchObject({ code: 'pref_tool_denied' });
+  });
+
+  it.each([
+    ['provider task policy', { securityTaskSupport: 'forbidden' }],
+    ['unmapped required argument', { extraRequiredArgument: true }],
+  ] as const)('rejects a mapping with %s drift', async (_label, overrides) => {
+    const fixture = await connectionFixture(overrides);
+
+    const diagnostics = await fixture.connection.connect();
+
+    expect(diagnostics.mappings[0]).toMatchObject({ status: 'invalid' });
     await expect(
       fixture.connection.callProviderTool('weather.get_current_conditions', {
         location: 'Galehaven',

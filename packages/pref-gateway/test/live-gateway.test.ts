@@ -10,6 +10,7 @@ import {
   type PrefMcpCallResult,
   type PrefMcpConnection,
   type PrefMcpConnectionDiagnostics,
+  type PrefCapabilityMappingStatus,
 } from '../src/index.js';
 
 const baseWeather = {
@@ -71,9 +72,27 @@ class FakeConnection implements PrefMcpConnection {
   readonly responses: Array<PrefMcpCallResult | Error>;
   readonly calls: Array<{ toolRef: string; argumentsValue: Record<string, unknown> }> = [];
   connected = false;
+  readonly mappings: PrefCapabilityMappingStatus[];
 
-  constructor(responses: Array<PrefMcpCallResult | Error>) {
+  constructor(
+    responses: Array<PrefMcpCallResult | Error>,
+    mappings: PrefCapabilityMappingStatus[] = [
+      {
+        canonicalName: 'local_conditions',
+        toolRef: 'weather.get_current_conditions',
+        providerServer: 'weather_toolkit',
+        status: 'valid',
+      },
+      {
+        canonicalName: 'search_sources',
+        toolRef: 'gdelt.context.search_context',
+        providerServer: 'gdelt_context',
+        status: 'disabled',
+      },
+    ],
+  ) {
     this.responses = [...responses];
+    this.mappings = structuredClone(mappings);
   }
 
   async connect(): Promise<PrefMcpConnectionDiagnostics> {
@@ -97,14 +116,7 @@ class FakeConnection implements PrefMcpConnection {
       readOnly: true,
       lastTransitionAt: '2026-07-15T00:00:00Z',
       inventory: { tools: [], resources: [], resourceTemplates: [], prompts: [] },
-      mappings: [
-        {
-          canonicalName: 'local_conditions',
-          toolRef: 'weather.get_current_conditions',
-          providerServer: 'weather_toolkit',
-          status: 'valid',
-        },
-      ],
+      mappings: structuredClone(this.mappings),
     };
   }
 
@@ -126,11 +138,13 @@ function gateway(
     now?: () => Date;
     audit?: (event: PrefAuditEvent) => void;
     freshCacheMs?: number;
+    config?: PrefGatewayConfig;
+    capabilityMap?: ReturnType<typeof loadPrefCapabilityMapSync>;
   } = {},
 ): LivePrefGateway {
   return new LivePrefGateway({
-    config: config(),
-    capabilityMap: loadPrefCapabilityMapSync(),
+    config: options.config ?? config(),
+    capabilityMap: options.capabilityMap ?? loadPrefCapabilityMapSync(),
     connection,
     now: options.now ?? (() => new Date('2026-07-15T00:00:00Z')),
     ...(options.audit ? { audit: options.audit } : {}),
@@ -285,6 +299,110 @@ describe('LivePrefGateway', () => {
     ).rejects.toMatchObject({ code: 'pref_invalid_request' });
     await expect(
       pref.invokeCanonicalCapability('search_sources', { query: 'weather' }, context()),
+    ).rejects.toMatchObject({ code: 'pref_capability_denied' });
+  });
+
+  it('normalizes a mapped article-search envelope without retaining provider content', async () => {
+    const payload = {
+      articles: [
+        {
+          url: 'https://news.example.test/launch-window',
+          title: 'Launch window review delayed by upper-level winds',
+          seendate: '20260715T003000Z',
+          socialimage: '',
+          domain: 'news.example.test',
+          language: 'ENGLISH',
+          isquote: 'Not quoted',
+          sentence: 'The launch-window review was delayed by upper-level winds.',
+          context: 'Untrusted provider context that must not be retained as displayable content.',
+        },
+      ],
+      query: 'launch window winds',
+      requested_max: 5,
+      total_returned: 1,
+    };
+    const responseText = JSON.stringify(payload);
+    const connection = new FakeConnection(
+      [
+        {
+          structuredContent: payload,
+          text: responseText,
+          responseBytes: new TextEncoder().encode(responseText).byteLength,
+        },
+      ],
+      [
+        {
+          canonicalName: 'local_conditions',
+          toolRef: 'weather.get_current_conditions',
+          providerServer: 'weather_toolkit',
+          status: 'valid',
+        },
+        {
+          canonicalName: 'search_sources',
+          toolRef: 'gdelt.context.search_context',
+          providerServer: 'gdelt_context',
+          status: 'valid',
+        },
+      ],
+    );
+    const capabilityMap = loadPrefCapabilityMapSync();
+    capabilityMap.mappings[1]!.enabled = true;
+    const pref = gateway(connection, {
+      capabilityMap,
+      config: { ...config(), allowCapabilities: ['search_sources'] },
+    });
+
+    const result = await pref.search(
+      {
+        query: 'launch window winds',
+        limit: 5,
+        since: '2026-07-14T00:00:00Z',
+      },
+      context({ correlationId: 'turn-live-search-1' }),
+    );
+
+    expect(connection.calls).toEqual([
+      {
+        toolRef: 'gdelt.context.search_context',
+        argumentsValue: {
+          query: 'launch window winds',
+          maxrecords: 5,
+          startdatetime: '20260714000000',
+        },
+      },
+    ]);
+    expect(result).toMatchObject({
+      capability: 'search_sources',
+      evidence: [],
+      sources: [
+        {
+          title: 'Launch window review delayed by upper-level winds',
+          publisher: 'news.example.test',
+          sourceClass: 'secondary',
+          publishedAt: '2026-07-15T00:30:00.000Z',
+          externalUri: 'https://news.example.test/launch-window',
+          rights: { display: 'metadata_only' },
+          provenance: { primitiveName: 'gdelt.context.search_context' },
+        },
+      ],
+    });
+    expect(result.sources[0]).not.toHaveProperty('excerpt');
+    expect(result.sources[0]).not.toHaveProperty('structuredData');
+    expect(JSON.stringify(result.sources[0])).not.toContain('Untrusted provider context');
+  });
+
+  it('keeps the inspected search mapping disabled while provider task support is forbidden', async () => {
+    const map = loadPrefCapabilityMapSync();
+    const searchMapping = map.mappings.find(
+      (mapping) => mapping.canonicalName === 'search_sources',
+    );
+    expect(searchMapping).toMatchObject({
+      enabled: false,
+      requiredSecurityHints: { taskSupport: 'optional' },
+    });
+    const pref = gateway(new FakeConnection([]));
+    await expect(
+      pref.search({ query: 'launch weather' }, context({ correlationId: 'blocked-search' })),
     ).rejects.toMatchObject({ code: 'pref_capability_denied' });
   });
 });

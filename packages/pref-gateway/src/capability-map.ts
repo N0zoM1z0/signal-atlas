@@ -40,25 +40,43 @@ export const PrefInputProjectionSelectorSchema = z.enum([
   'externalId',
   'uri',
   'at',
+  'since',
+  'until',
+  'limit',
 ]);
 
+export const PrefInputTransformSchema = z.enum(['identity', 'iso_to_gdelt_datetime']);
+
+export const PrefInputProjectionSchema = z.strictObject({
+  selector: PrefInputProjectionSelectorSchema,
+  required: z.boolean(),
+  transform: PrefInputTransformSchema.default('identity'),
+});
+
 export const PrefCapabilityMappingSchema = z.strictObject({
+  mappingId: SafeNameSchema,
   canonicalName: PrefCanonicalCapabilitySchema,
   enabled: z.boolean(),
+  priority: z.number().int().min(0).max(1_000),
   toolRef: ToolRefSchema,
   providerServer: SafeNameSchema,
-  inputProjection: z.record(SafeNameSchema, PrefInputProjectionSelectorSchema),
+  inputProjection: z.record(SafeNameSchema, PrefInputProjectionSchema),
   expectedInput: z.record(SafeNameSchema, z.enum(['string', 'number', 'boolean'])),
+  responseAdapter: z.enum(['local_conditions_v1', 'article_search_v1']),
   requiredAnnotations: z.strictObject({
     readOnlyHint: z.literal(true),
     destructiveHint: z.literal(false),
     idempotentHint: z.boolean().optional(),
   }),
+  requiredSecurityHints: z.strictObject({
+    sideEffect: z.literal('read_only'),
+    taskSupport: z.enum(['optional', 'required']),
+  }),
 });
 
 export const PrefCapabilityMapSchema = z
   .strictObject({
-    version: z.literal(1),
+    version: z.literal(2),
     server: z.strictObject({
       name: SafeNameSchema,
       transport: z.literal('streamable_http'),
@@ -98,9 +116,9 @@ export const PrefCapabilityMapSchema = z
         message: 'Allowed Pref provider tools must be unique.',
       },
       {
-        values: map.mappings.map((mapping) => mapping.canonicalName),
+        values: map.mappings.map((mapping) => mapping.mappingId),
         path: ['mappings'],
-        message: 'Canonical Pref mappings must be unique.',
+        message: 'Pref mapping IDs must be unique.',
       },
       {
         values: map.mappings.map((mapping) => mapping.toolRef),
@@ -163,12 +181,42 @@ export const PrefCapabilityMapSchema = z
           });
         }
       }
+      for (const argumentName of Object.keys(mapping.expectedInput)) {
+        if (!(argumentName in mapping.inputProjection)) {
+          context.addIssue({
+            code: 'custom',
+            path: ['mappings', index, 'inputProjection'],
+            message: `Expected argument ${argumentName} has no canonical input projection.`,
+          });
+        }
+      }
+      if (
+        (mapping.canonicalName === 'local_conditions') !==
+        (mapping.responseAdapter === 'local_conditions_v1')
+      ) {
+        context.addIssue({
+          code: 'custom',
+          path: ['mappings', index, 'responseAdapter'],
+          message: 'The response adapter does not match the canonical Pref capability.',
+        });
+      }
+      if (
+        mapping.responseAdapter === 'article_search_v1' &&
+        mapping.canonicalName !== 'search_sources'
+      ) {
+        context.addIssue({
+          code: 'custom',
+          path: ['mappings', index, 'responseAdapter'],
+          message: 'The article search adapter is only valid for search_sources.',
+        });
+      }
     }
   });
 
 export type PrefCapabilityMapping = z.infer<typeof PrefCapabilityMappingSchema>;
 export type PrefCapabilityMap = z.infer<typeof PrefCapabilityMapSchema>;
 export type PrefInputProjectionSelector = z.infer<typeof PrefInputProjectionSelectorSchema>;
+export type PrefInputTransform = z.infer<typeof PrefInputTransformSchema>;
 
 export function parsePrefCapabilityMap(value: unknown): PrefCapabilityMap {
   return PrefCapabilityMapSchema.parse(value);
@@ -204,10 +252,16 @@ export function projectPrefCapabilityInput(
 ): Record<string, unknown> {
   const input = parseCanonicalInput(mapping.canonicalName, inputValue);
   return Object.fromEntries(
-    Object.entries(mapping.inputProjection).map(([argumentName, selector]) => [
-      argumentName,
-      projectedValue(selector, input),
-    ]),
+    Object.entries(mapping.inputProjection).flatMap(([argumentName, projection]) => {
+      const selected = projectedValue(projection.selector, input);
+      if (selected === undefined) {
+        if (projection.required) {
+          throw new Error(`Missing required canonical Pref field ${projection.selector}.`);
+        }
+        return [];
+      }
+      return [[argumentName, transformedValue(projection.transform, selected)]];
+    }),
   );
 }
 
@@ -254,16 +308,14 @@ function projectedValue(
     case 'query':
     case 'externalId':
     case 'uri':
-    case 'at': {
-      const value = input[selector];
-      if (value === undefined) throw new Error(`Missing canonical Pref field ${selector}.`);
-      return value;
-    }
+    case 'at':
+    case 'since':
+    case 'until':
+    case 'limit':
+      return input[selector];
     case 'location.query': {
       const location = input['location'];
-      if (!location || typeof location !== 'object') {
-        throw new Error('Missing canonical Pref location.');
-      }
+      if (!location || typeof location !== 'object') return undefined;
       const record = location as Record<string, unknown>;
       if (typeof record['label'] === 'string' && record['label'].trim().length > 0) {
         return record['label'].trim();
@@ -271,7 +323,23 @@ function projectedValue(
       if (typeof record['latitude'] === 'number' && typeof record['longitude'] === 'number') {
         return `${record['latitude']},${record['longitude']}`;
       }
-      throw new Error('The canonical Pref location needs a label or coordinates.');
+      return undefined;
+    }
+  }
+}
+
+function transformedValue(transform: PrefInputTransform, value: unknown): unknown {
+  switch (transform) {
+    case 'identity':
+      return value;
+    case 'iso_to_gdelt_datetime': {
+      if (typeof value !== 'string') throw new Error('A GDELT datetime transform requires text.');
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) throw new Error('The canonical Pref datetime is invalid.');
+      return date
+        .toISOString()
+        .replace(/\.\d{3}Z$/u, '')
+        .replace(/[-:T]/gu, '');
     }
   }
 }

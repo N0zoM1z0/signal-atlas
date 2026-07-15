@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "server": {
     "name": "pref",
     "transport": "streamable_http",
@@ -14,23 +14,80 @@
     "promptListTool": "onboard",
     "allowedDirectTools": ["help", "onboard", "search_tools", "call_tool", "list_resources"]
   },
-  "allowedProviderTools": ["weather.get_current_conditions"],
+  "allowedProviderTools": ["weather.get_current_conditions", "gdelt.context.search_context"],
   "mappings": [
     {
+      "mappingId": "weather-current-conditions-v1",
       "canonicalName": "local_conditions",
       "enabled": true,
+      "priority": 100,
       "toolRef": "weather.get_current_conditions",
       "providerServer": "weather_toolkit",
       "inputProjection": {
-        "location": "location.query"
+        "location": {
+          "selector": "location.query",
+          "required": true,
+          "transform": "identity"
+        }
       },
       "expectedInput": {
         "location": "string"
       },
+      "responseAdapter": "local_conditions_v1",
       "requiredAnnotations": {
         "readOnlyHint": true,
         "destructiveHint": false,
         "idempotentHint": true
+      },
+      "requiredSecurityHints": {
+        "sideEffect": "read_only",
+        "taskSupport": "optional"
+      }
+    },
+    {
+      "mappingId": "gdelt-context-articles-v1",
+      "canonicalName": "search_sources",
+      "enabled": false,
+      "priority": 100,
+      "toolRef": "gdelt.context.search_context",
+      "providerServer": "gdelt_context",
+      "inputProjection": {
+        "query": {
+          "selector": "query",
+          "required": true,
+          "transform": "identity"
+        },
+        "maxrecords": {
+          "selector": "limit",
+          "required": false,
+          "transform": "identity"
+        },
+        "startdatetime": {
+          "selector": "since",
+          "required": false,
+          "transform": "iso_to_gdelt_datetime"
+        },
+        "enddatetime": {
+          "selector": "until",
+          "required": false,
+          "transform": "iso_to_gdelt_datetime"
+        }
+      },
+      "expectedInput": {
+        "query": "string",
+        "maxrecords": "number",
+        "startdatetime": "string",
+        "enddatetime": "string"
+      },
+      "responseAdapter": "article_search_v1",
+      "requiredAnnotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true
+      },
+      "requiredSecurityHints": {
+        "sideEffect": "read_only",
+        "taskSupport": "optional"
       }
     }
   ]

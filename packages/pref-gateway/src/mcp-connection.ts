@@ -986,9 +986,24 @@ function mappingMatchesContract(
   if (!inputSchema || !properties || inputSchema['additionalProperties'] !== false) return false;
   for (const [argumentName, expectedType] of Object.entries(mapping.expectedInput)) {
     const property = recordValue(properties[argumentName]);
-    if (!property || property['type'] !== expectedType || !required.includes(argumentName)) {
+    const projection = mapping.inputProjection[argumentName];
+    if (
+      !property ||
+      !projection ||
+      property['type'] !== expectedType ||
+      (projection.required && !required.includes(argumentName))
+    ) {
       return false;
     }
+  }
+  if (
+    required.some(
+      (argumentName) =>
+        !mapping.inputProjection[argumentName]?.required ||
+        mapping.expectedInput[argumentName] === undefined,
+    )
+  ) {
+    return false;
   }
   const annotations = recordValue(contract['annotations']);
   if (!annotations) return false;
@@ -997,8 +1012,38 @@ function mappingMatchesContract(
   }
   const securityHints = recordValue(contract['security_hints']);
   return (
-    securityHints?.['side_effect'] === undefined || securityHints['side_effect'] === 'read_only'
+    securityHints?.['side_effect'] === mapping.requiredSecurityHints.sideEffect &&
+    securityHints['task_support'] === mapping.requiredSecurityHints.taskSupport &&
+    responseAdapterMatchesContract(mapping, contract)
   );
+}
+
+function responseAdapterMatchesContract(
+  mapping: PrefCapabilityMapping,
+  contract: Record<string, unknown>,
+): boolean {
+  const outputSchema = recordValue(contract['output_schema']);
+  const properties = recordValue(outputSchema?.['properties']);
+  if (!outputSchema || !properties || outputSchema['additionalProperties'] !== false) return false;
+  switch (mapping.responseAdapter) {
+    case 'local_conditions_v1':
+      return ['location', 'weather_description', 'weather_category', 'retrieved_at'].every(
+        (field) => properties[field] !== undefined,
+      );
+    case 'article_search_v1': {
+      const articles = recordValue(properties['articles']);
+      const items = recordValue(articles?.['items']);
+      const itemProperties = recordValue(items?.['properties']);
+      const itemRequired = arrayValue(items?.['required']);
+      return (
+        articles?.['type'] === 'array' &&
+        itemProperties !== undefined &&
+        ['url', 'title', 'domain', 'seendate', 'sentence', 'context'].every(
+          (field) => itemProperties[field] !== undefined && itemRequired.includes(field),
+        )
+      );
+    }
+  }
 }
 
 function recordValue(value: unknown): Record<string, unknown> | undefined {

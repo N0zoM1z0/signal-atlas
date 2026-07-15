@@ -7,11 +7,11 @@ import {
 } from '../src/index.js';
 
 describe('Pref capability map', () => {
-  it('loads the inspected Streamable HTTP deployment and approved weather mapping', async () => {
+  it('loads the provider-neutral v2 registry with approved and policy-blocked mappings', async () => {
     const map = await loadPrefCapabilityMap();
 
     expect(map).toMatchObject({
-      version: 1,
+      version: 2,
       server: {
         name: 'pref',
         transport: 'streamable_http',
@@ -22,14 +22,47 @@ describe('Pref capability map', () => {
         catalogTool: 'search_tools',
         executionTool: 'call_tool',
       },
-      allowedProviderTools: ['weather.get_current_conditions'],
+      allowedProviderTools: ['weather.get_current_conditions', 'gdelt.context.search_context'],
       mappings: [
         {
+          mappingId: 'weather-current-conditions-v1',
           canonicalName: 'local_conditions',
+          enabled: true,
           toolRef: 'weather.get_current_conditions',
           providerServer: 'weather_toolkit',
         },
+        {
+          mappingId: 'gdelt-context-articles-v1',
+          canonicalName: 'search_sources',
+          enabled: false,
+          toolRef: 'gdelt.context.search_context',
+          providerServer: 'gdelt_context',
+          responseAdapter: 'article_search_v1',
+        },
       ],
+    });
+  });
+
+  it('projects optional search controls and provider datetime transforms declaratively', async () => {
+    const map = await loadPrefCapabilityMap();
+    const mapping = map.mappings.find((candidate) => candidate.canonicalName === 'search_sources');
+    expect(mapping).toBeDefined();
+
+    expect(
+      projectPrefCapabilityInput(mapping!, {
+        query: 'orbital launch weather delay',
+        limit: 7,
+        since: '2026-07-14T01:02:03Z',
+        until: '2026-07-15T04:05:06Z',
+      }),
+    ).toEqual({
+      query: 'orbital launch weather delay',
+      maxrecords: 7,
+      startdatetime: '20260714010203',
+      enddatetime: '20260715040506',
+    });
+    expect(projectPrefCapabilityInput(mapping!, { query: 'launch delay' })).toEqual({
+      query: 'launch delay',
     });
   });
 

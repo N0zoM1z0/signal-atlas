@@ -15,12 +15,15 @@ import {
   PrefGatewayConfigSchema,
   PrefLocalConditionsEvidenceSchema,
   PrefLocalConditionsRequestSchema,
+  PrefReadRequestSchema,
+  PrefSearchRequestSchema,
   PrefGatewayError,
   PrefMcpConnectionError,
   type PrefAuditEvent,
   type PrefAuditSink,
   type PrefCallContext,
   type PrefCanonicalCapability,
+  type PrefCanonicalEvidence,
   type PrefCapabilityDescriptor,
   type PrefCapabilityResult,
   type PrefGateway,
@@ -56,11 +59,39 @@ const WeatherPayloadSchema = z.strictObject({
 
 type WeatherPayload = z.infer<typeof WeatherPayloadSchema>;
 
+const ArticleSearchPayloadSchema = z.strictObject({
+  articles: z
+    .array(
+      z.strictObject({
+        url: z.url().max(4_096),
+        title: z.string().trim().min(1).max(1_000),
+        seendate: z
+          .string()
+          .max(32)
+          .refine((value) => value === '' || /^\d{8}T\d{6}Z$/u.test(value)),
+        socialimage: z.string().max(4_096),
+        domain: z.string().trim().min(1).max(500),
+        language: z.string().trim().min(1).max(128),
+        isquote: z.enum(['Not quoted', 'Quoted']).nullable(),
+        sentence: z.string().trim().min(1).max(20_000),
+        context: z.string().max(40_000),
+      }),
+    )
+    .max(200),
+  query: z.string().trim().min(1).max(1_000),
+  requested_max: z.number().finite().positive().optional(),
+  total_returned: z.number().int().nonnegative(),
+  note: z.string().max(2_000).optional(),
+});
+
+type LiveCanonicalInput =
+  ReturnType<typeof PrefLocalConditionsRequestSchema.parse> | PrefSearchRequest | PrefReadRequest;
+
 interface LiveCacheEntry {
   storedAt: string;
   storedAtMs: number;
-  source: SourceRecord;
-  evidence: PrefLocalConditionsEvidence;
+  sources: SourceRecord[];
+  evidence: PrefCanonicalEvidence[];
   responseHash: string;
   responseBytes: number;
 }
@@ -161,6 +192,28 @@ function parseWeatherPayload(result: PrefMcpCallResult): WeatherPayload {
   }
 }
 
+function parseArticleSearchPayload(result: PrefMcpCallResult) {
+  if (result.structuredContent) {
+    return ArticleSearchPayloadSchema.parse(result.structuredContent);
+  }
+  if (!result.text) throw safeError('pref_invalid_response');
+  try {
+    return ArticleSearchPayloadSchema.parse(JSON.parse(result.text) as unknown);
+  } catch {
+    throw safeError('pref_invalid_response');
+  }
+}
+
+function gdeltPublishedAt(value: string): string | undefined {
+  if (!value) return undefined;
+  const match = /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z$/u.exec(value);
+  if (!match) throw safeError('pref_invalid_response');
+  const [, year, month, day, hour, minute, second] = match;
+  const parsed = new Date(`${year}-${month}-${day}T${hour}:${minute}:${second}Z`);
+  if (Number.isNaN(parsed.getTime())) throw safeError('pref_invalid_response');
+  return parsed.toISOString();
+}
+
 function validatedFreshCacheMs(value: number | undefined): number {
   const selected = value ?? DEFAULT_FRESH_CACHE_MS;
   if (!Number.isInteger(selected) || selected < 0 || selected > 24 * 60 * 60_000) {
@@ -227,7 +280,7 @@ export class LivePrefGateway implements PrefGateway {
   async discoverCapabilities(): Promise<PrefCapabilityDescriptor[]> {
     await this.connect();
     const statuses = this.#connection.diagnostics().mappings;
-    return this.#map.mappings
+    const selected = this.#map.mappings
       .filter(
         (mapping) =>
           mapping.enabled &&
@@ -236,14 +289,23 @@ export class LivePrefGateway implements PrefGateway {
             (status) => status.toolRef === mapping.toolRef && status.status === 'valid',
           ),
       )
-      .map((mapping) => ({
-        canonicalName: mapping.canonicalName,
-        primitive: 'tool' as const,
-        primitiveName: mapping.toolRef,
-        readOnly: true as const,
-        locationAware: mapping.canonicalName === 'local_conditions',
-        temporal: mapping.canonicalName === 'local_conditions',
-      }));
+      .sort(
+        (left, right) =>
+          right.priority - left.priority || left.mappingId.localeCompare(right.mappingId),
+      )
+      .filter(
+        (mapping, index, mappings) =>
+          mappings.findIndex((candidate) => candidate.canonicalName === mapping.canonicalName) ===
+          index,
+      );
+    return selected.map((mapping) => ({
+      canonicalName: mapping.canonicalName,
+      primitive: 'tool' as const,
+      primitiveName: mapping.toolRef,
+      readOnly: true as const,
+      locationAware: mapping.canonicalName === 'local_conditions',
+      temporal: mapping.canonicalName === 'local_conditions',
+    }));
   }
 
   search(request: PrefSearchRequest, context: PrefCallContext): Promise<PrefCapabilityResult> {
@@ -263,13 +325,14 @@ export class LivePrefGateway implements PrefGateway {
     if (!parsedCapability.success) throw safeError('pref_capability_denied');
     let capability: PrefCanonicalCapability;
     let context: ReturnType<typeof PrefCallContextSchema.parse>;
-    let input: ReturnType<typeof PrefLocalConditionsRequestSchema.parse>;
+    let input: LiveCanonicalInput;
     try {
       capability = parsedCapability.data;
-      if (capability !== 'local_conditions') throw safeError('pref_capability_denied');
       context = PrefCallContextSchema.parse(contextWithoutSignal(contextValue));
-      input = PrefLocalConditionsRequestSchema.parse(inputValue);
-      if (input.at) throw safeError('pref_invalid_request');
+      input = this.#parseInput(capability, inputValue);
+      if (capability === 'local_conditions' && 'at' in input && input.at) {
+        throw safeError('pref_invalid_request');
+      }
     } catch (error: unknown) {
       if (error instanceof PrefGatewayError) throw error;
       throw safeError('pref_invalid_request');
@@ -344,15 +407,15 @@ export class LivePrefGateway implements PrefGateway {
         if (callResult.responseBytes > this.#config.maxResponseBytes) {
           throw safeError('pref_response_too_large');
         }
-        const payload = parseWeatherPayload(callResult);
         const responseHash = prefHash({
           structuredContent: callResult.structuredContent ?? null,
           text: callResult.text ?? null,
         });
         const retrievedAt = this.#timestamp();
-        const normalized = this.#normalizeWeather(
-          payload,
+        const normalized = this.#normalizeMappedResult(
+          callResult,
           mapping,
+          input,
           callId,
           argumentsHash,
           responseHash,
@@ -362,7 +425,7 @@ export class LivePrefGateway implements PrefGateway {
         const entry: LiveCacheEntry = {
           storedAt: retrievedAt,
           storedAtMs: this.#now().getTime(),
-          source: structuredClone(normalized.source),
+          sources: structuredClone(normalized.sources),
           evidence: structuredClone(normalized.evidence),
           responseHash,
           responseBytes: callResult.responseBytes,
@@ -375,8 +438,8 @@ export class LivePrefGateway implements PrefGateway {
         return {
           callId,
           capability,
-          sources: [structuredClone(entry.source)],
-          evidence: [structuredClone(entry.evidence)],
+          sources: structuredClone(entry.sources),
+          evidence: structuredClone(entry.evidence),
           argumentsHash,
           responseHash,
           retrievedAt,
@@ -446,14 +509,109 @@ export class LivePrefGateway implements PrefGateway {
   }
 
   #mapping(capability: PrefCanonicalCapability): PrefCapabilityMapping {
-    const mapping = this.#map.mappings.find(
-      (candidate) => candidate.enabled && candidate.canonicalName === capability,
-    );
-    const status = this.#connection
-      .diagnostics()
-      .mappings.find((candidate) => candidate.toolRef === mapping?.toolRef);
-    if (!mapping || status?.status !== 'valid') throw safeError('pref_capability_denied');
+    const statuses = this.#connection.diagnostics().mappings;
+    const mapping = this.#map.mappings
+      .filter((candidate) => candidate.enabled && candidate.canonicalName === capability)
+      .sort(
+        (left, right) =>
+          right.priority - left.priority || left.mappingId.localeCompare(right.mappingId),
+      )
+      .find((candidate) =>
+        statuses.some(
+          (status) => status.toolRef === candidate.toolRef && status.status === 'valid',
+        ),
+      );
+    if (!mapping) throw safeError('pref_capability_denied');
     return mapping;
+  }
+
+  #parseInput(capability: PrefCanonicalCapability, input: unknown): LiveCanonicalInput {
+    switch (capability) {
+      case 'search_sources':
+        return PrefSearchRequestSchema.parse(input);
+      case 'read_source':
+        return PrefReadRequestSchema.parse(input);
+      case 'local_conditions':
+        return PrefLocalConditionsRequestSchema.parse(input);
+    }
+  }
+
+  #normalizeMappedResult(
+    result: PrefMcpCallResult,
+    mapping: PrefCapabilityMapping,
+    input: LiveCanonicalInput,
+    callId: string,
+    argumentsHash: string,
+    responseHash: string,
+    retrievedAt: string,
+    previous: LiveCacheEntry | undefined,
+  ): { sources: SourceRecord[]; evidence: PrefCanonicalEvidence[] } {
+    switch (mapping.responseAdapter) {
+      case 'local_conditions_v1': {
+        const normalized = this.#normalizeWeather(
+          parseWeatherPayload(result),
+          mapping,
+          callId,
+          argumentsHash,
+          responseHash,
+          retrievedAt,
+          previous,
+        );
+        return { sources: [normalized.source], evidence: [normalized.evidence] };
+      }
+      case 'article_search_v1':
+        if (mapping.canonicalName !== 'search_sources' || !('query' in input)) {
+          throw safeError('pref_invalid_response');
+        }
+        return {
+          sources: this.#normalizeArticleSearch(
+            parseArticleSearchPayload(result),
+            mapping,
+            input,
+            callId,
+            argumentsHash,
+            responseHash,
+            retrievedAt,
+          ),
+          evidence: [],
+        };
+    }
+  }
+
+  #normalizeArticleSearch(
+    payload: z.infer<typeof ArticleSearchPayloadSchema>,
+    mapping: PrefCapabilityMapping,
+    input: PrefSearchRequest,
+    callId: string,
+    argumentsHash: string,
+    responseHash: string,
+    retrievedAt: string,
+  ): SourceRecord[] {
+    const limit = Math.min(input.limit ?? 20, 50);
+    return payload.articles.slice(0, limit).map((article) => {
+      const publishedAt = gdeltPublishedAt(article.seendate);
+      return normalizePrefRawResult(
+        {
+          primitive: 'tool',
+          primitiveName: mapping.toolRef,
+          externalId: article.url,
+          uri: article.url,
+          title: article.title,
+          publisher: article.domain,
+          sourceClass: 'secondary',
+          ...(publishedAt ? { publishedAt } : {}),
+          mediaType: 'text/html',
+          payload: article,
+          rights: {
+            display: 'metadata_only',
+            notes:
+              'The provider did not grant article-content display rights; matched sentences and context are hashed but not retained.',
+          },
+          tags: ['article-search', 'gdelt', 'live', article.language.toLowerCase()],
+        },
+        { config: this.#config, callId, argumentsHash, responseHash, retrievedAt },
+      );
+    });
   }
 
   #normalizeWeather(
@@ -513,17 +671,18 @@ export class LivePrefGateway implements PrefGateway {
       responseHash,
       retrievedAt,
     });
-    if (previous && previous.source.contentHash !== source.contentHash) {
+    const previousSource = previous?.sources[0];
+    if (previousSource && previousSource.contentHash !== source.contentHash) {
       source = normalizePrefRawResult(
         {
           ...baseRaw,
-          version: previous.source.version + 1,
-          supersedesSourceId: previous.source.id,
+          version: previousSource.version + 1,
+          supersedesSourceId: previousSource.id,
         },
         { config: this.#config, callId, argumentsHash, responseHash, retrievedAt },
       );
-    } else if (previous) {
-      source = { ...source, version: previous.source.version };
+    } else if (previousSource) {
+      source = { ...source, version: previousSource.version };
     }
     const evidence = PrefLocalConditionsEvidenceSchema.parse({
       kind: 'local_conditions',
@@ -564,8 +723,8 @@ export class LivePrefGateway implements PrefGateway {
     return {
       callId,
       capability,
-      sources: [structuredClone(cached.source)],
-      evidence: [structuredClone(cached.evidence)],
+      sources: structuredClone(cached.sources),
+      evidence: structuredClone(cached.evidence),
       argumentsHash,
       responseHash: cached.responseHash,
       retrievedAt,
@@ -578,7 +737,7 @@ export class LivePrefGateway implements PrefGateway {
         ...(status === 'stale'
           ? {
               warning:
-                'The live provider was unavailable; this result reuses the last validated observation.',
+                'The live provider was unavailable; this result reuses the last validated observation or source result.',
             }
           : {}),
       },
@@ -597,7 +756,7 @@ export class LivePrefGateway implements PrefGateway {
       ...auditBase,
       type: 'pref.call.completed',
       occurredAt: this.#timestamp(),
-      sourceIds: [cached.source.id],
+      sourceIds: cached.sources.map((source) => source.id),
       responseHash: cached.responseHash,
       responseBytes: cached.responseBytes,
       durationMs,
