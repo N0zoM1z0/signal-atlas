@@ -105,6 +105,55 @@ function sameIds(left: readonly string[], right: readonly string[]): boolean {
   return [...left].sort().join('|') === [...right].sort().join('|');
 }
 
+function validateFixtureEvidence(
+  fixture: ExpeditionFixture,
+  input: AgentTurnInput,
+  output: AgentTurnOutput,
+  promptContext: CodexTurnPromptContext,
+): string[] {
+  const expected = createScriptedFixtureTurn(fixture, {
+    mission: input.mission,
+    effectivePlaceId: input.effectivePlaceId,
+    attempt: input.attempt,
+    scenario: 'success',
+    turnId: input.turnId,
+  });
+  const availableSourceIds = new Set(promptContext.knowledge.sources.map((source) => source.id));
+  const requiredSourceIds = expected.sources
+    .map((source) => source.id)
+    .filter((sourceId) => availableSourceIds.has(sourceId));
+  if (requiredSourceIds.length === 0) return [];
+
+  const errors: string[] = [];
+  if (output.action.type === 'wait') {
+    errors.push(
+      `action.type: this authored fixture mission supplied current-turn evidence (${requiredSourceIds.join(', ')}); analyze it instead of waiting.`,
+    );
+  }
+  for (const sourceId of requiredSourceIds) {
+    if (!output.sourceIdsUsed.includes(sourceId)) {
+      errors.push(`sourceIdsUsed: cite the supplied current-turn source ${sourceId}.`);
+    }
+  }
+  for (const claim of expected.claims) {
+    if (!output.proposedClaims.some((candidate) => sameIds(candidate.sourceIds, claim.sourceIds))) {
+      errors.push(
+        `proposedClaims: include a claim supported by source set ${claim.sourceIds.join(', ')}.`,
+      );
+    }
+  }
+  for (const signal of expected.signals) {
+    if (
+      !output.proposedSignals.some((candidate) => sameIds(candidate.sourceIds, signal.sourceIds))
+    ) {
+      errors.push(
+        `proposedSignals: include a signal supported by source set ${signal.sourceIds.join(', ')}.`,
+      );
+    }
+  }
+  return errors;
+}
+
 function materializeLocalTurn(
   fixture: ExpeditionFixture,
   input: AgentTurnInput,
@@ -179,13 +228,8 @@ export function createConfiguredMissionDriver(
     promptContext: (input) => buildFixtureCodexPromptContext(fixture, input),
     materializeArtifacts: (input, output, metadata) =>
       materializeLocalTurn(fixture, input, output, metadata),
-    validateOutput: (input, output, promptContext) => {
-      if (promptContext.knowledge.sources.length === 0) return [];
-      if (output.action.type === 'wait') return [];
-      return output.sourceIdsUsed.length === 0
-        ? ['sourceIdsUsed: an evidence-producing fixture mission must cite a supplied source.']
-        : [];
-    },
+    validateOutput: (input, output, promptContext) =>
+      validateFixtureEvidence(fixture, input, output, promptContext),
     ...(options.executable ? { executable: options.executable } : {}),
     ...(options.model ? { model: options.model } : {}),
     ...(options.runtimeRoot ? { runtimeRoot: options.runtimeRoot } : {}),

@@ -170,6 +170,30 @@ describe('local Codex world integration', () => {
     expect(requests).toHaveLength(1);
   });
 
+  it('repairs a wait when an authored fixture mission supplied current-turn evidence', async () => {
+    const requests: CodexProcessRequest[] = [];
+    const waitOutput: AgentTurnOutput = {
+      ...validOutput(),
+      action: { type: 'wait', reason: 'No action taken.' },
+      sourceIdsUsed: [],
+      proposedClaims: [],
+      proposedSignals: [],
+    };
+    const runtime = localRuntime(
+      [JSON.stringify(waitOutput), JSON.stringify(validOutput())],
+      requests,
+    );
+
+    await runWeatherTurn(runtime);
+
+    expect(runtime.snapshot().signalsById['sig-crosswind']).toBeDefined();
+    expect(requests).toHaveLength(2);
+    expect(requests[1]?.stdin).toContain(
+      'this authored fixture mission supplied current-turn evidence',
+    );
+    expect(requests[1]?.stdin).toContain('src-weather-bulletin-1');
+  });
+
   it.each([
     ['invalid JSON', 'not-json'],
     ['an unknown source ID', JSON.stringify(validOutput('src-not-in-packet'))],
