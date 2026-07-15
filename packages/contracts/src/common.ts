@@ -7,7 +7,10 @@ export const EntityIdSchema = z
   .string()
   .min(1)
   .max(160)
-  .regex(/^[a-zA-Z0-9][a-zA-Z0-9._:-]*$/, 'Expected a stable identifier.');
+  .regex(
+    /^(?!(?:constructor|prototype|toString|valueOf|hasOwnProperty|isPrototypeOf|propertyIsEnumerable|toLocaleString)$)[a-zA-Z0-9][a-zA-Z0-9._:-]*$/,
+    'Expected a stable, prototype-safe identifier.',
+  );
 
 export const DateTimeSchema = z.iso.datetime({ offset: true });
 export const ContentHashSchema = z

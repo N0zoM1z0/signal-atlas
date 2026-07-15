@@ -35,6 +35,14 @@ export interface CommandIdempotencyRecord {
 
 export type CommandIdempotencyLedger = Readonly<Record<string, CommandIdempotencyRecord>>;
 
+function hasOwnEntry(record: Readonly<Record<string, unknown>>, id: string): boolean {
+  return Object.hasOwn(record, id);
+}
+
+function ownEntry<T>(record: Readonly<Record<string, T>>, id: string): T | undefined {
+  return hasOwnEntry(record, id) ? record[id] : undefined;
+}
+
 function sameMembers(left: readonly string[], right: readonly string[]): boolean {
   const sortedLeft = [...left].sort();
   const sortedRight = [...right].sort();
@@ -90,7 +98,7 @@ export function validateWorldCommand(
     );
   }
 
-  const existingCommand = ledger[command.idempotencyKey];
+  const existingCommand = ownEntry(ledger, command.idempotencyKey);
   if (existingCommand) {
     if (
       existingCommand.commandId === command.id &&
@@ -109,7 +117,7 @@ export function validateWorldCommand(
   if (command.actor.kind === 'agent') {
     if (!command.actor.id) {
       addIssue('invalid_reference', ['actor', 'id'], 'Agent commands require an actor ID.');
-    } else if (!state.agentsById[command.actor.id]) {
+    } else if (!hasOwnEntry(state.agentsById, command.actor.id)) {
       addIssue(
         'missing_reference',
         ['actor', 'id'],
@@ -119,7 +127,7 @@ export function validateWorldCommand(
   }
 
   const requireAgent = (id: string, path: Array<string | number>) => {
-    if (!state.agentsById[id]) {
+    if (!hasOwnEntry(state.agentsById, id)) {
       addIssue('missing_reference', path, `Agent ${id} does not exist.`);
     }
   };
@@ -129,7 +137,7 @@ export function validateWorldCommand(
     }
   };
   const requireMission = (id: string, path: Array<string | number>) => {
-    if (!state.missionsById[id]) {
+    if (!hasOwnEntry(state.missionsById, id)) {
       addIssue('missing_reference', path, `Mission ${id} does not exist.`);
     }
   };
@@ -164,7 +172,7 @@ export function validateWorldCommand(
       break;
     case 'agent.assign_mission': {
       const mission = command.payload.mission;
-      if (state.missionsById[mission.id]) {
+      if (hasOwnEntry(state.missionsById, mission.id)) {
         addIssue(
           'invalid_reference',
           ['payload', 'mission', 'id'],
@@ -183,7 +191,7 @@ export function validateWorldCommand(
         requireAgent(id, ['payload', 'mission', 'targetAgentIds', index]),
       );
       mission.sourceIds?.forEach((id, index) => {
-        if (!state.sourcesById[id]) {
+        if (!hasOwnEntry(state.sourcesById, id)) {
           addIssue(
             'missing_reference',
             ['payload', 'mission', 'sourceIds', index],
@@ -192,7 +200,7 @@ export function validateWorldCommand(
         }
       });
       mission.signalIds?.forEach((id, index) => {
-        if (!state.signalsById[id]) {
+        if (!hasOwnEntry(state.signalsById, id)) {
           addIssue(
             'missing_reference',
             ['payload', 'mission', 'signalIds', index],
@@ -217,7 +225,7 @@ export function validateWorldCommand(
     }
     case 'agent.cancel_mission': {
       requireMission(command.payload.missionId, ['payload', 'missionId']);
-      const mission = state.missionsById[command.payload.missionId];
+      const mission = ownEntry(state.missionsById, command.payload.missionId);
       if (mission && ['completed', 'failed', 'canceled'].includes(mission.status)) {
         addIssue(
           'invalid_state',
@@ -229,7 +237,7 @@ export function validateWorldCommand(
     }
     case 'agent.reorder_missions': {
       requireAgent(command.payload.agentId, ['payload', 'agentId']);
-      const agent = state.agentsById[command.payload.agentId];
+      const agent = ownEntry(state.agentsById, command.payload.agentId);
       if (agent && !sameMembers(agent.queuedMissionIds, command.payload.orderedMissionIds)) {
         addIssue(
           'invalid_reference',
@@ -242,7 +250,7 @@ export function validateWorldCommand(
     case 'agent.skip_travel': {
       requireAgent(command.payload.agentId, ['payload', 'agentId']);
       requireMission(command.payload.missionId, ['payload', 'missionId']);
-      const agent = state.agentsById[command.payload.agentId];
+      const agent = ownEntry(state.agentsById, command.payload.agentId);
       if (agent && (!agent.movement || agent.activeMissionId !== command.payload.missionId)) {
         addIssue(
           'invalid_state',
@@ -268,8 +276,8 @@ export function validateWorldCommand(
         );
       }
       if (
-        state.meetingRequestsById[command.payload.meetingId] ||
-        state.meetingsById[command.payload.meetingId]
+        hasOwnEntry(state.meetingRequestsById, command.payload.meetingId) ||
+        hasOwnEntry(state.meetingsById, command.payload.meetingId)
       ) {
         addIssue(
           'invalid_reference',
@@ -288,7 +296,7 @@ export function validateWorldCommand(
         );
       }
       command.payload.participantAgentIds.forEach((id, index) => {
-        const agent = state.agentsById[id];
+        const agent = ownEntry(state.agentsById, id);
         if (
           agent &&
           (agent.activeMissionId || agent.movement || agent.queuedMissionIds.length > 0)
@@ -304,7 +312,7 @@ export function validateWorldCommand(
     }
     case 'professor.query': {
       const query = command.payload.query;
-      if (state.professorQueriesById[query.id]) {
+      if (hasOwnEntry(state.professorQueriesById, query.id)) {
         addIssue(
           'invalid_reference',
           ['payload', 'query', 'id'],
@@ -319,7 +327,7 @@ export function validateWorldCommand(
         );
       }
       query.selectedSourceIds.forEach((id, index) => {
-        if (!state.sourcesById[id]) {
+        if (!hasOwnEntry(state.sourcesById, id)) {
           addIssue(
             'missing_reference',
             ['payload', 'query', 'selectedSourceIds', index],
@@ -328,7 +336,7 @@ export function validateWorldCommand(
         }
       });
       query.selectedSignalIds.forEach((id, index) => {
-        if (!state.signalsById[id]) {
+        if (!hasOwnEntry(state.signalsById, id)) {
           addIssue(
             'missing_reference',
             ['payload', 'query', 'selectedSignalIds', index],
@@ -422,7 +430,7 @@ export function validateWorldCommand(
         );
       }
       commit.evidenceSignalIds.forEach((id, index) => {
-        if (!state.signalsById[id]) {
+        if (!hasOwnEntry(state.signalsById, id)) {
           addIssue(
             'missing_reference',
             ['payload', 'commit', 'evidenceSignalIds', index],
@@ -478,8 +486,8 @@ export function validateWorldCommand(
     case 'runtime.retry_turn': {
       requireAgent(command.payload.agentId, ['payload', 'agentId']);
       requireMission(command.payload.missionId, ['payload', 'missionId']);
-      const turn = state.agentTurnsById[command.payload.failedTurnId];
-      const mission = state.missionsById[command.payload.missionId];
+      const turn = ownEntry(state.agentTurnsById, command.payload.failedTurnId);
+      const mission = ownEntry(state.missionsById, command.payload.missionId);
       if (!turn) {
         addIssue(
           'missing_reference',
@@ -520,11 +528,13 @@ export function recordAcceptedCommand(
   ledger: CommandIdempotencyLedger,
   command: WorldCommand,
 ): CommandIdempotencyLedger {
-  return {
-    ...ledger,
-    [command.idempotencyKey]: {
-      commandId: command.id,
-      commandHash: canonicalHash(command),
-    },
+  const next = Object.assign(
+    Object.create(null) as Record<string, CommandIdempotencyRecord>,
+    ledger,
+  );
+  next[command.idempotencyKey] = {
+    commandId: command.id,
+    commandHash: canonicalHash(command),
   };
+  return next;
 }

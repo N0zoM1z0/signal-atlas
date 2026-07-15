@@ -194,14 +194,18 @@ export interface WorldBootstrap {
 }
 
 function indexAgents(agents: readonly Agent[]): Record<string, Agent> {
-  const indexed: Record<string, Agent> = {};
+  const indexed = emptyEntityIndex<Agent>();
   for (const agent of agents) {
-    if (indexed[agent.id]) {
+    if (Object.hasOwn(indexed, agent.id)) {
       throw new IllegalTransitionError(`Duplicate bootstrap agent ID: ${agent.id}.`);
     }
     indexed[agent.id] = structuredClone(agent);
   }
   return indexed;
+}
+
+function emptyEntityIndex<T>(): Record<string, T> {
+  return Object.create(null) as Record<string, T>;
 }
 
 export function createInitialWorldState(bootstrap: WorldBootstrap): WorldProjection {
@@ -249,17 +253,17 @@ export function createInitialWorldState(bootstrap: WorldBootstrap): WorldProject
     market: structuredClone(bootstrap.market),
     worldManifest: structuredClone(bootstrap.worldManifest),
     agentsById: indexAgents(bootstrap.agents),
-    missionsById: {},
-    sourcesById: {},
-    claimsById: {},
-    signalsById: {},
-    knowledgeByKey: {},
-    correlationsById: {},
-    meetingsById: {},
-    meetingRequestsById: {},
-    meetingMemosById: {},
-    professorQueriesById: {},
-    professorResponsesByQueryId: {},
+    missionsById: emptyEntityIndex(),
+    sourcesById: emptyEntityIndex(),
+    claimsById: emptyEntityIndex(),
+    signalsById: emptyEntityIndex(),
+    knowledgeByKey: emptyEntityIndex(),
+    correlationsById: emptyEntityIndex(),
+    meetingsById: emptyEntityIndex(),
+    meetingRequestsById: emptyEntityIndex(),
+    meetingMemosById: emptyEntityIndex(),
+    professorQueriesById: emptyEntityIndex(),
+    professorResponsesByQueryId: emptyEntityIndex(),
     beliefUpdates: [],
     forecasts: [],
     marketPriceHistory: [],
@@ -267,8 +271,8 @@ export function createInitialWorldState(bootstrap: WorldBootstrap): WorldProject
     dialogue: [],
     signalShares: [],
     claimDisputes: [],
-    prefCallsById: {},
-    agentTurnsById: {},
+    prefCallsById: emptyEntityIndex(),
+    agentTurnsById: emptyEntityIndex(),
     appliedEventIds: [],
     appliedEvents: [],
   };

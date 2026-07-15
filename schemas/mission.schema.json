@@ -4,7 +4,7 @@
     "__schema0": {
       "maxLength": 160,
       "minLength": 1,
-      "pattern": "^[a-zA-Z0-9][a-zA-Z0-9._:-]*$",
+      "pattern": "^(?!(?:constructor|prototype|toString|valueOf|hasOwnProperty|isPrototypeOf|propertyIsEnumerable|toLocaleString)$)[a-zA-Z0-9][a-zA-Z0-9._:-]*$",
       "type": "string"
     },
     "__schema1": {

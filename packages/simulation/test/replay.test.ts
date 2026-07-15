@@ -53,7 +53,7 @@ describe('deterministic replay', () => {
     expect(first.projection).toEqual(second.projection);
     expect(first.hash).toBe(second.hash);
     expect(first.hash).toBe(
-      'sha256:7e951b7828c73b392979bdc2b9271f9bc33ce98d2939f23b37b5b3086e124f11',
+      'sha256:9962cf353f3b38ccdca94a1a403f53d0710840fd3d4b376ebcddb819023138ab',
     );
     expect(first.projection.sequence).toBe(2);
     expect(first.projection.appliedEventIds).toEqual(['evt-0001', 'evt-0002']);

@@ -24,17 +24,22 @@ import {
 } from './state.js';
 
 function requireEntity<T>(record: Record<string, T>, id: string, label: string): T {
-  const entity = record[id];
-  if (!entity) {
+  if (!Object.hasOwn(record, id)) {
     throw new IllegalTransitionError(`${label} ${id} does not exist in the projection.`);
   }
-  return entity;
+  return record[id] as T;
 }
 
 function ensureNewEntity<T>(record: Record<string, T>, id: string, label: string): void {
-  if (record[id]) {
+  if (Object.hasOwn(record, id)) {
     throw new IllegalTransitionError(`${label} ${id} already exists in the projection.`);
   }
+}
+
+function withIndexEntry<T>(record: Record<string, T>, id: string, value: T): Record<string, T> {
+  const next = Object.assign(Object.create(null) as Record<string, T>, record);
+  next[id] = value;
+  return next;
 }
 
 function appendUnique(values: readonly string[], value: string): string[] {
@@ -106,10 +111,7 @@ function updateAgent(
   const agent = requireEntity(state.agentsById, agentId, 'Agent');
   return {
     ...state,
-    agentsById: {
-      ...state.agentsById,
-      [agentId]: update(structuredClone(agent)),
-    },
+    agentsById: withIndexEntry(state.agentsById, agentId, update(structuredClone(agent))),
   };
 }
 
@@ -121,10 +123,7 @@ function updateMission(
   const mission = requireEntity(state.missionsById, missionId, 'Mission');
   return {
     ...state,
-    missionsById: {
-      ...state.missionsById,
-      [missionId]: update(structuredClone(mission)),
-    },
+    missionsById: withIndexEntry(state.missionsById, missionId, update(structuredClone(mission))),
   };
 }
 
@@ -160,7 +159,9 @@ function appendSignalShare(
   requireEntity(state.signalsById, share.signalId, 'Signal');
   requireEntity(state.agentsById, share.fromAgentId, 'Agent');
   requireKnownIds(state.agentsById, share.toAgentIds, 'Agent');
-  if (!state.knowledgeByKey[knowledgeKey(share.fromAgentId, 'signal', share.signalId)]) {
+  if (
+    !Object.hasOwn(state.knowledgeByKey, knowledgeKey(share.fromAgentId, 'signal', share.signalId))
+  ) {
     throw new IllegalTransitionError(
       `Agent ${share.fromAgentId} cannot share signal ${share.signalId} without a knowledge edge.`,
     );
@@ -305,7 +306,7 @@ export function reduceWorldEvent(state: WorldProjection, event: WorldEvent): Wor
       requirePlace(state, agent.placeId);
       next = {
         ...state,
-        agentsById: { ...state.agentsById, [agent.id]: structuredClone(agent) },
+        agentsById: withIndexEntry(state.agentsById, agent.id, structuredClone(agent)),
       };
       break;
     }
@@ -323,10 +324,10 @@ export function reduceWorldEvent(state: WorldProjection, event: WorldEvent): Wor
       }
       next = {
         ...state,
-        missionsById: {
-          ...state.missionsById,
-          [mission.id]: { ...structuredClone(mission), status: 'queued' },
-        },
+        missionsById: withIndexEntry(state.missionsById, mission.id, {
+          ...structuredClone(mission),
+          status: 'queued',
+        }),
       };
       next = updateAgent(next, mission.assignedAgentId, (agent) => {
         agent.queuedMissionIds = appendUnique(agent.queuedMissionIds, mission.id);
@@ -529,7 +530,7 @@ export function reduceWorldEvent(state: WorldProjection, event: WorldEvent): Wor
       };
       next = {
         ...state,
-        agentTurnsById: { ...state.agentTurnsById, [turn.turnId]: turn },
+        agentTurnsById: withIndexEntry(state.agentTurnsById, turn.turnId, turn),
       };
       next = updateAgent(next, payload.agentId, (agent) => ({
         ...agent,
@@ -559,7 +560,7 @@ export function reduceWorldEvent(state: WorldProjection, event: WorldEvent): Wor
       };
       next = {
         ...state,
-        agentTurnsById: { ...state.agentTurnsById, [turnId]: turn },
+        agentTurnsById: withIndexEntry(state.agentTurnsById, turnId, turn),
       };
       next = updateAgent(next, payload.agentId, (agent) => ({
         ...agent,
@@ -599,17 +600,14 @@ export function reduceWorldEvent(state: WorldProjection, event: WorldEvent): Wor
         requireEntity(state.claimsById, knowledge.objectId, 'Claim');
       }
       const key = knowledgeKey(knowledge.agentId, knowledge.objectType, knowledge.objectId);
-      if (!state.knowledgeByKey[key]) {
+      if (!Object.hasOwn(state.knowledgeByKey, key)) {
         next = {
           ...state,
-          knowledgeByKey: {
-            ...state.knowledgeByKey,
-            [key]: {
-              ...structuredClone(knowledge),
-              eventId: event.id,
-              sequence: event.sequence,
-            },
-          },
+          knowledgeByKey: withIndexEntry(state.knowledgeByKey, key, {
+            ...structuredClone(knowledge),
+            eventId: event.id,
+            sequence: event.sequence,
+          }),
         };
         next = updateAgent(next, knowledge.agentId, (agent) => {
           if (knowledge.objectType === 'source') {
@@ -625,7 +623,7 @@ export function reduceWorldEvent(state: WorldProjection, event: WorldEvent): Wor
 
     case 'pref.call.started': {
       const payload = event.payload;
-      if (state.prefCallsById[payload.callId]) {
+      if (Object.hasOwn(state.prefCallsById, payload.callId)) {
         throw new IllegalTransitionError(`Pref call ${payload.callId} already exists.`);
       }
       const call: PrefCallProjection = {
@@ -639,7 +637,7 @@ export function reduceWorldEvent(state: WorldProjection, event: WorldEvent): Wor
       };
       next = {
         ...state,
-        prefCallsById: { ...state.prefCallsById, [call.callId]: call },
+        prefCallsById: withIndexEntry(state.prefCallsById, call.callId, call),
       };
       break;
     }
@@ -652,16 +650,13 @@ export function reduceWorldEvent(state: WorldProjection, event: WorldEvent): Wor
       }
       next = {
         ...state,
-        prefCallsById: {
-          ...state.prefCallsById,
-          [existing.callId]: {
-            ...existing,
-            status: 'completed',
-            completedEventId: event.id,
-            sourceIds: [...event.payload.sourceIds],
-            durationMs: event.payload.durationMs,
-          },
-        },
+        prefCallsById: withIndexEntry(state.prefCallsById, existing.callId, {
+          ...existing,
+          status: 'completed',
+          completedEventId: event.id,
+          sourceIds: [...event.payload.sourceIds],
+          durationMs: event.payload.durationMs,
+        }),
       };
       break;
     }
@@ -674,19 +669,16 @@ export function reduceWorldEvent(state: WorldProjection, event: WorldEvent): Wor
       }
       next = {
         ...state,
-        prefCallsById: {
-          ...state.prefCallsById,
-          [existing.callId]: {
-            ...existing,
-            status: 'failed',
-            completedEventId: event.id,
-            error: {
-              code: event.payload.code,
-              message: event.payload.message,
-              retryable: event.payload.retryable,
-            },
+        prefCallsById: withIndexEntry(state.prefCallsById, existing.callId, {
+          ...existing,
+          status: 'failed',
+          completedEventId: event.id,
+          error: {
+            code: event.payload.code,
+            message: event.payload.message,
+            retryable: event.payload.retryable,
           },
-        },
+        }),
       };
       break;
     }
@@ -695,7 +687,7 @@ export function reduceWorldEvent(state: WorldProjection, event: WorldEvent): Wor
       ensureNewEntity(state.sourcesById, source.id, 'Source');
       next = {
         ...state,
-        sourcesById: { ...state.sourcesById, [source.id]: structuredClone(source) },
+        sourcesById: withIndexEntry(state.sourcesById, source.id, structuredClone(source)),
       };
       break;
     }
@@ -713,7 +705,7 @@ export function reduceWorldEvent(state: WorldProjection, event: WorldEvent): Wor
       }
       next = {
         ...state,
-        sourcesById: { ...state.sourcesById, [source.id]: structuredClone(source) },
+        sourcesById: withIndexEntry(state.sourcesById, source.id, structuredClone(source)),
       };
       break;
     }
@@ -726,7 +718,7 @@ export function reduceWorldEvent(state: WorldProjection, event: WorldEvent): Wor
       }
       next = {
         ...state,
-        claimsById: { ...state.claimsById, [claim.id]: structuredClone(claim) },
+        claimsById: withIndexEntry(state.claimsById, claim.id, structuredClone(claim)),
       };
       break;
     }
@@ -735,10 +727,10 @@ export function reduceWorldEvent(state: WorldProjection, event: WorldEvent): Wor
       requireKnownIds(state.sourcesById, event.payload.sourceIds, 'Source');
       next = {
         ...state,
-        claimsById: {
-          ...state.claimsById,
-          [claim.id]: { ...claim, status: 'disputed' },
-        },
+        claimsById: withIndexEntry(state.claimsById, claim.id, {
+          ...claim,
+          status: 'disputed',
+        }),
         claimDisputes: [
           ...state.claimDisputes,
           {
@@ -759,7 +751,7 @@ export function reduceWorldEvent(state: WorldProjection, event: WorldEvent): Wor
       validateSignalReferences(state, signal);
       next = {
         ...state,
-        signalsById: { ...state.signalsById, [signal.id]: structuredClone(signal) },
+        signalsById: withIndexEntry(state.signalsById, signal.id, structuredClone(signal)),
       };
       break;
     }
@@ -769,7 +761,7 @@ export function reduceWorldEvent(state: WorldProjection, event: WorldEvent): Wor
       validateSignalReferences(state, signal);
       next = {
         ...state,
-        signalsById: { ...state.signalsById, [signal.id]: structuredClone(signal) },
+        signalsById: withIndexEntry(state.signalsById, signal.id, structuredClone(signal)),
       };
       break;
     }
@@ -788,20 +780,15 @@ export function reduceWorldEvent(state: WorldProjection, event: WorldEvent): Wor
       }
       next = {
         ...state,
-        signalsById: {
-          ...state.signalsById,
-          [signal.id]: {
-            ...signal,
-            status: 'stale',
-            freshness: {
-              ...signal.freshness,
-              label: 'stale',
-              ...(event.payload.newerSourceId
-                ? { newerSourceId: event.payload.newerSourceId }
-                : {}),
-            },
+        signalsById: withIndexEntry(state.signalsById, signal.id, {
+          ...signal,
+          status: 'stale',
+          freshness: {
+            ...signal.freshness,
+            label: 'stale',
+            ...(event.payload.newerSourceId ? { newerSourceId: event.payload.newerSourceId } : {}),
           },
-        },
+        }),
       };
       break;
     }
@@ -811,10 +798,11 @@ export function reduceWorldEvent(state: WorldProjection, event: WorldEvent): Wor
       requireKnownIds(state.signalsById, correlation.signalIds, 'Signal');
       next = {
         ...state,
-        correlationsById: {
-          ...state.correlationsById,
-          [correlation.id]: structuredClone(correlation),
-        },
+        correlationsById: withIndexEntry(
+          state.correlationsById,
+          correlation.id,
+          structuredClone(correlation),
+        ),
       };
       break;
     }
@@ -825,17 +813,14 @@ export function reduceWorldEvent(state: WorldProjection, event: WorldEvent): Wor
       ensureNewEntity(state.meetingRequestsById, event.payload.meetingId, 'Meeting request');
       next = {
         ...state,
-        meetingRequestsById: {
-          ...state.meetingRequestsById,
-          [event.payload.meetingId]: {
-            eventId: event.id,
-            sequence: event.sequence,
-            meetingId: event.payload.meetingId,
-            placeId: event.payload.placeId,
-            participantAgentIds: [...event.payload.participantAgentIds],
-            requestedAt: event.occurredAt,
-          },
-        },
+        meetingRequestsById: withIndexEntry(state.meetingRequestsById, event.payload.meetingId, {
+          eventId: event.id,
+          sequence: event.sequence,
+          meetingId: event.payload.meetingId,
+          placeId: event.payload.placeId,
+          participantAgentIds: [...event.payload.participantAgentIds],
+          requestedAt: event.occurredAt,
+        }),
       };
       break;
     case 'meeting.started': {
@@ -862,7 +847,7 @@ export function reduceWorldEvent(state: WorldProjection, event: WorldEvent): Wor
       }
       next = {
         ...state,
-        meetingsById: { ...state.meetingsById, [meeting.id]: structuredClone(meeting) },
+        meetingsById: withIndexEntry(state.meetingsById, meeting.id, structuredClone(meeting)),
       };
       for (const agentId of meeting.participantAgentIds) {
         next = updateAgent(next, agentId, (agent) => ({
@@ -896,13 +881,10 @@ export function reduceWorldEvent(state: WorldProjection, event: WorldEvent): Wor
       });
       next = {
         ...next,
-        meetingsById: {
-          ...next.meetingsById,
-          [meeting.id]: {
-            ...meeting,
-            sharedSignalIds: appendUnique(meeting.sharedSignalIds, event.payload.signalId),
-          },
-        },
+        meetingsById: withIndexEntry(next.meetingsById, meeting.id, {
+          ...meeting,
+          sharedSignalIds: appendUnique(meeting.sharedSignalIds, event.payload.signalId),
+        }),
       };
       break;
     }
@@ -915,20 +897,17 @@ export function reduceWorldEvent(state: WorldProjection, event: WorldEvent): Wor
       }
       next = {
         ...state,
-        meetingsById: {
-          ...state.meetingsById,
-          [meeting.id]: { ...meeting, memo: structuredClone(event.payload.memo) },
-        },
-        meetingMemosById: {
-          ...state.meetingMemosById,
-          [meeting.id]: {
-            eventId: event.id,
-            sequence: event.sequence,
-            meetingId: meeting.id,
-            memo: structuredClone(event.payload.memo),
-            createdAt: event.occurredAt,
-          },
-        },
+        meetingsById: withIndexEntry(state.meetingsById, meeting.id, {
+          ...meeting,
+          memo: structuredClone(event.payload.memo),
+        }),
+        meetingMemosById: withIndexEntry(state.meetingMemosById, meeting.id, {
+          eventId: event.id,
+          sequence: event.sequence,
+          meetingId: meeting.id,
+          memo: structuredClone(event.payload.memo),
+          createdAt: event.occurredAt,
+        }),
       };
       break;
     }
@@ -942,10 +921,10 @@ export function reduceWorldEvent(state: WorldProjection, event: WorldEvent): Wor
       }
       next = {
         ...state,
-        meetingsById: {
-          ...state.meetingsById,
-          [meeting.id]: { ...meeting, endedAt: event.payload.endedAt },
-        },
+        meetingsById: withIndexEntry(state.meetingsById, meeting.id, {
+          ...meeting,
+          endedAt: event.payload.endedAt,
+        }),
       };
       for (const agentId of meeting.participantAgentIds) {
         next = updateAgent(next, agentId, (agent) => ({
@@ -967,10 +946,11 @@ export function reduceWorldEvent(state: WorldProjection, event: WorldEvent): Wor
       requireKnownIds(state.signalsById, query.selectedSignalIds, 'Signal');
       next = {
         ...state,
-        professorQueriesById: {
-          ...state.professorQueriesById,
-          [query.id]: structuredClone(query),
-        },
+        professorQueriesById: withIndexEntry(
+          state.professorQueriesById,
+          query.id,
+          structuredClone(query),
+        ),
       };
       break;
     }
@@ -1009,10 +989,11 @@ export function reduceWorldEvent(state: WorldProjection, event: WorldEvent): Wor
       });
       next = {
         ...state,
-        professorResponsesByQueryId: {
-          ...state.professorResponsesByQueryId,
-          [response.queryId]: structuredClone(response),
-        },
+        professorResponsesByQueryId: withIndexEntry(
+          state.professorResponsesByQueryId,
+          response.queryId,
+          structuredClone(response),
+        ),
       };
       break;
     }

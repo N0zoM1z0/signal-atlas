@@ -15,6 +15,34 @@ import {
 import { fixture, makeEvent } from './helpers.js';
 
 describe('information and explicit knowledge projection', () => {
+  it('uses own-property indexes and never resolves inherited prototype names', () => {
+    const initial = createInitialWorldStateFromFixture(fixture);
+    expect(Object.getPrototypeOf(initial.agentsById)).toBeNull();
+    expect(Object.getPrototypeOf(initial.signalsById)).toBeNull();
+
+    for (const hostileId of ['constructor', 'prototype', 'toString']) {
+      const state = createInitialWorldStateFromFixture(fixture);
+      state.agentsById = { ...state.agentsById };
+      const event = makeEvent(1, {
+        type: 'agent.arrived',
+        payload: { agentId: 'mira', placeId: 'observatory' },
+      });
+      if (event.type !== 'agent.arrived') throw new Error('Expected an arrival event.');
+      event.payload.agentId = hostileId;
+      expect(() => reduceWorldEvent(state, event)).toThrow(
+        new IllegalTransitionError(`Agent ${hostileId} does not exist in the projection.`),
+      );
+    }
+
+    const source = fixture.sources[0];
+    if (!source) throw new Error('Expected a fixture source.');
+    const recorded = reduceWorldEvent(
+      createInitialWorldStateFromFixture(fixture),
+      makeEvent(1, { type: 'source.recorded', payload: { source } }),
+    );
+    expect(Object.getPrototypeOf(recorded.sourcesById)).toBeNull();
+  });
+
   it('records sources, claims, and signals only through events', () => {
     const source = fixture.sources[0];
     const claim = fixture.claims[0];

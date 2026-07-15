@@ -18,6 +18,66 @@ const baseCommand = {
 };
 
 describe('pure command validation', () => {
+  it('rejects prototype-named identities and stores matching idempotency text safely', () => {
+    const state = replayFixture(fixture).projection;
+    const reservedIds = [
+      'constructor',
+      'prototype',
+      'toString',
+      'valueOf',
+      'hasOwnProperty',
+      '__proto__',
+    ];
+    for (const id of reservedIds) {
+      const result = validateWorldCommand(
+        {
+          ...baseCommand,
+          id: `cmd-reserved-${id.replaceAll('_', 'x')}`,
+          idempotencyKey: `reserved:${id}:forecast`,
+          type: 'forecast.commit',
+          payload: {
+            commit: {
+              id: `forecast-reserved-${id.replaceAll('_', 'x')}`,
+              expeditionId: fixture.expedition.id,
+              actor: { kind: 'player' },
+              previousProbabilities: { yes: 0.55, no: 0.45 },
+              newProbabilities: { yes: 0.55, no: 0.45 },
+              rationale: 'Exercise a hostile inherited-property reference.',
+              evidenceSignalIds: [id],
+              assumptions: [],
+              createdAt: baseCommand.issuedAt,
+              commitType: 'hold',
+              scoringEligible: true,
+            },
+          },
+        },
+        state,
+      );
+      expect(result).toMatchObject({
+        accepted: false,
+        issues: expect.arrayContaining([expect.objectContaining({ code: 'invalid_schema' })]),
+      });
+    }
+
+    const pause = {
+      ...baseCommand,
+      id: 'cmd-prototype-safe-ledger',
+      idempotencyKey: 'constructor',
+      type: 'expedition.pause',
+      payload: {},
+    };
+    const accepted = validateWorldCommand(pause, state);
+    expect(accepted).toMatchObject({ accepted: true, duplicate: false });
+    if (!accepted.accepted) throw new Error('Expected the safe ledger command to pass.');
+    const ledger = recordAcceptedCommand({}, accepted.command);
+    expect(Object.getPrototypeOf(ledger)).toBeNull();
+    expect(Object.hasOwn(ledger, 'constructor')).toBe(true);
+    expect(validateWorldCommand(pause, state, ledger)).toMatchObject({
+      accepted: true,
+      duplicate: true,
+    });
+  });
+
   it('accepts a legal command and recognizes an idempotent retry', () => {
     const state = createInitialWorldStateFromFixture(fixture);
     const input = { ...baseCommand, type: 'expedition.pause', payload: {} };

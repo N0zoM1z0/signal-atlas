@@ -8,6 +8,7 @@ import {
   ExpeditionFixtureSchema,
   WorldCommandSchema,
   WorldEventSchema,
+  EntityIdSchema,
   type ExpeditionFixture,
 } from '../src/index.js';
 
@@ -43,6 +44,22 @@ function expectIssue(
 }
 
 describe('Helios-3 expedition fixture', () => {
+  it('rejects object-prototype names at every entity identity boundary', () => {
+    const reserved = [
+      'constructor',
+      'prototype',
+      'toString',
+      'valueOf',
+      'hasOwnProperty',
+      'isPrototypeOf',
+      'propertyIsEnumerable',
+      'toLocaleString',
+      '__proto__',
+    ];
+    for (const id of reserved) expect(EntityIdSchema.safeParse(id).success).toBe(false);
+    expect(EntityIdSchema.parse('signal.constructor-safe')).toBe('signal.constructor-safe');
+  });
+
   it('imports the supplied fixture unchanged through the complete domain boundary', () => {
     expect(canonicalFixture).toMatchObject({
       fixtureVersion: 1,
