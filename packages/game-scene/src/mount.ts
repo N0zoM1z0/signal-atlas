@@ -175,14 +175,23 @@ export async function mountWorldScene(options: MountWorldSceneOptions): Promise<
         options.parent.clientWidth || model.logicalWidth,
         options.parent.clientHeight || model.logicalHeight,
       );
-      this.game.events.once(PhaserRuntime.Core.Events.POST_RENDER, () => {
+      let readyEmitted = false;
+      const emitReady = () => {
+        if (readyEmitted || !this.scene.isActive()) return;
+        readyEmitted = true;
         options.bridge.emit({
           type: 'scene.ready',
           canvasHeight: this.scale.height,
           canvasWidth: this.scale.width,
           pixelScale: this.basePixelScale,
         });
-      });
+      };
+      this.game.events.once(PhaserRuntime.Core.Events.POST_RENDER, emitReady);
+      // A renderer may complete its first frame before a scene-level POST_RENDER listener is
+      // observed. Two browser frames guarantee that at least one paint opportunity has passed;
+      // the idempotent fallback prevents an unchanged ResizeObserver measurement from leaving the
+      // semantic shell permanently unready without reporting an unpainted canvas as complete.
+      requestAnimationFrame(() => requestAnimationFrame(emitReady));
       this.emitCameraChanged();
       this.events.once(PhaserRuntime.Scenes.Events.SHUTDOWN, () => {
         this.acceptingCommands = false;
@@ -273,6 +282,11 @@ export async function mountWorldScene(options: MountWorldSceneOptions): Promise<
     }
 
     private drawTerrain() {
+      if (landmarkKindForScene(model) === 'civic_tower') {
+        this.drawCivicDistrictTerrain();
+        return;
+      }
+
       const terrain = this.add.graphics().setDepth(-20);
       terrain.fillStyle(palette.slateCloud, 0.88);
       terrain.beginPath();
@@ -317,6 +331,60 @@ export async function mountWorldScene(options: MountWorldSceneOptions): Promise<
         cityDetails.fillRect(x, y, 0.16, 0.16);
       }
       cityDetails.fillStyle(palette.windowGold, 0.22);
+      model.places.forEach((place) =>
+        cityDetails.fillEllipse(place.position.x, place.position.y + 0.6, 6.2, 2.2),
+      );
+    }
+
+    private drawCivicDistrictTerrain() {
+      const district = this.add.graphics().setDepth(-20);
+      district.fillStyle(palette.deepInk, 0.96).fillRect(0, 10.5, model.logicalWidth, 18);
+
+      const skyline = [
+        { x: 1, width: 4, height: 4.5 },
+        { x: 6, width: 3, height: 6 },
+        { x: 10, width: 5, height: 3.5 },
+        { x: 16, width: 3, height: 5 },
+        { x: 32, width: 4, height: 4 },
+        { x: 37, width: 3, height: 6.5 },
+        { x: 46, width: 3, height: 5 },
+      ];
+      skyline.forEach((building, index) => {
+        district.fillStyle(index % 2 === 0 ? palette.slateCloud : palette.harborBlue, 0.62);
+        district.fillRect(building.x, 14.5 - building.height, building.width, building.height);
+        district.fillStyle(palette.windowGold, 0.28);
+        for (let y = 14 - building.height; y < 13.8; y += 1.1) {
+          district.fillRect(building.x + 0.6, y, 0.36, 0.28);
+          if (building.width > 3) {
+            district.fillRect(building.x + building.width - 1, y, 0.36, 0.28);
+          }
+        }
+      });
+
+      const streets = this.add.graphics().setDepth(-18);
+      streets.fillStyle(palette.slateCloud, 0.52);
+      streets.fillRect(0, 15.3, model.logicalWidth, 1.1);
+      streets.fillRect(0, 21.3, model.logicalWidth, 1.25);
+      streets.fillRect(11.5, 10.5, 1.2, 18);
+      streets.fillRect(34.2, 10.5, 1.2, 18);
+      streets.fillStyle(palette.atlasNight, 0.86);
+      streets.fillRect(0, 16.4, model.logicalWidth, 4.9);
+      streets.fillRect(0, 22.55, model.logicalWidth, 5.45);
+
+      const plaza = this.add.graphics().setDepth(-17);
+      plaza.fillStyle(palette.slateCloud, 0.58).fillRect(18.5, 13.4, 13, 10.4);
+      plaza.lineStyle(1 / this.basePixelScale, palette.windowGold, 0.34);
+      for (let x = 19; x <= 31; x += 2) plaza.lineBetween(x, 13.4, x, 23.8);
+      for (let y = 14; y <= 23; y += 2) plaza.lineBetween(18.5, y, 31.5, y);
+
+      const rails = this.add.graphics().setDepth(-16);
+      rails.lineStyle(1 / this.basePixelScale, palette.weatherCyan, 0.32);
+      rails.lineBetween(0, 25.7, 50, 25.7);
+      rails.lineBetween(0, 26.35, 50, 26.35);
+      for (let x = 1; x < 50; x += 1.8) rails.lineBetween(x, 25.55, x, 26.5);
+
+      const cityDetails = this.add.graphics().setDepth(-5);
+      cityDetails.fillStyle(palette.windowGold, 0.2);
       model.places.forEach((place) =>
         cityDetails.fillEllipse(place.position.x, place.position.y + 0.6, 6.2, 2.2),
       );

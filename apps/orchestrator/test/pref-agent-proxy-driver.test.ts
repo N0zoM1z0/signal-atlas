@@ -19,7 +19,10 @@ import {
   type PrefReadRequest,
   type PrefSearchRequest,
 } from '@signal-atlas/pref-gateway';
-import { createHelios3ExpeditionFixture } from '@signal-atlas/test-fixtures';
+import {
+  createHelios3ExpeditionFixture,
+  createNorthbridgeCouncilExpeditionFixture,
+} from '@signal-atlas/test-fixtures';
 import { describe, expect, it } from 'vitest';
 
 import { ExpeditionRuntime } from '../src/expedition-runtime.js';
@@ -394,6 +397,80 @@ describe('Pref agent proxy driver', () => {
       evidenceRole: 'reference_class',
       input: { referenceClass: 'rocket_maiden_flight', outcome: 'NO', limit: 3 },
     });
+  });
+
+  it('routes Northbridge research through canonical capabilities and keeps official records closed', () => {
+    const fixture = createNorthbridgeCouncilExpeditionFixture();
+    const input = turnInput(fixture);
+    input.expeditionId = fixture.expedition.id;
+    input.agentId = 'sable';
+    input.mission.expeditionId = fixture.expedition.id;
+    input.mission.assignedAgentId = 'sable';
+
+    input.effectivePlaceId = 'copperwire-newsroom';
+    input.mission.destinationPlaceId = 'copperwire-newsroom';
+    input.mission.verb = 'find_contradiction';
+    input.allowedCapabilities = ['search_sources'];
+    expect(resolvePrefMissionRoute(fixture, input, ['search_sources'])).toMatchObject({
+      capability: 'search_sources',
+      evidenceRole: 'context_only',
+      input: {
+        query: 'central bank June rate decision inflation wage guidance',
+        limit: 4,
+      },
+    });
+
+    input.effectivePlaceId = 'forward-exchange';
+    input.mission.destinationPlaceId = 'forward-exchange';
+    input.mission.verb = 'compare_sources';
+    input.allowedCapabilities = ['search_markets'];
+    expect(resolvePrefMissionRoute(fixture, input, ['search_markets'])).toMatchObject({
+      capability: 'search_markets',
+      evidenceRole: 'context_only',
+      input: { query: 'central bank rate cut June', limit: 5 },
+    });
+
+    input.effectivePlaceId = 'decision-archive';
+    input.mission.destinationPlaceId = 'decision-archive';
+    input.mission.verb = 'search_history';
+    input.allowedCapabilities = ['search_resolution_history'];
+    expect(resolvePrefMissionRoute(fixture, input, ['search_resolution_history'])).toMatchObject({
+      capability: 'search_resolution_history',
+      evidenceRole: 'reference_class',
+      input: {
+        referenceClass: 'central-bank-rate-cuts',
+        minSampleSize: 10,
+        limit: 12,
+      },
+    });
+
+    input.effectivePlaceId = 'statistics-office';
+    input.mission.destinationPlaceId = 'statistics-office';
+    input.mission.verb = 'investigate';
+    input.allowedCapabilities = ['search_economic_series'];
+    expect(resolvePrefMissionRoute(fixture, input, ['search_economic_series'])).toMatchObject({
+      capability: 'search_economic_series',
+      evidenceRole: 'context_only',
+      input: { query: 'inflation and policy rate context', limit: 5 },
+    });
+
+    input.mission.verb = 'verify';
+    input.allowedCapabilities = ['read_economic_series'];
+    expect(resolvePrefMissionRoute(fixture, input, ['read_economic_series'])).toMatchObject({
+      capability: 'read_economic_series',
+      evidenceRole: 'context_only',
+      input: {
+        seriesId: 'CPILFESL',
+        since: '2028-06-01T00:00:00Z',
+        until: '2029-06-18T00:00:00Z',
+        limit: 24,
+      },
+    });
+
+    input.effectivePlaceId = 'council-hall';
+    input.mission.destinationPlaceId = 'council-hall';
+    input.allowedCapabilities = ['search_official_records'];
+    expect(resolvePrefMissionRoute(fixture, input, ['search_sources'])).toBeUndefined();
   });
 
   it('delegates bounded canonical Pref evidence to an agent turn', async () => {

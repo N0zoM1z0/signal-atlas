@@ -139,7 +139,7 @@ describe('orchestrator health endpoint', () => {
 
     const response = await app.inject({ method: 'GET', url: '/api/scenarios' });
     expect(response.statusCode).toBe(200);
-    expect(response.json().scenarios).toHaveLength(2);
+    expect(response.json().scenarios).toHaveLength(3);
     expect(response.json()).toEqual({
       scenarios: expect.arrayContaining([
         expect.objectContaining({
@@ -158,6 +158,22 @@ describe('orchestrator health endpoint', () => {
           available: true,
           primaryOutcomeId: 'suspended',
           requiredCapabilities: ['local_conditions', 'search_sources', 'search_resolution_history'],
+        }),
+        expect.objectContaining({
+          id: 'northbridge-monetary-council',
+          version: 1,
+          authoredExpeditionId: 'exp-northbridge-council-demo',
+          definitionSchemaVersion: 1,
+          available: true,
+          primaryOutcomeId: 'cut',
+          requiredCapabilities: [
+            'search_sources',
+            'search_markets',
+            'search_resolution_history',
+            'search_economic_series',
+            'read_economic_series',
+            'search_official_records',
+          ],
         }),
       ]),
     });
@@ -212,6 +228,54 @@ describe('orchestrator health endpoint', () => {
       },
     });
     expect(snapshot.body).not.toMatch(/Helios|Galehaven|Meridian Coast|launch/iu);
+  });
+
+  it('creates and opens the installed Northbridge policy world through the public registry', async () => {
+    const app = buildApp();
+    openApps.push(app);
+
+    const created = await app.inject({
+      method: 'POST',
+      url: '/api/expeditions',
+      payload: {
+        scenarioId: 'northbridge-monetary-council',
+        scenarioVersion: 1,
+        idempotencyKey: 'create:northbridge:app:1',
+      },
+    });
+    const snapshot = await app.inject({
+      method: 'GET',
+      url: '/api/expeditions/exp-northbridge-council-demo/snapshot',
+    });
+
+    expect(created.statusCode).toBe(201);
+    expect(created.json()).toMatchObject({
+      created: true,
+      expedition: {
+        id: 'exp-northbridge-council-demo',
+        scenarioId: 'northbridge-monetary-council',
+      },
+    });
+    expect(snapshot.statusCode).toBe(200);
+    expect(snapshot.json()).toMatchObject({
+      projection: {
+        sequence: 2,
+        expedition: { title: 'Northbridge Monetary Council' },
+        market: { outcomes: [{ id: 'cut' }, { id: 'hold' }] },
+        worldManifest: {
+          template: 'ledger-civic-industrial',
+          assetPack: 'northbridge-ledger-programmatic-v1',
+        },
+        agentsById: {
+          lumen: { displayName: 'Lumen' },
+          mara: { displayName: 'Mara' },
+          sable: { displayName: 'Sable' },
+        },
+      },
+    });
+    expect(snapshot.body).not.toMatch(
+      /Helios|Galehaven|Meridian Coast|Lantern Square|Northlight|harbor|launch/iu,
+    );
   });
 
   it('reports the configured driver and scheduler without exposing private input', async () => {

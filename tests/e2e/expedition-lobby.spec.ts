@@ -19,6 +19,10 @@ test('the lobby opens, tears down, and deep-links one complete world at a time',
   await expect(page.getByRole('heading', { name: 'Helios-3 Launch Window' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Northlight Harbor Watch' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Create Northlight Harbor Watch' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Northbridge Monetary Council' })).toBeVisible();
+  await expect(
+    page.getByRole('button', { name: 'Create Northbridge Monetary Council' }),
+  ).toBeVisible();
   await expect(page.getByText('Sequence 2')).toBeVisible();
   const enterWorld = page.getByRole('button', { name: 'Enter Helios-3 Launch Window' });
   await enterWorld.focus();
@@ -51,6 +55,7 @@ test('@visual expedition lobby presents the local world shelf at 1440 × 900', a
   await expect(page.getByRole('heading', { name: 'Available expeditions' })).toBeVisible();
   await expect(page.getByRole('img', { name: 'Meridian Coast world preview' })).toBeVisible();
   await expect(page.getByRole('img', { name: 'Northlight Coast world preview' })).toBeVisible();
+  await expect(page.getByRole('img', { name: 'Northbridge District world preview' })).toBeVisible();
   const horizontalOverflow = await page.evaluate(
     () => document.body.scrollWidth > document.documentElement.clientWidth,
   );

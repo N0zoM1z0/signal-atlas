@@ -1,4 +1,5 @@
 import fixtureJson from '../../../fixtures/helios3_expedition.json' with { type: 'json' };
+import northbridgeFixtureJson from '../../../fixtures/northbridge_council_expedition.json' with { type: 'json' };
 import northlightFixtureJson from '../../../fixtures/northlight_harbor_expedition.json' with { type: 'json' };
 
 import { ExpeditionFixtureSchema, type ExpeditionFixture } from '@signal-atlas/contracts';
@@ -19,4 +20,11 @@ export const northlightHarborExpeditionFixture: ExpeditionFixture =
 
 export function createNorthlightHarborExpeditionFixture(): ExpeditionFixture {
   return structuredClone(northlightHarborExpeditionFixture);
+}
+
+export const northbridgeCouncilExpeditionFixture: ExpeditionFixture =
+  ExpeditionFixtureSchema.parse(northbridgeFixtureJson);
+
+export function createNorthbridgeCouncilExpeditionFixture(): ExpeditionFixture {
+  return structuredClone(northbridgeCouncilExpeditionFixture);
 }

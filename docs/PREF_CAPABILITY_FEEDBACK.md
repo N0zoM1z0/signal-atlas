@@ -383,6 +383,26 @@ file.
 
 ## Feedback for the Preference team
 
+### Scenario-driven integration result: Northbridge
+
+The Northbridge Monetary Council fixture now exercises the capability family through the same
+provider-neutral mission router used by Helios and Northlight. It exposed a useful deployment matrix:
+
+| Canonical capability        | Northbridge use                         | Current live state | Product behavior                                                                 |
+| --------------------------- | --------------------------------------- | ------------------ | -------------------------------------------------------------------------------- |
+| `search_sources`            | policy-news attribution                 | enabled            | GDELT results are context-only because Northbridge is fictional                  |
+| `search_resolution_history` | central-bank-rate-cut reference class   | enabled            | evidence is labeled `reference_class`, never a Northbridge record                |
+| `search_markets`            | read-only expectation comparison        | disabled           | authored market snapshot remains non-directional context; no execution path      |
+| `search_economic_series`    | discover inflation/wage series          | disabled           | authored series remains complete while hosted FRED lacks its provider credential |
+| `read_economic_series`      | read bounded observations and revisions | disabled           | fixture preserves vintages and supersession instead of overwriting data          |
+| `search_official_records`   | agenda and sealed decision              | not approved       | live router rejects the string binding and uses the fixture official record      |
+
+This is evidence that the adapter-family approach works without per-provider services, but also
+that catalog presence cannot substitute for exact schema and deployment readiness. The highest
+leverage Preference improvements remain: fix hosted FRED availability truth, close the Polymarket
+discovery output schema, and promote one strict read-only official-record family. Until those gates
+pass, Signal Atlas should continue to expose the gaps rather than silently substituting a provider.
+
 ### P0 - Correct catalog truth
 
 1. Regenerate the six read-looking records currently classified `external_write` from their actual

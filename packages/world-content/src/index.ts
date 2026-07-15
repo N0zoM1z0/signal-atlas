@@ -1,5 +1,6 @@
 import heliosFixtureJson from '../../../fixtures/helios3_expedition.json' with { type: 'json' };
 import northlightFixtureJson from '../../../fixtures/northlight_harbor_expedition.json' with { type: 'json' };
+import northbridgeFixtureJson from '../../../fixtures/northbridge_council_expedition.json' with { type: 'json' };
 
 import {
   ScenarioDefinitionSchema,
@@ -64,6 +65,36 @@ const northlightDefinitionInput = {
     },
   },
   fixture: northlightFixtureJson,
+} as const;
+
+const northbridgeDefinitionInput = {
+  definitionSchemaVersion: 1,
+  scenario: {
+    id: 'northbridge-monetary-council',
+    version: 1,
+    title: 'Northbridge Monetary Council',
+    category: 'economics_policy',
+    summary:
+      'Research a fictional policy-rate decision through official releases, data revisions, wage pressure, news attribution, market context, historical resolutions, and a sealed decision record.',
+    mode: 'fixture',
+    requiredCapabilities: [
+      'search_sources',
+      'search_markets',
+      'search_resolution_history',
+      'search_economic_series',
+      'read_economic_series',
+      'search_official_records',
+    ],
+    availabilityPolicy: 'live_optional',
+    primaryOutcomeId: 'cut',
+    preview: {
+      template: 'ledger-civic-industrial',
+      assetPack: 'northbridge-ledger-programmatic-v1',
+      regionLabel: 'Northbridge District',
+      tagline: 'Separate data vintages and primary guidance from the cut narrative.',
+    },
+  },
+  fixture: northbridgeFixtureJson,
 } as const;
 
 export function scenarioDefinitionHash(definition: ScenarioDefinition): string {
@@ -137,6 +168,7 @@ export class InstalledScenarioCatalog {
 export const installedScenarioCatalog = new InstalledScenarioCatalog([
   heliosDefinitionInput,
   northlightDefinitionInput,
+  northbridgeDefinitionInput,
 ]);
 
 export function createHeliosScenarioDefinition(): ScenarioDefinition {
@@ -148,5 +180,11 @@ export function createHeliosScenarioDefinition(): ScenarioDefinition {
 export function createNorthlightScenarioDefinition(): ScenarioDefinition {
   const entry = installedScenarioCatalog.resolve('northlight-harbor-watch', 1);
   if (!entry) throw new Error('The installed Northlight Harbor scenario definition is missing.');
+  return entry.definition;
+}
+
+export function createNorthbridgeScenarioDefinition(): ScenarioDefinition {
+  const entry = installedScenarioCatalog.resolve('northbridge-monetary-council', 1);
+  if (!entry) throw new Error('The installed Northbridge scenario definition is missing.');
   return entry.definition;
 }

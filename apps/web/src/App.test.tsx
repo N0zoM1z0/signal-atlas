@@ -2,6 +2,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import {
   createHelios3ExpeditionFixture,
+  createNorthbridgeCouncilExpeditionFixture,
   createNorthlightHarborExpeditionFixture,
 } from '@signal-atlas/test-fixtures';
 import { replayFixture } from '@signal-atlas/simulation';
@@ -91,5 +92,23 @@ describe('Signal Atlas world shell', () => {
     expect(markup).toContain('Cora');
     expect(markup).toContain('Brin');
     expect(markup).not.toMatch(/Helios|Galehaven|Meridian Coast|launch/iu);
+  });
+
+  it('renders Northbridge as a distinct policy world with semantic research places', () => {
+    const projection = replayFixture(createNorthbridgeCouncilExpeditionFixture()).projection;
+    const markup = renderToStaticMarkup(<App initialProjection={projection} />);
+
+    expect(markup).toContain(
+      'Will the Northbridge Monetary Council cut its policy rate at the June 18 meeting?',
+    );
+    expect(markup).toContain('Northbridge Statistics Office');
+    expect(markup).toContain('Forward Ledger Exchange');
+    expect(markup).toContain('Northbridge Council Hall');
+    expect(markup).toContain('Lumen');
+    expect(markup).toContain('Mara');
+    expect(markup).toContain('Sable');
+    expect(markup).not.toMatch(
+      /Helios|Galehaven|Meridian Coast|Lantern Square|Northlight|harbor|launch/iu,
+    );
   });
 });

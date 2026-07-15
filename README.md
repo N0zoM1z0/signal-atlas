@@ -107,9 +107,11 @@ allow-listed provider tool, then a bounded response adapter creates canonical so
 mapping becomes callable only when live discovery matches its exact input/output contract,
 read-only annotations, side-effect classification, and task-support policy. The registry may list
 disabled candidates truthfully; it does not create a service for each provider. The current live
-default enables weather. The discovered GDELT context search remains disabled because its live
-`task_support` policy does not satisfy the MVP allow-list, and no safe `read_source` provider is
-enabled yet. Fixture mode continues to implement all three canonical research capabilities.
+map enables weather, GDELT context search, and resolution-history lookup after separate bounded
+smokes. Polymarket discovery remains disabled because its catalog output schema is open, FRED
+remains disabled because the hosted provider lacks its deployment credential, and no safe
+`read_source` or official-record provider is enabled yet. Fixture mode remains complete when any
+live capability is unavailable.
 
 With `SIGNAL_ATLAS_CODEX_MODE=local`, Professor Vale is also a real bounded local Codex turn rather
 than a simulated reply. Open the study with `P`, select the exact sources/signals to disclose, and
@@ -138,12 +140,17 @@ fully remounts the five-part world shell; returning to the Lobby closes that wor
 canvas first. Pinned, archived, seen, and case-file evidence selections plus skip-travel settings
 are stored in expedition-specific browser namespaces and never carry into another world.
 
-The installed shelf currently contains two complete offline worlds. Helios-3 remains the golden
+The installed shelf currently contains three complete offline worlds. Helios-3 remains the golden
 science/technology regression expedition. Northlight Harbor is a distinct climate/infrastructure
 expedition with a coastal map, three different agents, harbor-specific research sites, contradictory
 evidence, overlapping correlation groups, and a versioned authority notice that makes an older
 signal stale. In live mode its disclosed Rotterdam conditions binding is context-only; capabilities
 without a separately live-gated route continue to use the complete authored fixture choreography.
+Northbridge Monetary Council adds a civic/industrial ledger district and a policy-rate market with
+data vintages, wage pressure, derivative news, read-only market context, historical resolutions,
+and a sealed fixture decision. GDELT evidence is context-only and resolution data is a disclosed
+reference class; market discovery, FRED series, and official records stay fixture-first until their
+individual live gates pass.
 
 Verified projection checkpoints are written every 50 events and on clean shutdown. Startup uses
 the newest schema-valid, hash-valid checkpoint and folds only its event tail. A malformed checkpoint
@@ -223,8 +230,10 @@ pnpm test:soak
 
 ### Controls
 
-- `/` focuses the selected agent's command field; `1`–`3` select Mira, Orin, or Kestrel.
-- `A`, `P`, `C`, `R`, and `M` open Archive, Professor, Forecast, Replay, and Lantern Square.
+- `/` focuses the selected agent's command field; `1`–`3` select the authored first, second, or third
+  agent.
+- `A`, `P`, `C`, `R`, and `M` open Archive, Professor, Forecast, Replay, and the authored meeting
+  place.
 - `Space` pauses or resumes simulation; `[` and `]` change speed.
 - `F` follows the selected agent; `Home` centers the map.
 - `Tab`, arrow keys inside tablists, `Enter`, and `Escape` support the complete keyboard journey.

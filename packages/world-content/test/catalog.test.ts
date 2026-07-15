@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   createHeliosScenarioDefinition,
+  createNorthbridgeScenarioDefinition,
   createNorthlightScenarioDefinition,
   installedScenarioCatalog,
   InstalledScenarioCatalog,
@@ -58,6 +59,47 @@ describe('installed scenario catalog', () => {
       definition.fixture.signals.some(({ correlationGroupIds }) => correlationGroupIds.length > 1),
     ).toBe(true);
     expect(serialized).not.toMatch(/Helios|Galehaven|Meridian Coast|Lantern Square|launch/iu);
+    expect(summary?.definitionHash).toBe(scenarioDefinitionHash(definition));
+  });
+
+  it('publishes a Pref-rich Northbridge policy world with explicit live boundaries', () => {
+    const definition = createNorthbridgeScenarioDefinition();
+    const summary = installedScenarioCatalog
+      .list()
+      .find(({ id }) => id === 'northbridge-monetary-council');
+    const serialized = JSON.stringify(definition);
+
+    expect(summary).toMatchObject({
+      id: 'northbridge-monetary-council',
+      authoredExpeditionId: 'exp-northbridge-council-demo',
+      primaryOutcomeId: 'cut',
+      preview: {
+        template: 'ledger-civic-industrial',
+        assetPack: 'northbridge-ledger-programmatic-v1',
+      },
+    });
+    expect(definition.fixture.market.outcomes.map(({ id }) => id)).toEqual(['cut', 'hold']);
+    expect(summary?.requiredCapabilities).toEqual(
+      expect.arrayContaining([
+        'search_sources',
+        'search_markets',
+        'search_resolution_history',
+        'search_economic_series',
+        'read_economic_series',
+        'search_official_records',
+      ]),
+    );
+    expect(
+      definition.fixture.sources.some(
+        ({ supersedesSourceId }) => supersedesSourceId === 'src-northbridge-inflation-flash-1',
+      ),
+    ).toBe(true);
+    expect(
+      definition.fixture.signals.find(({ id }) => id === 'sig-northbridge-market'),
+    ).toMatchObject({ direction: 'context', impact: { label: 'unknown' } });
+    expect(serialized).not.toMatch(
+      /Helios|Galehaven|Meridian Coast|Lantern Square|Northlight|harbor|launch/iu,
+    );
     expect(summary?.definitionHash).toBe(scenarioDefinitionHash(definition));
   });
 

@@ -1,0 +1,1883 @@
+{
+  "fixtureVersion": 1,
+  "seed": "northbridge-council-policy-2029-v1",
+  "market": {
+    "id": "market-northbridge-council-2029",
+    "provider": "signal-atlas-fixture",
+    "question": "Will the Northbridge Monetary Council cut its policy rate at the June 18 meeting?",
+    "description": "A fictional binary market about the policy decision announced at the scheduled Northbridge Monetary Council meeting.",
+    "outcomes": [
+      {
+        "id": "cut",
+        "label": "The council cuts the policy rate",
+        "shortLabel": "CUT"
+      },
+      {
+        "id": "hold",
+        "label": "The council holds the policy rate",
+        "shortLabel": "HOLD"
+      }
+    ],
+    "resolutionRules": "Resolve CUT if the fictional Northbridge Monetary Council's official June 18 decision statement lowers the policy rate by any amount. Forward guidance, dissent, market pricing, or an unscheduled later move does not qualify. Otherwise resolve HOLD. This fixture is entirely fictional.",
+    "resolutionSource": "fixture://northbridge/official-decision",
+    "opensAt": "2029-06-02T08:00:00Z",
+    "closesAt": "2029-06-18T13:55:00Z",
+    "resolvesAt": "2029-06-18T14:05:00Z",
+    "status": "open",
+    "currentPublicProbabilities": {
+      "cut": 0.54,
+      "hold": 0.46
+    },
+    "tags": [
+      "fictional",
+      "economics",
+      "policy",
+      "central-bank",
+      "scheduled-decision"
+    ],
+    "createdAt": "2029-06-02T08:00:00Z",
+    "updatedAt": "2029-06-18T09:00:00Z"
+  },
+  "expedition": {
+    "id": "exp-northbridge-council-demo",
+    "marketId": "market-northbridge-council-2029",
+    "worldManifestId": "world-northbridge-council-v1",
+    "title": "Northbridge Monetary Council",
+    "mode": "director",
+    "status": "active",
+    "simulationSpeed": 1,
+    "currentSequence": 2,
+    "startedAt": "2029-06-18T09:00:00Z",
+    "settings": {
+      "fixtureMode": true,
+      "reducedMotion": false,
+      "autoCamera": true,
+      "autonomy": "suggest"
+    }
+  },
+  "worldManifest": {
+    "id": "world-northbridge-council-v1",
+    "version": 1,
+    "template": "ledger-civic-industrial",
+    "logicalWidth": 50,
+    "logicalHeight": 28,
+    "tileSize": 16,
+    "places": [
+      {
+        "id": "ledger-observatory",
+        "name": "Northbridge Research Hall",
+        "archetype": "observatory",
+        "position": {
+          "x": 7,
+          "y": 7
+        },
+        "entranceNodeId": "n-ledger-observatory",
+        "description": "Home desk for the policy expedition, forecast commits, and evidence triage.",
+        "missionVerbs": [
+          "reassess_forecast"
+        ],
+        "capabilityBindings": [],
+        "tags": [
+          "home",
+          "forecast",
+          "ledger"
+        ],
+        "visualState": {
+          "clockFace": "meeting-day",
+          "windows": "copper"
+        }
+      },
+      {
+        "id": "statistics-office",
+        "name": "Northbridge Statistics Office",
+        "archetype": "field_site",
+        "position": {
+          "x": 14,
+          "y": 22
+        },
+        "entranceNodeId": "n-statistics-office",
+        "description": "Fictional inflation, wage, and revision bulletins with explicit vintages.",
+        "missionVerbs": [
+          "investigate",
+          "verify",
+          "compare_sources"
+        ],
+        "capabilityBindings": [
+          {
+            "canonicalCapability": "search_economic_series",
+            "configuration": {
+              "missionVerbs": [
+                "investigate"
+              ],
+              "query": "inflation and policy rate context",
+              "evidenceRole": "context_only",
+              "scopeNote": "Real-world provider results are disclosed interface context for a fictional Northbridge decision and cannot directly establish the market outcome.",
+              "limit": 5
+            }
+          },
+          {
+            "canonicalCapability": "read_economic_series",
+            "configuration": {
+              "missionVerbs": [
+                "verify",
+                "compare_sources"
+              ],
+              "seriesId": "CPILFESL",
+              "since": "2028-06-01T00:00:00Z",
+              "until": "2029-06-18T00:00:00Z",
+              "evidenceRole": "context_only",
+              "scopeNote": "Real-world provider results are disclosed interface context for a fictional Northbridge decision and cannot directly establish the market outcome.",
+              "limit": 24
+            }
+          }
+        ],
+        "tags": [
+          "statistics",
+          "series",
+          "revisions"
+        ],
+        "visualState": {
+          "ticker": "CORE 3.0 REVISED",
+          "stacks": 4
+        }
+      },
+      {
+        "id": "copperwire-newsroom",
+        "name": "Copperwire Newsroom",
+        "archetype": "newsroom",
+        "position": {
+        "x": 35,
+        "y": 7
+        },
+        "entranceNodeId": "n-copperwire-newsroom",
+        "description": "Recent policy reporting and primary-statement comparison.",
+        "missionVerbs": [
+          "investigate",
+          "find_contradiction"
+        ],
+        "capabilityBindings": [
+          {
+            "canonicalCapability": "search_sources",
+            "configuration": {
+              "missionVerbs": [
+                "investigate",
+                "find_contradiction"
+              ],
+              "query": "central bank June rate decision inflation wage guidance",
+              "limit": 4,
+              "evidenceRole": "context_only",
+              "scopeNote": "Real-world provider results are disclosed interface context for a fictional Northbridge decision and cannot directly establish the market outcome."
+            }
+          }
+        ],
+        "tags": [
+          "news",
+          "guidance",
+          "correlation"
+        ],
+        "visualState": {
+          "pressLights": 3,
+          "ticker": "GUIDANCE ≠ DECISION"
+        }
+      },
+      {
+        "id": "forward-exchange",
+        "name": "Forward Ledger Exchange",
+        "archetype": "exchange",
+        "position": {
+        "x": 43,
+        "y": 23
+        },
+        "entranceNodeId": "n-forward-exchange",
+        "description": "Read-only prediction-market summaries used as context, never an execution venue.",
+        "missionVerbs": [
+          "investigate",
+          "compare_sources"
+        ],
+        "capabilityBindings": [
+          {
+            "canonicalCapability": "search_markets",
+            "configuration": {
+              "missionVerbs": [
+                "compare_sources"
+              ],
+              "query": "central bank rate cut June",
+              "limit": 5,
+              "evidenceRole": "context_only",
+              "scopeNote": "Real-world provider results are disclosed interface context for a fictional Northbridge decision and cannot directly establish the market outcome."
+            }
+          }
+        ],
+        "tags": [
+          "market-context",
+          "read-only",
+          "probability"
+        ],
+        "visualState": {
+          "board": "CUT 54 / HOLD 46",
+          "ordersEnabled": false
+        }
+      },
+      {
+        "id": "decision-archive",
+        "name": "Decision Ledger Archive",
+        "archetype": "archive",
+        "position": {
+          "x": 5,
+          "y": 23
+        },
+        "entranceNodeId": "n-decision-archive",
+        "description": "Historical fictional policy decisions and reference-class outcomes.",
+        "missionVerbs": [
+          "search_history",
+          "compare_sources"
+        ],
+        "capabilityBindings": [
+          {
+            "canonicalCapability": "search_resolution_history",
+            "configuration": {
+              "missionVerbs": [
+                "search_history"
+              ],
+              "referenceClass": "central-bank-rate-cuts",
+              "minSampleSize": 10,
+              "limit": 12,
+              "evidenceRole": "reference_class",
+              "scopeNote": "Historical real-world provider results form a disclosed comparison class; they are not records of the fictional Northbridge council."
+            }
+          }
+        ],
+        "tags": [
+          "history",
+          "base-rate",
+          "resolutions"
+        ],
+        "visualState": {
+          "ledgers": 12,
+          "seal": "archive"
+        }
+      },
+      {
+        "id": "model-study",
+        "name": "Professor Rook's Model Study",
+        "archetype": "professor",
+        "position": {
+          "x": 27,
+          "y": 4
+        },
+        "entranceNodeId": "n-model-study",
+        "description": "Independent review of revisions, duplicated guidance, priors, and missing evidence.",
+        "missionVerbs": [
+          "consult_professor"
+        ],
+        "capabilityBindings": [],
+        "tags": [
+          "professor",
+          "review",
+          "models"
+        ],
+        "visualState": {
+          "chalkboards": 3,
+          "lamps": 2
+        }
+      },
+      {
+        "id": "foundry-square",
+        "name": "Foundry Square",
+        "archetype": "town_square",
+        "position": {
+          "x": 25,
+          "y": 17
+        },
+        "entranceNodeId": "n-foundry-square",
+        "description": "A civic meeting point where agents exchange source-linked policy evidence.",
+        "missionVerbs": [
+          "meet_agent",
+          "deliver_signal"
+        ],
+        "capabilityBindings": [],
+        "tags": [
+          "meeting",
+          "sharing",
+          "civic"
+        ],
+        "visualState": {
+          "tramBell": true,
+          "benches": 5
+        }
+      },
+      {
+        "id": "council-hall",
+        "name": "Northbridge Council Hall",
+        "archetype": "field_site",
+        "position": {
+          "x": 29,
+          "y": 10
+        },
+        "entranceNodeId": "n-council-hall",
+        "description": "Fixture-first official agenda, briefing, and sealed decision records.",
+        "missionVerbs": [
+          "investigate",
+          "verify"
+        ],
+        "capabilityBindings": [
+          {
+            "canonicalCapability": "search_official_records",
+            "configuration": {
+              "missionVerbs": [
+                "investigate",
+                "verify"
+              ],
+              "recordClass": "monetary_policy",
+              "evidenceRole": "context_only",
+              "scopeNote": "No live official-record provider is approved; the fictional council record remains fixture-only."
+            }
+          }
+        ],
+        "tags": [
+          "official-record",
+          "decision",
+          "fixture-first"
+        ],
+        "visualState": {
+          "towerClock": "14:00",
+          "doors": "sealed"
+        }
+      }
+    ],
+    "routes": [
+      {
+        "id": "r-research-square",
+        "fromPlaceId": "ledger-observatory",
+        "toPlaceId": "foundry-square",
+        "waypoints": [
+          {
+            "x": 7,
+            "y": 7
+          },
+          {
+            "x": 12,
+            "y": 10
+          },
+          {
+            "x": 19,
+            "y": 14
+          },
+          {
+            "x": 25,
+            "y": 17
+          }
+        ],
+        "baseDurationMs": 5800,
+        "bidirectional": true,
+        "transitType": "tram",
+        "cameraHint": "follow"
+      },
+      {
+        "id": "r-square-statistics",
+        "fromPlaceId": "foundry-square",
+        "toPlaceId": "statistics-office",
+        "waypoints": [
+          {
+            "x": 25,
+            "y": 17
+          },
+          {
+            "x": 22,
+            "y": 19
+          },
+          {
+            "x": 18,
+            "y": 21
+          },
+          {
+            "x": 14,
+            "y": 22
+          }
+        ],
+        "baseDurationMs": 5200,
+        "bidirectional": true,
+        "transitType": "walk",
+        "cameraHint": "follow"
+      },
+      {
+        "id": "r-square-news",
+        "fromPlaceId": "foundry-square",
+        "toPlaceId": "copperwire-newsroom",
+        "waypoints": [
+          {
+            "x": 25,
+            "y": 17
+          },
+          {
+            "x": 30,
+            "y": 14
+          },
+          {
+            "x": 32,
+            "y": 10
+          },
+          {
+            "x": 35,
+            "y": 7
+          }
+        ],
+        "baseDurationMs": 6500,
+        "bidirectional": true,
+        "transitType": "tram",
+        "cameraHint": "follow"
+      },
+      {
+        "id": "r-square-exchange",
+        "fromPlaceId": "foundry-square",
+        "toPlaceId": "forward-exchange",
+        "waypoints": [
+          {
+            "x": 25,
+            "y": 17
+          },
+          {
+            "x": 31,
+            "y": 18
+          },
+          {
+            "x": 37,
+            "y": 21
+          },
+          {
+            "x": 43,
+            "y": 23
+          }
+        ],
+        "baseDurationMs": 6100,
+        "bidirectional": true,
+        "transitType": "walk",
+        "cameraHint": "follow"
+      },
+      {
+        "id": "r-square-archive",
+        "fromPlaceId": "foundry-square",
+        "toPlaceId": "decision-archive",
+        "waypoints": [
+          {
+            "x": 25,
+            "y": 17
+          },
+          {
+            "x": 19,
+            "y": 19
+          },
+          {
+            "x": 12,
+            "y": 22
+          },
+          {
+            "x": 5,
+            "y": 23
+          }
+        ],
+        "baseDurationMs": 7600,
+        "bidirectional": true,
+        "transitType": "tram",
+        "cameraHint": "follow"
+      },
+      {
+        "id": "r-square-study",
+        "fromPlaceId": "foundry-square",
+        "toPlaceId": "model-study",
+        "waypoints": [
+          {
+            "x": 25,
+            "y": 17
+          },
+          {
+            "x": 26,
+            "y": 13
+          },
+          {
+            "x": 27,
+            "y": 8
+          },
+          {
+            "x": 27,
+            "y": 4
+          }
+        ],
+        "baseDurationMs": 6200,
+        "bidirectional": true,
+        "transitType": "elevator",
+        "cameraHint": "follow"
+      },
+      {
+        "id": "r-square-council",
+        "fromPlaceId": "foundry-square",
+        "toPlaceId": "council-hall",
+        "waypoints": [
+          {
+            "x": 25,
+            "y": 17
+          },
+          {
+            "x": 27,
+            "y": 14
+          },
+          {
+            "x": 29,
+            "y": 10
+          }
+        ],
+        "baseDurationMs": 4400,
+        "bidirectional": true,
+        "transitType": "walk",
+        "cameraHint": "follow"
+      },
+      {
+        "id": "r-council-news",
+        "fromPlaceId": "council-hall",
+        "toPlaceId": "copperwire-newsroom",
+        "waypoints": [
+          {
+            "x": 29,
+            "y": 10
+          },
+          {
+            "x": 33,
+            "y": 9
+          },
+          {
+            "x": 33,
+            "y": 8
+          },
+          {
+            "x": 35,
+            "y": 7
+          }
+        ],
+        "baseDurationMs": 4000,
+        "bidirectional": true,
+        "transitType": "walk",
+        "cameraHint": "follow"
+      },
+      {
+        "id": "r-statistics-archive",
+        "fromPlaceId": "statistics-office",
+        "toPlaceId": "decision-archive",
+        "waypoints": [
+          {
+            "x": 14,
+            "y": 22
+          },
+          {
+            "x": 11,
+            "y": 23
+          },
+          {
+            "x": 8,
+            "y": 23
+          },
+          {
+            "x": 5,
+            "y": 23
+          }
+        ],
+        "baseDurationMs": 3600,
+        "bidirectional": true,
+        "transitType": "walk",
+        "cameraHint": "follow"
+      }
+    ],
+    "ambientLayers": [
+      {
+        "id": "ledger-sky",
+        "type": "gradient",
+        "state": "copper-dawn"
+      },
+      {
+        "id": "paper-tape",
+        "type": "particles",
+        "state": "slow-ticker"
+      },
+      {
+        "id": "council-clock",
+        "type": "landmark",
+        "state": "meeting-day"
+      },
+      {
+        "id": "foundry-lamps",
+        "type": "lighting",
+        "state": "amber-ledger"
+      },
+      {
+        "id": "industrial-haze",
+        "type": "weather",
+        "state": "dry-haze"
+      }
+    ],
+    "cameraZones": [
+      {
+        "id": "northbridge-district",
+        "x": 2,
+        "y": 2,
+        "width": 46,
+        "height": 24,
+        "zoom": 1,
+        "label": "Northbridge ledger district"
+      }
+    ],
+    "defaultSpawnPlaceId": "ledger-observatory",
+    "assetPack": "northbridge-ledger-programmatic-v1"
+  },
+  "agents": [
+    {
+      "id": "lumen",
+      "displayName": "Lumen",
+      "role": "analyst",
+      "profileVersion": 1,
+      "placeId": "ledger-observatory",
+      "queuedMissionIds": [],
+      "knownSourceIds": [],
+      "knownSignalIds": [],
+      "belief": {
+        "probabilities": {
+          "cut": 0.58,
+          "hold": 0.42
+        },
+        "uncertainty": {
+          "cut": {
+            "low": 0.45,
+            "high": 0.69
+          },
+          "hold": {
+            "low": 0.31,
+            "high": 0.55
+          }
+        },
+        "updatedAt": "2029-06-18T09:00:00Z",
+        "rationale": "Disinflation makes a cut plausible, but release revisions and the decision statement remain unchecked.",
+        "evidenceSignalIds": []
+      },
+      "publicState": "idle"
+    },
+    {
+      "id": "mara",
+      "displayName": "Mara",
+      "role": "archivist",
+      "profileVersion": 1,
+      "placeId": "foundry-square",
+      "queuedMissionIds": [],
+      "knownSourceIds": [],
+      "knownSignalIds": [],
+      "belief": {
+        "probabilities": {
+          "cut": 0.49,
+          "hold": 0.51
+        },
+        "uncertainty": {
+          "cut": {
+            "low": 0.37,
+            "high": 0.61
+          },
+          "hold": {
+            "low": 0.39,
+            "high": 0.63
+          }
+        },
+        "updatedAt": "2029-06-18T09:00:00Z",
+        "rationale": "Comparable meetings are informative only after conditioning on wages, inflation vintages, and the council's reaction function.",
+        "evidenceSignalIds": []
+      },
+      "publicState": "idle"
+    },
+    {
+      "id": "sable",
+      "displayName": "Sable",
+      "role": "skeptic",
+      "profileVersion": 1,
+      "placeId": "ledger-observatory",
+      "queuedMissionIds": [],
+      "knownSourceIds": [],
+      "knownSignalIds": [],
+      "belief": {
+        "probabilities": {
+          "cut": 0.44,
+          "hold": 0.56
+        },
+        "uncertainty": {
+          "cut": {
+            "low": 0.32,
+            "high": 0.57
+          },
+          "hold": {
+            "low": 0.43,
+            "high": 0.68
+          }
+        },
+        "updatedAt": "2029-06-18T09:00:00Z",
+        "rationale": "Market pricing and headlines may repeat one guidance chain; official records and data revisions deserve more weight.",
+        "evidenceSignalIds": []
+      },
+      "publicState": "idle"
+    }
+  ],
+  "sources": [
+    {
+      "id": "src-northbridge-agenda-1",
+      "version": 1,
+      "externalUri": "fixture://northbridge/src-northbridge-agenda-1",
+      "title": "June 18 Monetary Council Agenda",
+      "publisher": "Northbridge Monetary Council",
+      "sourceClass": "official_primary",
+      "publishedAt": "2029-06-17T16:00:00Z",
+      "observedAt": null,
+      "retrievedAt": "2029-06-18T09:10:00Z",
+      "location": {
+        "placeId": "council-hall",
+        "label": "Northbridge Council Hall"
+      },
+      "mediaType": "application/json",
+      "excerpt": "The fictional council will announce its policy-rate decision at 14:00Z. The agenda confirms a decision slot but states no preferred outcome.",
+      "contentHash": "1111111111111111111111111111111111111111111111111111111111111111",
+      "provenance": {
+        "serverName": "pref-fixture",
+        "transport": "fixture",
+        "primitive": "fixture",
+        "primitiveName": "fixture.official_record.agenda",
+        "argumentsHash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "responseHash": "1010101010101010101010101010101010101010101010101010101010101010",
+        "callId": "call-northbridge-1"
+      },
+      "rights": {
+        "display": "full",
+        "license": "Original fictional fixture",
+        "notes": "Created for Signal Atlas development."
+      },
+      "tags": [
+        "official",
+        "agenda",
+        "decision-time",
+        "context"
+      ]
+    },
+    {
+      "id": "src-northbridge-inflation-flash-1",
+      "version": 1,
+      "externalUri": "fixture://northbridge/src-northbridge-inflation-flash-1",
+      "title": "Flash Core Inflation Bulletin: 2.6 Percent",
+      "publisher": "Northbridge Statistics Office",
+      "sourceClass": "official_primary",
+      "publishedAt": "2029-06-18T08:30:00Z",
+      "observedAt": "2029-06-18T08:00:00Z",
+      "retrievedAt": "2029-06-18T09:15:00Z",
+      "location": {
+        "placeId": "statistics-office",
+        "label": "Northbridge"
+      },
+      "mediaType": "application/json",
+      "excerpt": "The flash estimate places annual core inflation at 2.6 percent, down from 3.2 percent. The bulletin is provisional pending a seasonal-adjustment verification.",
+      "structuredData": {
+        "seriesId": "NB_CORE_FLASH",
+        "value": 2.6,
+        "unit": "percent",
+        "vintage": "flash",
+        "prior": 3.2
+      },
+      "contentHash": "2222222222222222222222222222222222222222222222222222222222222222",
+      "provenance": {
+        "serverName": "pref-fixture",
+        "transport": "fixture",
+        "primitive": "fixture",
+        "primitiveName": "fixture.economic_series.flash",
+        "argumentsHash": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "responseHash": "2020202020202020202020202020202020202020202020202020202020202020",
+        "callId": "call-northbridge-2"
+      },
+      "rights": {
+        "display": "full",
+        "license": "Original fictional fixture",
+        "notes": "Created for Signal Atlas development."
+      },
+      "tags": [
+        "inflation",
+        "flash",
+        "provisional",
+        "official"
+      ]
+    },
+    {
+      "id": "src-northbridge-wages-1",
+      "version": 1,
+      "externalUri": "fixture://northbridge/src-northbridge-wages-1",
+      "title": "Quarterly Wage Growth Holds at 4.7 Percent",
+      "publisher": "Northbridge Statistics Office",
+      "sourceClass": "official_primary",
+      "publishedAt": "2029-06-18T08:45:00Z",
+      "observedAt": "2029-06-18T08:00:00Z",
+      "retrievedAt": "2029-06-18T09:20:00Z",
+      "location": {
+        "placeId": "statistics-office",
+        "label": "Northbridge"
+      },
+      "mediaType": "application/json",
+      "excerpt": "Annual wage growth remains 4.7 percent, above the council staff's fictional 3.5 percent compatibility range. Sector coverage is complete for the quarter.",
+      "structuredData": {
+        "seriesId": "NB_WAGE_Q",
+        "value": 4.7,
+        "unit": "percent",
+        "compatibilityCeiling": 3.5
+      },
+      "contentHash": "3333333333333333333333333333333333333333333333333333333333333333",
+      "provenance": {
+        "serverName": "pref-fixture",
+        "transport": "fixture",
+        "primitive": "fixture",
+        "primitiveName": "fixture.economic_series.wages",
+        "argumentsHash": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "responseHash": "3030303030303030303030303030303030303030303030303030303030303030",
+        "callId": "call-northbridge-3"
+      },
+      "rights": {
+        "display": "full",
+        "license": "Original fictional fixture",
+        "notes": "Created for Signal Atlas development."
+      },
+      "tags": [
+        "wages",
+        "labor",
+        "official",
+        "inflation-pressure"
+      ]
+    },
+    {
+      "id": "src-northbridge-inflation-revised-2",
+      "version": 2,
+      "externalUri": "fixture://northbridge/src-northbridge-inflation-revised-2",
+      "title": "Revised Core Inflation Bulletin: 3.0 Percent",
+      "publisher": "Northbridge Statistics Office",
+      "sourceClass": "official_primary",
+      "publishedAt": "2029-06-18T11:40:00Z",
+      "observedAt": "2029-06-18T11:35:00Z",
+      "retrievedAt": "2029-06-18T11:45:00Z",
+      "location": {
+        "placeId": "statistics-office",
+        "label": "Northbridge"
+      },
+      "mediaType": "application/json",
+      "excerpt": "A seasonal-adjustment correction revises annual core inflation from the flash 2.6 percent to 3.0 percent. Disinflation remains, but the earlier magnitude was overstated.",
+      "structuredData": {
+        "seriesId": "NB_CORE_FLASH",
+        "value": 3,
+        "unit": "percent",
+        "vintage": "revised",
+        "supersededValue": 2.6
+      },
+      "contentHash": "4444444444444444444444444444444444444444444444444444444444444444",
+      "provenance": {
+        "serverName": "pref-fixture",
+        "transport": "fixture",
+        "primitive": "fixture",
+        "primitiveName": "fixture.economic_series.revision",
+        "argumentsHash": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "responseHash": "4040404040404040404040404040404040404040404040404040404040404040",
+        "callId": "call-northbridge-4"
+      },
+      "rights": {
+        "display": "full",
+        "license": "Original fictional fixture",
+        "notes": "Created for Signal Atlas development."
+      },
+      "supersedesSourceId": "src-northbridge-inflation-flash-1",
+      "tags": [
+        "inflation",
+        "revision",
+        "official",
+        "superseding"
+      ]
+    },
+    {
+      "id": "src-northbridge-speech-1",
+      "version": 1,
+      "externalUri": "fixture://northbridge/src-northbridge-speech-1",
+      "title": "Governor Ilex: More Confidence Is Still Needed",
+      "publisher": "Northbridge Monetary Council",
+      "sourceClass": "primary",
+      "publishedAt": "2029-06-11T17:00:00Z",
+      "observedAt": null,
+      "retrievedAt": "2029-06-18T09:30:00Z",
+      "location": {
+        "placeId": "council-hall",
+        "label": "Northbridge"
+      },
+      "mediaType": "application/json",
+      "excerpt": "Governor Ilex said the council needs more confidence that service inflation and wage growth are converging before reducing the policy rate. The speech did not pre-commit the meeting decision.",
+      "contentHash": "5555555555555555555555555555555555555555555555555555555555555555",
+      "provenance": {
+        "serverName": "pref-fixture",
+        "transport": "fixture",
+        "primitive": "fixture",
+        "primitiveName": "fixture.official_record.speech",
+        "argumentsHash": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "responseHash": "5050505050505050505050505050505050505050505050505050505050505050",
+        "callId": "call-northbridge-5"
+      },
+      "rights": {
+        "display": "full",
+        "license": "Original fictional fixture",
+        "notes": "Created for Signal Atlas development."
+      },
+      "tags": [
+        "guidance",
+        "speech",
+        "primary",
+        "conditional"
+      ]
+    },
+    {
+      "id": "src-northbridge-wire-1",
+      "version": 1,
+      "externalUri": "fixture://northbridge/src-northbridge-wire-1",
+      "title": "Northbridge Cut Signal Strengthens Ahead of Meeting",
+      "publisher": "Copperwire Economic Desk",
+      "sourceClass": "secondary",
+      "publishedAt": "2029-06-18T09:25:00Z",
+      "observedAt": null,
+      "retrievedAt": "2029-06-18T09:35:00Z",
+      "location": {
+        "placeId": "copperwire-newsroom",
+        "label": "Northbridge"
+      },
+      "mediaType": "application/json",
+      "excerpt": "Copperwire says a June cut signal has strengthened. The story cites Governor Ilex's speech and the provisional flash inflation bulletin; it reports no independent vote count or decision record.",
+      "contentHash": "6666666666666666666666666666666666666666666666666666666666666666",
+      "provenance": {
+        "serverName": "pref-fixture",
+        "transport": "fixture",
+        "primitive": "fixture",
+        "primitiveName": "fixture.news.search",
+        "argumentsHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "responseHash": "6060606060606060606060606060606060606060606060606060606060606060",
+        "callId": "call-northbridge-6"
+      },
+      "rights": {
+        "display": "full",
+        "license": "Original fictional fixture",
+        "notes": "Created for Signal Atlas development."
+      },
+      "tags": [
+        "news",
+        "derivative",
+        "guidance",
+        "correlated"
+      ]
+    },
+    {
+      "id": "src-northbridge-market-1",
+      "version": 1,
+      "externalUri": "fixture://northbridge/src-northbridge-market-1",
+      "title": "Read-only June Policy Decision Market Snapshot",
+      "publisher": "Forward Ledger Exchange Fixture",
+      "sourceClass": "market",
+      "publishedAt": "2029-06-18T09:40:00Z",
+      "observedAt": "2029-06-18T09:40:00Z",
+      "retrievedAt": "2029-06-18T09:41:00Z",
+      "location": {
+        "placeId": "forward-exchange",
+        "label": "Northbridge"
+      },
+      "mediaType": "application/json",
+      "excerpt": "A fictional read-only market snapshot assigns 54 percent to CUT and 46 percent to HOLD. It is context about aggregate expectations, not independent evidence about the sealed decision.",
+      "structuredData": {
+        "cut": 0.54,
+        "hold": 0.46,
+        "ordersEnabled": false
+      },
+      "contentHash": "7777777777777777777777777777777777777777777777777777777777777777",
+      "provenance": {
+        "serverName": "pref-fixture",
+        "transport": "fixture",
+        "primitive": "fixture",
+        "primitiveName": "fixture.market.discovery",
+        "argumentsHash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "responseHash": "7070707070707070707070707070707070707070707070707070707070707070",
+        "callId": "call-northbridge-7"
+      },
+      "rights": {
+        "display": "full",
+        "license": "Original fictional fixture",
+        "notes": "Created for Signal Atlas development."
+      },
+      "tags": [
+        "market-context",
+        "read-only",
+        "expectations"
+      ]
+    },
+    {
+      "id": "src-northbridge-history-1",
+      "version": 1,
+      "externalUri": "fixture://northbridge/src-northbridge-history-1",
+      "title": "Twelve Comparable Disinflation Meeting Decisions",
+      "publisher": "Decision Ledger Archive",
+      "sourceClass": "archive",
+      "publishedAt": "2029-05-20T12:00:00Z",
+      "observedAt": null,
+      "retrievedAt": "2029-06-18T09:50:00Z",
+      "location": {
+        "placeId": "decision-archive",
+        "label": "Northbridge"
+      },
+      "mediaType": "application/json",
+      "excerpt": "Seven of twelve fictional scheduled meetings with falling core inflation produced a cut. Among the five cases where wage growth remained above the compatibility range, only one cut.",
+      "structuredData": {
+        "total": 12,
+        "cuts": 7,
+        "highWageCases": 5,
+        "highWageCuts": 1
+      },
+      "contentHash": "8888888888888888888888888888888888888888888888888888888888888888",
+      "provenance": {
+        "serverName": "pref-fixture",
+        "transport": "fixture",
+        "primitive": "fixture",
+        "primitiveName": "fixture.resolution.history",
+        "argumentsHash": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "responseHash": "8080808080808080808080808080808080808080808080808080808080808080",
+        "callId": "call-northbridge-8"
+      },
+      "rights": {
+        "display": "full",
+        "license": "Original fictional fixture",
+        "notes": "Created for Signal Atlas development."
+      },
+      "tags": [
+        "history",
+        "base-rate",
+        "conditional",
+        "resolution"
+      ]
+    },
+    {
+      "id": "src-northbridge-decision-1",
+      "version": 1,
+      "externalUri": "fixture://northbridge/src-northbridge-decision-1",
+      "title": "Official Decision: Policy Rate Reduced by 25 Basis Points",
+      "publisher": "Northbridge Monetary Council",
+      "sourceClass": "official_primary",
+      "publishedAt": "2029-06-18T14:00:00Z",
+      "observedAt": "2029-06-18T14:00:00Z",
+      "retrievedAt": "2029-06-18T14:01:00Z",
+      "location": {
+        "placeId": "council-hall",
+        "label": "Northbridge Council Hall"
+      },
+      "mediaType": "application/json",
+      "excerpt": "The fictional council voted to reduce the policy rate by 25 basis points, effective immediately. The release is the sole resolution authority for this fixture.",
+      "contentHash": "9999999999999999999999999999999999999999999999999999999999999999",
+      "provenance": {
+        "serverName": "pref-fixture",
+        "transport": "fixture",
+        "primitive": "fixture",
+        "primitiveName": "fixture.official_record.decision",
+        "argumentsHash": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "responseHash": "9090909090909090909090909090909090909090909090909090909090909090",
+        "callId": "call-northbridge-9"
+      },
+      "rights": {
+        "display": "full",
+        "license": "Original fictional fixture",
+        "notes": "Created for Signal Atlas development."
+      },
+      "tags": [
+        "official",
+        "decision",
+        "resolution",
+        "cut"
+      ]
+    }
+  ],
+  "claims": [
+    {
+      "id": "claim-northbridge-agenda",
+      "text": "The council agenda schedules a policy decision for 14:00Z but does not reveal the outcome.",
+      "sourceIds": [
+        "src-northbridge-agenda-1"
+      ],
+      "extractor": {
+        "kind": "agent",
+        "id": "sable"
+      },
+      "qualifiers": [
+        "official schedule",
+        "outcome-neutral",
+        "fixture record"
+      ],
+      "status": "active",
+      "createdAt": "2029-06-18T09:12:00Z"
+    },
+    {
+      "id": "claim-northbridge-inflation-flash",
+      "text": "The provisional flash estimate shows core inflation slowing from 3.2 to 2.6 percent.",
+      "sourceIds": [
+        "src-northbridge-inflation-flash-1"
+      ],
+      "extractor": {
+        "kind": "agent",
+        "id": "lumen"
+      },
+      "qualifiers": [
+        "official provisional series",
+        "subject to revision",
+        "large reported decline"
+      ],
+      "temporalScope": {
+        "startsAt": "2029-06-18T08:00:00Z",
+        "endsAt": "2029-06-18T11:35:00Z"
+      },
+      "status": "active",
+      "createdAt": "2029-06-18T09:17:00Z"
+    },
+    {
+      "id": "claim-northbridge-wages",
+      "text": "Annual wage growth remains 4.7 percent, above the fictional council staff compatibility range.",
+      "sourceIds": [
+        "src-northbridge-wages-1"
+      ],
+      "extractor": {
+        "kind": "agent",
+        "id": "mara"
+      },
+      "qualifiers": [
+        "official quarterly series",
+        "complete sector coverage",
+        "inflation-pressure proxy"
+      ],
+      "status": "active",
+      "createdAt": "2029-06-18T09:22:00Z"
+    },
+    {
+      "id": "claim-northbridge-inflation-revised",
+      "text": "A corrected seasonal adjustment revises core inflation from 2.6 to 3.0 percent.",
+      "sourceIds": [
+        "src-northbridge-inflation-revised-2"
+      ],
+      "extractor": {
+        "kind": "agent",
+        "id": "sable"
+      },
+      "qualifiers": [
+        "official revision",
+        "supersedes flash value",
+        "disinflation remains"
+      ],
+      "temporalScope": {
+        "startsAt": "2029-06-18T11:35:00Z"
+      },
+      "status": "active",
+      "createdAt": "2029-06-18T11:47:00Z"
+    },
+    {
+      "id": "claim-northbridge-speech",
+      "text": "Governor Ilex said more confidence on services and wages was needed before a rate reduction.",
+      "sourceIds": [
+        "src-northbridge-speech-1"
+      ],
+      "extractor": {
+        "kind": "agent",
+        "id": "sable"
+      },
+      "qualifiers": [
+        "primary guidance",
+        "conditional language",
+        "not a decision"
+      ],
+      "status": "active",
+      "createdAt": "2029-06-18T09:32:00Z"
+    },
+    {
+      "id": "claim-northbridge-wire",
+      "text": "Copperwire frames a cut as more likely but relies on the governor speech and provisional inflation release.",
+      "sourceIds": [
+        "src-northbridge-wire-1"
+      ],
+      "extractor": {
+        "kind": "agent",
+        "id": "sable"
+      },
+      "qualifiers": [
+        "secondary report",
+        "derivative",
+        "no independent vote count"
+      ],
+      "status": "active",
+      "createdAt": "2029-06-18T09:37:00Z"
+    },
+    {
+      "id": "claim-northbridge-market",
+      "text": "The read-only fictional market snapshot assigns 54 percent to CUT.",
+      "sourceIds": [
+        "src-northbridge-market-1"
+      ],
+      "extractor": {
+        "kind": "agent",
+        "id": "lumen"
+      },
+      "qualifiers": [
+        "aggregate expectation",
+        "not an execution venue",
+        "not independent outcome evidence"
+      ],
+      "status": "active",
+      "createdAt": "2029-06-18T09:43:00Z"
+    },
+    {
+      "id": "claim-northbridge-history",
+      "text": "Seven of twelve comparable disinflation meetings cut, but only one of five high-wage cases did so.",
+      "sourceIds": [
+        "src-northbridge-history-1"
+      ],
+      "extractor": {
+        "kind": "agent",
+        "id": "mara"
+      },
+      "qualifiers": [
+        "conditional reference class",
+        "small sample",
+        "fictional archive"
+      ],
+      "status": "active",
+      "createdAt": "2029-06-18T09:52:00Z"
+    },
+    {
+      "id": "claim-northbridge-decision",
+      "text": "The official council statement reduces the policy rate by 25 basis points.",
+      "sourceIds": [
+        "src-northbridge-decision-1"
+      ],
+      "extractor": {
+        "kind": "agent",
+        "id": "lumen"
+      },
+      "qualifiers": [
+        "sole fixture resolution authority",
+        "official decision",
+        "time-stamped"
+      ],
+      "status": "active",
+      "createdAt": "2029-06-18T14:02:00Z"
+    }
+  ],
+  "signals": [
+    {
+      "id": "sig-northbridge-agenda",
+      "marketId": "market-northbridge-council-2029",
+      "claimIds": [
+        "claim-northbridge-agenda"
+      ],
+      "sourceIds": [
+        "src-northbridge-agenda-1"
+      ],
+      "headline": "Official agenda confirms the decision window",
+      "summary": "The agenda confirms timing and resolution authority without favoring CUT or HOLD.",
+      "direction": "context",
+      "impact": {
+        "label": "unknown"
+      },
+      "reliability": {
+        "label": "verified_primary",
+        "reasons": [
+          "Official fictional council agenda",
+          "No outcome language"
+        ],
+        "assessedBy": {
+          "kind": "system"
+        }
+      },
+      "freshness": {
+        "referenceTime": "2029-06-17T16:00:00Z",
+        "usefulUntil": "2029-06-18T14:05:00Z",
+        "label": "fresh"
+      },
+      "correlationGroupIds": [
+        "corr-northbridge-decision-calendar"
+      ],
+      "discoveredByAgentId": "sable",
+      "createdAt": "2029-06-18T09:12:00Z",
+      "status": "active"
+    },
+    {
+      "id": "sig-northbridge-inflation-flash",
+      "marketId": "market-northbridge-council-2029",
+      "claimIds": [
+        "claim-northbridge-inflation-flash"
+      ],
+      "sourceIds": [
+        "src-northbridge-inflation-flash-1"
+      ],
+      "headline": "Flash inflation decline strengthens the cut case",
+      "summary": "A large provisional decline would give the council more room to cut, but the release is explicitly subject to revision.",
+      "direction": "supports_outcome",
+      "targetOutcomeId": "cut",
+      "impact": {
+        "label": "medium",
+        "probabilityPointRange": {
+          "low": 0.06,
+          "high": 0.13
+        }
+      },
+      "reliability": {
+        "label": "verified_primary",
+        "reasons": [
+          "Official fictional statistical bulletin",
+          "Time-stamped numeric release",
+          "Provisional vintage is explicit"
+        ],
+        "assessedBy": {
+          "kind": "system"
+        }
+      },
+      "freshness": {
+        "referenceTime": "2029-06-18T08:00:00Z",
+        "usefulUntil": "2029-06-18T11:45:00Z",
+        "label": "fresh"
+      },
+      "correlationGroupIds": [
+        "corr-northbridge-inflation-vintage",
+        "corr-northbridge-cut-narrative"
+      ],
+      "discoveredByAgentId": "lumen",
+      "createdAt": "2029-06-18T09:17:00Z",
+      "status": "active"
+    },
+    {
+      "id": "sig-northbridge-wages",
+      "marketId": "market-northbridge-council-2029",
+      "claimIds": [
+        "claim-northbridge-wages"
+      ],
+      "sourceIds": [
+        "src-northbridge-wages-1"
+      ],
+      "headline": "Persistent wage growth argues for holding",
+      "summary": "The wage series remains above the council staff compatibility range and contradicts a simple disinflation-to-cut story.",
+      "direction": "opposes_outcome",
+      "targetOutcomeId": "cut",
+      "impact": {
+        "label": "medium",
+        "probabilityPointRange": {
+          "low": -0.09,
+          "high": -0.03
+        }
+      },
+      "reliability": {
+        "label": "verified_primary",
+        "reasons": [
+          "Official fictional quarterly series",
+          "Complete stated coverage",
+          "Directly relevant to the published reaction function"
+        ],
+        "assessedBy": {
+          "kind": "system"
+        }
+      },
+      "freshness": {
+        "referenceTime": "2029-06-18T08:00:00Z",
+        "usefulUntil": "2029-07-18T00:00:00Z",
+        "label": "fresh"
+      },
+      "correlationGroupIds": [
+        "corr-northbridge-wage-pressure"
+      ],
+      "discoveredByAgentId": "mara",
+      "createdAt": "2029-06-18T09:22:00Z",
+      "status": "active"
+    },
+    {
+      "id": "sig-northbridge-inflation-revised",
+      "marketId": "market-northbridge-council-2029",
+      "claimIds": [
+        "claim-northbridge-inflation-revised"
+      ],
+      "sourceIds": [
+        "src-northbridge-inflation-revised-2"
+      ],
+      "headline": "Revision removes much of the flash disinflation surprise",
+      "summary": "The revised 3.0 percent value preserves mild disinflation but weakens the magnitude that supported an immediate cut.",
+      "direction": "opposes_outcome",
+      "targetOutcomeId": "cut",
+      "impact": {
+        "label": "medium",
+        "probabilityPointRange": {
+          "low": -0.07,
+          "high": -0.02
+        }
+      },
+      "reliability": {
+        "label": "verified_primary",
+        "reasons": [
+          "Official fictional revision",
+          "Explicit version link",
+          "Correction published before the decision"
+        ],
+        "assessedBy": {
+          "kind": "system"
+        }
+      },
+      "freshness": {
+        "referenceTime": "2029-06-18T11:35:00Z",
+        "usefulUntil": "2029-07-18T00:00:00Z",
+        "label": "fresh"
+      },
+      "correlationGroupIds": [
+        "corr-northbridge-inflation-vintage"
+      ],
+      "discoveredByAgentId": "sable",
+      "createdAt": "2029-06-18T11:47:00Z",
+      "status": "active"
+    },
+    {
+      "id": "sig-northbridge-speech",
+      "marketId": "market-northbridge-council-2029",
+      "claimIds": [
+        "claim-northbridge-speech"
+      ],
+      "sourceIds": [
+        "src-northbridge-speech-1"
+      ],
+      "headline": "Governor asks for more confidence before easing",
+      "summary": "Primary conditional guidance weighs against a cut, while stopping short of a decision commitment.",
+      "direction": "opposes_outcome",
+      "targetOutcomeId": "cut",
+      "impact": {
+        "label": "medium",
+        "probabilityPointRange": {
+          "low": -0.08,
+          "high": -0.03
+        }
+      },
+      "reliability": {
+        "label": "primary_unconfirmed",
+        "reasons": [
+          "Named fictional governor speech",
+          "Direct quotation summary",
+          "Guidance is conditional rather than binding"
+        ],
+        "assessedBy": {
+          "kind": "agent",
+          "id": "sable"
+        }
+      },
+      "freshness": {
+        "referenceTime": "2029-06-11T17:00:00Z",
+        "usefulUntil": "2029-06-18T14:00:00Z",
+        "label": "aging"
+      },
+      "correlationGroupIds": [
+        "corr-northbridge-guidance"
+      ],
+      "discoveredByAgentId": "sable",
+      "createdAt": "2029-06-18T09:32:00Z",
+      "status": "active"
+    },
+    {
+      "id": "sig-northbridge-wire",
+      "marketId": "market-northbridge-council-2029",
+      "claimIds": [
+        "claim-northbridge-wire"
+      ],
+      "sourceIds": [
+        "src-northbridge-wire-1"
+      ],
+      "headline": "Wire story frames a stronger cut signal",
+      "summary": "The story is directionally favorable to CUT but repeats the speech and flash release rather than adding a vote count.",
+      "direction": "supports_outcome",
+      "targetOutcomeId": "cut",
+      "impact": {
+        "label": "small",
+        "probabilityPointRange": {
+          "low": 0,
+          "high": 0.02
+        }
+      },
+      "reliability": {
+        "label": "single_secondary",
+        "reasons": [
+          "Transparent secondary attribution",
+          "No independent decision evidence",
+          "Must not be double-counted with upstream sources"
+        ],
+        "assessedBy": {
+          "kind": "agent",
+          "id": "sable"
+        }
+      },
+      "freshness": {
+        "referenceTime": "2029-06-18T09:25:00Z",
+        "usefulUntil": "2029-06-18T14:00:00Z",
+        "label": "fresh"
+      },
+      "correlationGroupIds": [
+        "corr-northbridge-guidance",
+        "corr-northbridge-cut-narrative"
+      ],
+      "discoveredByAgentId": "sable",
+      "createdAt": "2029-06-18T09:37:00Z",
+      "status": "active"
+    },
+    {
+      "id": "sig-northbridge-market",
+      "marketId": "market-northbridge-council-2029",
+      "claimIds": [
+        "claim-northbridge-market"
+      ],
+      "sourceIds": [
+        "src-northbridge-market-1"
+      ],
+      "headline": "Market snapshot records aggregate expectations",
+      "summary": "The 54 percent CUT quote is useful context for disagreement, not independent evidence about the sealed policy decision.",
+      "direction": "context",
+      "impact": {
+        "label": "unknown"
+      },
+      "reliability": {
+        "label": "primary_unconfirmed",
+        "reasons": [
+          "Direct fictional market snapshot",
+          "Read-only aggregate expectation",
+          "Circularity risk if treated as fundamental evidence"
+        ],
+        "assessedBy": {
+          "kind": "agent",
+          "id": "lumen"
+        }
+      },
+      "freshness": {
+        "referenceTime": "2029-06-18T09:40:00Z",
+        "usefulUntil": "2029-06-18T10:10:00Z",
+        "label": "fresh"
+      },
+      "correlationGroupIds": [
+        "corr-northbridge-market-expectations"
+      ],
+      "discoveredByAgentId": "lumen",
+      "createdAt": "2029-06-18T09:43:00Z",
+      "status": "active"
+    },
+    {
+      "id": "sig-northbridge-history",
+      "marketId": "market-northbridge-council-2029",
+      "claimIds": [
+        "claim-northbridge-history"
+      ],
+      "sourceIds": [
+        "src-northbridge-history-1"
+      ],
+      "headline": "High wage growth changes the historical base rate",
+      "summary": "The broad sample favors cuts, but the high-wage subset strongly favors HOLD and is the closer comparison.",
+      "direction": "opposes_outcome",
+      "targetOutcomeId": "cut",
+      "impact": {
+        "label": "small",
+        "probabilityPointRange": {
+          "low": -0.05,
+          "high": -0.01
+        }
+      },
+      "reliability": {
+        "label": "derived",
+        "reasons": [
+          "Resolved fictional comparison set",
+          "Conditional subset is explicit",
+          "Only five high-wage cases"
+        ],
+        "assessedBy": {
+          "kind": "agent",
+          "id": "mara"
+        }
+      },
+      "freshness": {
+        "referenceTime": "2029-05-20T12:00:00Z",
+        "label": "timeless"
+      },
+      "correlationGroupIds": [
+        "corr-northbridge-reference-class"
+      ],
+      "discoveredByAgentId": "mara",
+      "createdAt": "2029-06-18T09:52:00Z",
+      "status": "active"
+    },
+    {
+      "id": "sig-northbridge-decision",
+      "marketId": "market-northbridge-council-2029",
+      "claimIds": [
+        "claim-northbridge-decision"
+      ],
+      "sourceIds": [
+        "src-northbridge-decision-1"
+      ],
+      "headline": "Official statement cuts the policy rate by 25 basis points",
+      "summary": "The sole authored resolution source directly satisfies the CUT rule.",
+      "direction": "supports_outcome",
+      "targetOutcomeId": "cut",
+      "impact": {
+        "label": "large",
+        "probabilityPointRange": {
+          "low": 0.45,
+          "high": 0.5
+        }
+      },
+      "reliability": {
+        "label": "verified_primary",
+        "reasons": [
+          "Official fictional decision statement",
+          "Matches the resolution rule exactly",
+          "Published at the scheduled decision time"
+        ],
+        "assessedBy": {
+          "kind": "system"
+        }
+      },
+      "freshness": {
+        "referenceTime": "2029-06-18T14:00:00Z",
+        "label": "fresh"
+      },
+      "correlationGroupIds": [
+        "corr-northbridge-official-decision"
+      ],
+      "discoveredByAgentId": "lumen",
+      "createdAt": "2029-06-18T14:02:00Z",
+      "status": "active"
+    }
+  ],
+  "initialEvents": [
+    {
+      "id": "evt-northbridge-0001",
+      "expeditionId": "exp-northbridge-council-demo",
+      "sequence": 1,
+      "type": "expedition.created",
+      "occurredAt": "2029-06-18T09:00:00Z",
+      "recordedAt": "2029-06-18T09:00:00Z",
+      "actor": {
+        "kind": "system"
+      },
+      "schemaVersion": 1,
+      "payload": {
+        "marketId": "market-northbridge-council-2029",
+        "worldManifestId": "world-northbridge-council-v1",
+        "mode": "director"
+      }
+    },
+    {
+      "id": "evt-northbridge-0002",
+      "expeditionId": "exp-northbridge-council-demo",
+      "sequence": 2,
+      "type": "forecast.committed",
+      "occurredAt": "2029-06-18T09:00:01Z",
+      "recordedAt": "2029-06-18T09:00:01Z",
+      "actor": {
+        "kind": "system"
+      },
+      "schemaVersion": 1,
+      "payload": {
+        "actor": {
+          "kind": "team"
+        },
+        "previousProbabilities": {
+          "cut": 0.5,
+          "hold": 0.5
+        },
+        "newProbabilities": {
+          "cut": 0.52,
+          "hold": 0.48
+        },
+        "rationale": "Initial team prior before checking data vintages, wage persistence, duplicated guidance, and the sealed decision.",
+        "evidenceSignalIds": []
+      }
+    }
+  ],
+  "scriptedMissionResults": {
+    "sable:investigate:council-hall": {
+      "latencyMs": 1800,
+      "sourceIds": [
+        "src-northbridge-agenda-1"
+      ],
+      "claimIds": [
+        "claim-northbridge-agenda"
+      ],
+      "signalIds": [
+        "sig-northbridge-agenda"
+      ],
+      "dialogue": "The agenda confirms when and how the market resolves, but it contains no leak about CUT or HOLD.",
+      "suggestedFollowUp": {
+        "verb": "investigate",
+        "objective": "Check the newest inflation release and its vintage status.",
+        "destinationPlaceId": "statistics-office"
+      }
+    },
+    "lumen:investigate:statistics-office": {
+      "latencyMs": 2400,
+      "sourceIds": [
+        "src-northbridge-inflation-flash-1"
+      ],
+      "claimIds": [
+        "claim-northbridge-inflation-flash"
+      ],
+      "signalIds": [
+        "sig-northbridge-inflation-flash"
+      ],
+      "dialogue": "The flash decline is large enough to matter, but the bulletin is provisional. I will not treat one vintage as settled.",
+      "suggestedFollowUp": {
+        "verb": "verify",
+        "objective": "Check the wage series and watch for a revised inflation bulletin.",
+        "destinationPlaceId": "statistics-office"
+      }
+    },
+    "mara:verify:statistics-office": {
+      "latencyMs": 2100,
+      "sourceIds": [
+        "src-northbridge-wages-1"
+      ],
+      "claimIds": [
+        "claim-northbridge-wages"
+      ],
+      "signalIds": [
+        "sig-northbridge-wages"
+      ],
+      "dialogue": "Wage growth remains well above the staff range. That is a direct contradiction to the simplest cut narrative.",
+      "suggestedFollowUp": {
+        "verb": "search_history",
+        "objective": "Condition the historical decision sample on persistent wage growth.",
+        "destinationPlaceId": "decision-archive"
+      }
+    },
+    "mara:search_history:decision-archive": {
+      "latencyMs": 2600,
+      "sourceIds": [
+        "src-northbridge-history-1"
+      ],
+      "claimIds": [
+        "claim-northbridge-history"
+      ],
+      "signalIds": [
+        "sig-northbridge-history"
+      ],
+      "dialogue": "The broad base rate favors cuts, but the closer high-wage subset does not. The subset is small, so this is a prior rather than a verdict.",
+      "suggestedFollowUp": {
+        "verb": "compare_sources",
+        "objective": "Compare the evidence with the read-only market expectation.",
+        "destinationPlaceId": "forward-exchange"
+      }
+    },
+    "lumen:compare_sources:forward-exchange": {
+      "latencyMs": 1900,
+      "sourceIds": [
+        "src-northbridge-market-1"
+      ],
+      "claimIds": [
+        "claim-northbridge-market"
+      ],
+      "signalIds": [
+        "sig-northbridge-market"
+      ],
+      "dialogue": "The market is near-even and slightly favors CUT. That measures expectations; counting it again as fundamental evidence would be circular.",
+      "suggestedFollowUp": {
+        "verb": "find_contradiction",
+        "objective": "Trace the cut headline back to its primary guidance sources.",
+        "destinationPlaceId": "copperwire-newsroom"
+      }
+    },
+    "sable:find_contradiction:copperwire-newsroom": {
+      "latencyMs": 2500,
+      "sourceIds": [
+        "src-northbridge-speech-1",
+        "src-northbridge-wire-1"
+      ],
+      "claimIds": [
+        "claim-northbridge-speech",
+        "claim-northbridge-wire"
+      ],
+      "signalIds": [
+        "sig-northbridge-speech",
+        "sig-northbridge-wire"
+      ],
+      "dialogue": "The bullish headline reuses the governor speech and flash release, while the speech itself asks for more confidence. These are not independent votes.",
+      "suggestedFollowUp": {
+        "verb": "consult_professor",
+        "objective": "Check the guidance chain for correlation and revision risk.",
+        "destinationPlaceId": "model-study"
+      }
+    },
+    "sable:compare_sources:statistics-office": {
+      "latencyMs": 2000,
+      "sourceIds": [
+        "src-northbridge-inflation-revised-2"
+      ],
+      "claimIds": [
+        "claim-northbridge-inflation-revised"
+      ],
+      "signalIds": [
+        "sig-northbridge-inflation-revised"
+      ],
+      "dialogue": "The official revision supersedes the flash value and removes much of its surprise. The earlier signal should be stale, not silently overwritten.",
+      "suggestedFollowUp": {
+        "verb": "verify",
+        "objective": "Retrieve the official decision statement at the scheduled release.",
+        "destinationPlaceId": "council-hall"
+      }
+    },
+    "lumen:verify:council-hall": {
+      "latencyMs": 1700,
+      "sourceIds": [
+        "src-northbridge-decision-1"
+      ],
+      "claimIds": [
+        "claim-northbridge-decision"
+      ],
+      "signalIds": [
+        "sig-northbridge-decision"
+      ],
+      "dialogue": "The official statement cuts the policy rate by 25 basis points. This is the sole source that directly resolves the fixture.",
+      "suggestedFollowUp": {
+        "verb": "reassess_forecast",
+        "objective": "Close the forecast against the official resolution record.",
+        "destinationPlaceId": "ledger-observatory"
+      }
+    }
+  },
+  "professorFixture": {
+    "queryId": "prof-northbridge-correlation-1",
+    "mode": "correlation_check",
+    "selectedSignalIds": [
+      "sig-northbridge-speech",
+      "sig-northbridge-wire"
+    ],
+    "answer": "Do not count the wire story as an independent pro-cut signal. It derives from the same governor guidance and provisional release already in the file, while the speech's actual condition points toward patience. Preserve the primary speech, mark the wire as correlated framing, and verify whether the inflation vintage was revised before committing.",
+    "evidenceUsed": [
+      {
+        "type": "signal",
+        "id": "sig-northbridge-speech"
+      },
+      {
+        "type": "signal",
+        "id": "sig-northbridge-wire"
+      }
+    ],
+    "assumptions": [
+      "The wire story's disclosed attribution is complete.",
+      "The fictional council uses the reaction-function considerations described in its sources."
+    ],
+    "limitations": [
+      "No member vote count is available.",
+      "The selected evidence predates any statistical revision and the official decision."
+    ],
+    "suggestedNextQuestion": "Has the provisional inflation release been revised, and how does that change the closer historical comparison?",
+    "suggestedMission": {
+      "verb": "compare_sources",
+      "objective": "Retrieve the newest official inflation vintage and preserve its version link.",
+      "destinationPlaceId": "statistics-office"
+    }
+  },
+  "resolutionFixture": {
+    "resolvedOutcomeId": "cut",
+    "resolvedAt": "2029-06-18T14:05:00Z",
+    "resolutionNote": "In the fictional fixture, the Northbridge Monetary Council's official 14:00Z statement reduced the policy rate by 25 basis points."
+  }
+}

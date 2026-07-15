@@ -2,8 +2,10 @@ import { describe, expect, it } from 'vitest';
 
 import {
   createHelios3ExpeditionFixture,
+  createNorthbridgeCouncilExpeditionFixture,
   createNorthlightHarborExpeditionFixture,
   helios3ExpeditionFixture,
+  northbridgeCouncilExpeditionFixture,
   northlightHarborExpeditionFixture,
 } from '../src/index.js';
 
@@ -29,5 +31,15 @@ describe('typed expedition fixture loaders', () => {
     expect(clone.worldManifest.template).toBe('coastal-harbor');
     clone.market.question = 'mutated';
     expect(northlightHarborExpeditionFixture.market.question).not.toBe('mutated');
+  });
+
+  it('exposes an isolated Northbridge clone with a policy-specific presentation', () => {
+    const clone = createNorthbridgeCouncilExpeditionFixture();
+
+    expect(clone).not.toBe(northbridgeCouncilExpeditionFixture);
+    expect(clone.market.outcomes.map(({ id }) => id)).toEqual(['cut', 'hold']);
+    expect(clone.worldManifest.template).toBe('ledger-civic-industrial');
+    clone.market.question = 'mutated';
+    expect(northbridgeCouncilExpeditionFixture.market.question).not.toBe('mutated');
   });
 });

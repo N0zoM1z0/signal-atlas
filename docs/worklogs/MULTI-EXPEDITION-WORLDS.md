@@ -89,6 +89,27 @@ In progress.
   orchestrator 112/112. Three focused Chromium journeys pass, including registry creation,
   teardown-safe switching, serious/critical WCAG scanning, no viewport overflow, and the updated
   Lobby plus new `tests/visual/northlight-harbor-world-1440x900.png` baselines.
+- The Northbridge milestone installs a third complete scenario with opaque `cut` and `hold`
+  outcomes, Lumen/Mara/Sable, eight policy-specific places, nine source-linked claims and signals,
+  and eight authored missions. The journey separates an official agenda, provisional and revised
+  inflation vintages, persistent wage pressure, conditional resolution history, read-only market
+  expectations, primary guidance, derivative news framing, and the final official fixture decision.
+  Recording the revised release emits `source.superseded` and marks the flash-inflation signal stale;
+  the market snapshot remains non-directional context with unknown impact.
+- Northbridge routes news, market discovery, resolution history, and economic-series work through
+  the existing provider-neutral mission policy. GDELT is context-only, Resolution is a disclosed
+  reference class, disabled Polymarket/FRED candidates fall back to authored results, and the
+  unapproved `search_official_records` binding is deliberately rejected by the live router. No
+  provider microservice or trading capability was added.
+- The new ledger/civic-industrial renderer replaces coastal terrain with a pixel city skyline,
+  streets, central grid plaza, rails, and civic tower. Visual QA exposed and fixed a Phaser
+  readiness race where an unchanged initial size could miss `POST_RENDER`; the idempotent fallback
+  now waits across a real paint opportunity, and the Northbridge browser test also requires color
+  diversity and more than 80 percent non-black canvas coverage before capture.
+- Northbridge focused validation passes world-content 4/4, test-fixtures 3/3, game-scene 13/13, web
+  27/27, and orchestrator 115/115. The three-world Lobby and dedicated 1440 x 900 Northbridge
+  journey pass Chromium, viewport, and serious/critical WCAG checks; the visual baseline is
+  `tests/visual/northbridge-council-world-1440x900.png`.
 
 ## Goal
 
@@ -196,8 +217,9 @@ authentication system, telemetry path, or real-money trading capability is in sc
 - Northbridge is fully playable offline and exercises a materially different ledger/civic-industrial
   presentation plus news, market context, historical resolution, economic-series fixture context,
   contradictions, and a sealed policy-decision resolution.
-- Official-record/civic support is represented by a closed canonical capability contract and remains
-  fixture-first until a cataloged provider passes live, provenance, rights, and fallback gates.
+- Official-record/civic support is an explicitly authored fixture-only binding. The live router
+  rejects it until `search_official_records` is added to the closed Pref contract and a cataloged
+  provider passes live, provenance, rights, and fallback gates.
 - True multi-outcome remains a separate milestone: the binary schema is not silently widened, and
   no incomplete probability editor or dynamic Codex schema is presented as finished.
 - No real trading, order placement, wallet, relayer, portfolio mutation, or write-capable Pref tool
@@ -273,4 +295,17 @@ pnpm --filter @signal-atlas/orchestrator test -- app.test.ts northlight-expediti
 pnpm --filter @signal-atlas/web test -- App.test.tsx
 pnpm --filter @signal-atlas/web typecheck
 pnpm exec playwright test tests/e2e/expedition-lobby.spec.ts tests/e2e/northlight-harbor.spec.ts --update-snapshots
+```
+
+For the Northbridge milestone the focused commands were:
+
+```bash
+pnpm --filter @signal-atlas/world-content build
+pnpm --filter @signal-atlas/test-fixtures build
+pnpm --filter @signal-atlas/game-scene typecheck
+pnpm --filter @signal-atlas/game-scene test
+pnpm --filter @signal-atlas/orchestrator test -- app.test.ts northbridge-expedition.test.ts pref-agent-proxy-driver.test.ts
+pnpm --filter @signal-atlas/web test -- App.test.tsx
+pnpm --filter @signal-atlas/web typecheck
+pnpm exec playwright test tests/e2e/expedition-lobby.spec.ts tests/e2e/northbridge-council.spec.ts --update-snapshots
 ```
