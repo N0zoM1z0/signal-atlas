@@ -80,6 +80,26 @@ pnpm dev
 
 The web application listens on `http://127.0.0.1:4173` and the orchestrator health endpoint is `http://127.0.0.1:4317/api/health`.
 
+### Pref fixture and live modes
+
+Pref runs in deterministic fixture mode unless `SIGNAL_ATLAS_PREF_MODE=live` is present when the orchestrator starts. Changing modes requires a process restart; the browser can inspect and reconnect the active mode, but cannot read or replace its credential.
+
+To start the approved live weather path without putting a bearer in a file or shell history:
+
+```bash
+source ~/clash.sh
+proxy_on
+export SIGNAL_ATLAS_PREF_MODE=live
+read -r -s -p "Pref bearer: " SIGNAL_ATLAS_PREF_BEARER_TOKEN
+export SIGNAL_ATLAS_PREF_BEARER_TOKEN
+printf '\n'
+pnpm dev
+```
+
+Use a credential explicitly issued for this application. Do not copy Codex OAuth state or commit a populated `.env`; `.env.example` documents only the safe keys. The live MCP transport honors `HTTP_PROXY`, `HTTPS_PROXY`, and `NO_PROXY` from the `proxy_on` shell.
+
+The first live mission calls the exact read-only primitive `weather.get_current_conditions`. Because Helios-3 and Galehaven are fictional, Cape Canaveral is disclosed everywhere as a real-world interface-testing proxy. Its signal is always context-only with unknown impact and never changes the fictional market forecast.
+
 Run the current repository gate with:
 
 ```bash

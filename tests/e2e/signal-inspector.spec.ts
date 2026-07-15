@@ -48,6 +48,10 @@ test('a discovered signal exposes source provenance and durable case-file action
   await expect(inspector).toContainText('pref-fixture');
   await expect(inspector).toContainText('fixture.weather.advisory');
   await expect(inspector).toContainText('call-src-weather-bulletin-1');
+  await expect(inspector).toContainText('Source record');
+  await expect(inspector).toContainText('src-weather-bulletin-1');
+  await expect(inspector).toContainText('No earlier version');
+  await expect(inspector).toContainText('weather · crosswind · launch-window');
   await expect(inspector).toContainText('fixture://helios3/src-weather-bulletin-1');
   await expect(inspector.getByLabel('Agents who know this signal')).toContainText('Mira');
   await expect(inspector).toContainText('Independence has not been established');

@@ -78,6 +78,12 @@ export function SourceInspector({
               ) : null}
             </div>
             <p>{signal.summary}</p>
+            {signal.status === 'stale' && (
+              <p className="atlas-stale-evidence-notice" role="status">
+                <strong>Stale evidence retained for audit.</strong> Re-check the provider before
+                treating this signal as current.
+              </p>
+            )}
           </section>
 
           <div className="atlas-inspector-grid">
@@ -163,6 +169,12 @@ export function SourceInspector({
                             : 'Rights unknown'}
                         </span>
                       </header>
+                      {source.tags.includes('real-world-proxy') && (
+                        <p className="atlas-proxy-source-notice">
+                          <strong>Real-world proxy · context only.</strong> This source does not
+                          observe the fictional Galehaven or Helios-3 market.
+                        </p>
+                      )}
                       {source.excerpt && <blockquote>{source.excerpt}</blockquote>}
                       <dl className="atlas-source-times">
                         <Timestamp label="Published" value={source.publishedAt} />
@@ -178,6 +190,18 @@ export function SourceInspector({
                       <div className="atlas-provenance-block">
                         <h4>Retrieval provenance</h4>
                         <dl>
+                          <div>
+                            <dt>Source record</dt>
+                            <dd>
+                              <code>{source.id}</code>
+                            </dd>
+                          </div>
+                          <div>
+                            <dt>Supersedes</dt>
+                            <dd>
+                              <code>{source.supersedesSourceId ?? 'No earlier version'}</code>
+                            </dd>
+                          </div>
                           <div>
                             <dt>Gateway</dt>
                             <dd>{source.provenance.serverName}</dd>
@@ -214,6 +238,10 @@ export function SourceInspector({
                             <dd>
                               <code>{source.contentHash}</code>
                             </dd>
+                          </div>
+                          <div>
+                            <dt>Source tags</dt>
+                            <dd>{source.tags.length > 0 ? source.tags.join(' · ') : 'None'}</dd>
                           </div>
                         </dl>
                       </div>

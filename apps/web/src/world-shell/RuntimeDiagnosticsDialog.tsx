@@ -210,6 +210,12 @@ export function RuntimeDiagnosticsDialog({
                       ? 'Deterministic recorded data; no network or credential is used.'
                       : 'Hosted Streamable HTTP; credentials remain in the orchestrator process.'}
                   </p>
+                  <p className="atlas-pref-connection__mode-note">
+                    <strong>Server-side mode lock.</strong>{' '}
+                    {prefDiagnostics.mode === 'fixture'
+                      ? 'Restart with SIGNAL_ATLAS_PREF_MODE=live to enable the approved live agent proxy.'
+                      : 'Live mode is enabled for this process; restart in fixture mode for deterministic offline play.'}
+                  </p>
                   <dl>
                     <div>
                       <dt>Mode</dt>
@@ -269,7 +275,10 @@ export function RuntimeDiagnosticsDialog({
                         <ul>
                           {prefDiagnostics.mappings.map((mapping) => (
                             <li data-status={mapping.status} key={mapping.canonicalName}>
-                              <code>{mapping.canonicalName}</code>
+                              <div>
+                                <code>{mapping.canonicalName}</code>
+                                <small>{mapping.toolRef}</small>
+                              </div>
                               <span>{mapping.status}</span>
                             </li>
                           ))}

@@ -1229,6 +1229,13 @@ kbd {
   line-height: var(--sa-typography-line-height-normal);
 }
 
+.atlas-inspector-summary > .atlas-stale-evidence-notice {
+  padding: var(--sa-spacing-2) var(--sa-spacing-3);
+  border-left: var(--sa-border-pixel) solid var(--sa-color-window-gold);
+  color: var(--sa-color-window-gold);
+  background: color-mix(in srgb, var(--sa-color-window-gold) 8%, transparent);
+}
+
 .atlas-inspector-grid {
   display: grid;
   align-items: start;
@@ -1335,6 +1342,20 @@ kbd {
   background: var(--sa-color-deep-ink);
   font-size: var(--sa-typography-size-sm);
   line-height: var(--sa-typography-line-height-normal);
+}
+
+.atlas-proxy-source-notice {
+  margin: 0;
+  padding: var(--sa-spacing-2) var(--sa-spacing-3);
+  border-left: var(--sa-border-pixel) solid var(--sa-color-weather-cyan);
+  color: var(--sa-color-muted-steel);
+  background: color-mix(in srgb, var(--sa-color-weather-cyan) 7%, transparent);
+  font-size: var(--sa-typography-size-xs);
+  line-height: var(--sa-typography-line-height-normal);
+}
+
+.atlas-proxy-source-notice strong {
+  color: var(--sa-color-weather-cyan);
 }
 
 .atlas-source-times,
@@ -4576,6 +4597,16 @@ kbd {
   font-size: 9px;
 }
 
+.atlas-pref-connection > .atlas-pref-connection__mode-note {
+  padding: var(--sa-spacing-2) var(--sa-spacing-3);
+  border-left: var(--sa-border-pixel) solid var(--sa-color-weather-cyan);
+  background: color-mix(in srgb, var(--sa-color-weather-cyan) 6%, transparent);
+}
+
+.atlas-pref-connection__mode-note strong {
+  color: var(--sa-color-weather-cyan);
+}
+
 .atlas-pref-inventory {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -4628,6 +4659,22 @@ kbd {
   align-items: center;
   justify-content: space-between;
   gap: var(--sa-spacing-2);
+}
+
+.atlas-pref-inventory li > div {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.atlas-pref-inventory li > div small {
+  overflow: hidden;
+  color: var(--sa-color-weather-cyan);
+  font-family: var(--sa-typography-mono-family);
+  font-size: 7px;
+  text-overflow: ellipsis;
+  text-transform: none;
+  white-space: nowrap;
 }
 
 .atlas-pref-inventory code {

@@ -98,9 +98,21 @@ The initial server and tool policy is intentionally narrow:
 - Wire operations are bounded by connection/call timeouts, response byte limits, primitive-count limits, and abort signals.
 - Authentication, disconnect, timeout, policy, invalid-contract, and upstream failures are mapped to safe user-facing states. Upstream bodies, stack traces, endpoint details, and credential-shaped strings are not returned to the browser.
 
+### Live evidence and fictional-market semantics
+
+P5-003 executes current conditions for an explicitly configured `Cape Canaveral, Florida` provider location. This is a real-world interface-testing proxy for the fictional Galehaven Weather Tower, not a claim that those places are equivalent.
+
+- The source keeps its real geocoded label and coordinates and carries `real-world-proxy` and `context-only` tags.
+- Claims, signals, dialogue, inspector notices, and agent unknowns disclose that the result does not observe Galehaven or Helios-3.
+- The signal contract is fixed to `direction=context`, `impact=unknown`, no target outcome, and no probability-point range. Context-only signals do not update belief.
+- Provider publication time remains absent because the weather result does not supply one. Open-Meteo observation time, toolkit retrieval time, and Signal Atlas gateway retrieval time remain separate.
+- Provider display rights are not asserted by the Pref envelope, so the canonical source is `metadata_only`; raw weather content is not persisted in the world projection.
+- The gateway keeps only the latest validated canonical result per input in process memory. A fresh hit avoids another call, changed content creates a new source version, and only a retryable upstream failure can return an explicitly stale cached result.
+- Fixture/live selection is a server-start mode. The browser may inspect or reconnect the selected mode but cannot supply its credential or silently change evidence semantics.
+
 ## Consequences
 
-The application can show honest Pref availability and primitive inventory without exposing its credential boundary. Capability changes become explicit configuration drift instead of silently changing gameplay. The tradeoff is that a live connection requires an independently supplied server credential, and provider catalog drift deliberately stops a mission until the mapping is reviewed.
+The application can show honest Pref availability and primitive inventory without exposing its credential boundary. Capability changes become explicit configuration drift instead of silently changing gameplay. A validated result can traverse the complete agent and world-event path without converting a real proxy observation into fictional directional evidence. The tradeoff is that live mode requires an independently supplied server credential, metadata-only storage limits source-body display, the cache is process-local, and provider catalog drift deliberately stops a mission until the mapping is reviewed.
 
 ## Verification requirements
 
@@ -111,3 +123,12 @@ P5-002 is complete only when tests demonstrate that:
 - unlisted hosts, direct tools, and provider tool refs are denied before execution;
 - connect, disconnect, failed connection, and reconnect transitions are visible through a sanitized endpoint and settings UI;
 - seeded credential values cannot be found in diagnostics, API payloads, errors, or rendered DOM.
+
+P5-003 is complete only when tests additionally demonstrate that:
+
+- the verified weather envelope becomes linked source, claim, signal, dialogue, and turn records;
+- the exact primitive and source hashes are inspectable while raw provider payloads and credentials remain absent;
+- fresh cache, stale fallback, and changed-content supersession have distinct behavior;
+- stale cache is visible in the signal/card audit path;
+- proxy evidence remains non-directional and leaves the fictional market belief unchanged;
+- fixture mode retains deterministic replay.

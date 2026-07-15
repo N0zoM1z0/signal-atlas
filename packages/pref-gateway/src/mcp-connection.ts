@@ -6,6 +6,7 @@ import {
   UnauthorizedError,
   type ServerCapabilities,
 } from '@modelcontextprotocol/client';
+import { EnvHttpProxyAgent } from 'undici';
 
 import {
   assertAllowedPrefEndpoint,
@@ -508,28 +509,46 @@ export class StreamableHttpPrefConnection implements PrefMcpConnection {
 }
 
 function createOfficialPrefMcpSdkClient(input: PrefMcpSdkClientFactoryInput): PrefMcpSdkClient {
+  const proxyDispatcher = new EnvHttpProxyAgent();
+  let proxyCloseAttempt: Promise<void> | undefined;
+  const closeProxy = (): Promise<void> => {
+    proxyCloseAttempt ??= proxyDispatcher.close().catch(() => undefined);
+    return proxyCloseAttempt;
+  };
+  const proxyFetch: typeof fetch = (request, init) =>
+    fetch(request, {
+      ...init,
+      dispatcher: proxyDispatcher,
+    } as RequestInit & { dispatcher: EnvHttpProxyAgent });
   const transport = new StreamableHTTPClientTransport(input.endpoint, {
     authProvider: { token: input.credentialProvider },
-    fetch: createBoundedPrefFetch(input.maxResponseBytes),
+    fetch: createBoundedPrefFetch(input.maxResponseBytes, proxyFetch),
   });
   const client = new Client(
     { name: 'signal-atlas-pref-gateway', version: '0.0.0' },
     { capabilities: {}, enforceStrictCapabilities: true },
   );
-  client.onclose = input.onClose;
+  client.onclose = () => {
+    void closeProxy();
+    input.onClose();
+  };
   return {
     async connect(options) {
       await client.connect(transport, requestOptions(options));
     },
     async close() {
-      if (transport.sessionId) {
-        try {
-          await transport.terminateSession();
-        } catch {
-          // Session termination is best effort; local close always follows.
+      try {
+        if (transport.sessionId) {
+          try {
+            await transport.terminateSession();
+          } catch {
+            // Session termination is best effort; local close always follows.
+          }
         }
+        await client.close();
+      } finally {
+        await closeProxy();
       }
-      await client.close();
     },
     getServerCapabilities() {
       return client.getServerCapabilities() as ServerCapabilities | undefined;

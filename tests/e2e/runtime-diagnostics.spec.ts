@@ -21,6 +21,8 @@ test('runtime diagnostics expose the scripted driver, scheduler, and persisted t
   const prefConnection = dialog.getByRole('region', { name: 'Pref MCP connection' });
   await expect(prefConnection).toContainText('connected');
   await expect(prefConnection).toContainText('Deterministic recorded data');
+  await expect(prefConnection).toContainText('Server-side mode lock');
+  await expect(prefConnection).toContainText('SIGNAL_ATLAS_PREF_MODE=live');
   await expect(prefConnection).toContainText('fixture.local_conditions');
   await expect(prefConnection).toContainText('local_conditions');
   await prefConnection.getByRole('button', { name: 'Disconnect' }).click();
