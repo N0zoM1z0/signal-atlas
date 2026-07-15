@@ -29,7 +29,7 @@ export default defineConfig({
     port: 4173,
     strictPort: true,
     proxy: {
-      '/api': 'http://127.0.0.1:4317',
+      '/api': { target: 'http://127.0.0.1:4317', ws: true },
     },
   },
   preview: {

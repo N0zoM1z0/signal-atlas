@@ -163,6 +163,30 @@ describe('fixture mission interpretation', () => {
 });
 
 describe('ExpeditionRuntime commands', () => {
+  it('publishes committed event batches without letting observers affect authority', () => {
+    const runtime = new ExpeditionRuntime(createHelios3ExpeditionFixture());
+    const observedSequences: number[][] = [];
+    runtime.subscribeEvents(() => {
+      throw new Error('Injected stream observer failure.');
+    });
+    const unsubscribe = runtime.subscribeEvents((events) => {
+      observedSequences.push(events.map((event) => event.sequence));
+    });
+
+    const accepted = runtime.submit(assignmentCommand());
+
+    expect(accepted).toMatchObject({ accepted: true, duplicate: false, sequence: 5 });
+    expect(observedSequences).toEqual([[3, 4, 5]]);
+    expect(runtime.eventsAfter(2).map((event) => event.sequence)).toEqual([3, 4, 5]);
+
+    runtime.submit(assignmentCommand());
+    expect(observedSequences).toEqual([[3, 4, 5]]);
+
+    unsubscribe();
+    runtime.advance(1_000, '2027-09-26T18:32:01Z');
+    expect(observedSequences).toEqual([[3, 4, 5]]);
+  });
+
   it('appends validated mission events and folds them into the projection', () => {
     const runtime = new ExpeditionRuntime(createHelios3ExpeditionFixture());
 

@@ -1,5 +1,12 @@
 import Fastify, { type FastifyInstance } from 'fastify';
+import websocket from '@fastify/websocket';
 
+import {
+  parseEventStreamEnvelope,
+  SCHEMA_VERSION,
+  type EventStreamEnvelope,
+  type WorldEvent,
+} from '@signal-atlas/contracts';
 import { createHelios3ExpeditionFixture } from '@signal-atlas/test-fixtures';
 
 import {
@@ -42,6 +49,10 @@ interface ReplayQuery {
   sequence?: string;
 }
 
+interface StreamQuery {
+  after?: string;
+}
+
 interface InterpretMissionBody {
   text?: unknown;
   selectedAgentId?: unknown;
@@ -61,6 +72,7 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
       process.env['NODE_ENV'] === 'test' ? false : { level: process.env['LOG_LEVEL'] ?? 'warn' },
   });
   const prefRuntime = options.prefRuntime ?? createConfiguredPrefRuntime();
+  app.register(websocket, { options: { maxPayload: 1_024 } });
   const runtime =
     options.runtime ??
     (() => {
@@ -137,6 +149,97 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
       return { events: runtime.eventsAfter(after), sequence: runtime.snapshot().sequence };
     },
   );
+
+  app.register(async function expeditionStreamRoutes(streamApp) {
+    streamApp.get<{ Params: ExpeditionParams; Querystring: StreamQuery }>(
+      '/api/expeditions/:id/stream',
+      { websocket: true },
+      (socket, request) => {
+        let cursor = Number(request.query.after ?? 0);
+        let unsubscribe: () => void = () => undefined;
+        const send = (envelope: EventStreamEnvelope) => {
+          if (socket.readyState !== 1) return;
+          socket.send(JSON.stringify(parseEventStreamEnvelope(envelope)));
+        };
+        const sendError = (
+          code: Extract<EventStreamEnvelope, { type: 'world.error' }>['code'],
+          message: string,
+        ) => {
+          send({
+            schemaVersion: SCHEMA_VERSION,
+            type: 'world.error',
+            expeditionId: runtime.expeditionId,
+            boundary: 'event_stream',
+            code,
+            message,
+            sequence: runtime.snapshot().sequence,
+          });
+        };
+        const close = () => unsubscribe();
+        socket.once('close', close);
+        socket.once('error', close);
+        socket.on('message', () => {
+          sendError(
+            'unsupported_client_message',
+            'The expedition event stream is server-to-client only.',
+          );
+          socket.close(1008, 'unsupported_client_message');
+        });
+
+        if (request.params.id !== runtime.expeditionId) {
+          sendError('invalid_cursor', 'The requested expedition does not exist.');
+          socket.close(1008, 'expedition_not_found');
+          return;
+        }
+        const latestSequence = runtime.snapshot().sequence;
+        if (!Number.isInteger(cursor) || cursor < 0 || cursor > latestSequence) {
+          cursor = latestSequence;
+          sendError(
+            'invalid_cursor',
+            `Stream cursor must be an integer from 0 through ${latestSequence}.`,
+          );
+          socket.close(1008, 'invalid_cursor');
+          return;
+        }
+
+        const sendEvents = (events: readonly WorldEvent[]) => {
+          const unseen = events.filter((event) => event.sequence > cursor);
+          for (let index = 0; index < unseen.length; index += 100) {
+            const chunk = unseen.slice(index, index + 100);
+            const first = chunk[0];
+            const last = chunk.at(-1);
+            if (!first || !last) continue;
+            if (first.sequence !== cursor + 1) {
+              sendError(
+                'sequence_gap',
+                `Expected event sequence ${cursor + 1}; received ${first.sequence}.`,
+              );
+              socket.close(1011, 'sequence_gap');
+              return;
+            }
+            send({
+              schemaVersion: SCHEMA_VERSION,
+              type: 'world.events',
+              expeditionId: runtime.expeditionId,
+              afterSequence: cursor,
+              sequence: last.sequence,
+              events: structuredClone(chunk),
+            });
+            cursor = last.sequence;
+          }
+        };
+
+        unsubscribe = runtime.subscribeEvents(sendEvents);
+        sendEvents(runtime.eventsAfter(cursor));
+        send({
+          schemaVersion: SCHEMA_VERSION,
+          type: 'world.ready',
+          expeditionId: runtime.expeditionId,
+          sequence: cursor,
+        });
+      },
+    );
+  });
 
   app.get<{ Params: ExpeditionParams; Querystring: ReplayQuery }>(
     '/api/expeditions/:id/replay',
@@ -270,9 +373,40 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   );
 
   if (process.env['SIGNAL_ATLAS_E2E'] === '1') {
+    const closeEventStreams = (code: number, reason: string) => {
+      let closed = 0;
+      for (const client of app.websocketServer.clients) {
+        if (client.readyState !== 1) continue;
+        client.close(code, reason);
+        closed += 1;
+      }
+      return closed;
+    };
     app.post('/api/testing/reset', async () => {
+      closeEventStreams(1012, 'fixture_reset');
       runtime.resetToFixture();
       return { reset: true, sequence: runtime.snapshot().sequence };
+    });
+
+    app.post('/api/testing/disconnect-streams', async () => ({
+      disconnected: closeEventStreams(1012, 'injected_temporary_outage'),
+      sequence: runtime.snapshot().sequence,
+    }));
+
+    app.post('/api/testing/emit-invalid-stream-envelope', async () => {
+      let sent = 0;
+      for (const client of app.websocketServer.clients) {
+        if (client.readyState !== 1) continue;
+        client.send(
+          JSON.stringify({
+            schemaVersion: 999,
+            type: 'world.events',
+            boundary: 'injected_invalid_schema',
+          }),
+        );
+        sent += 1;
+      }
+      return { sent, sequence: runtime.snapshot().sequence };
     });
   }
 

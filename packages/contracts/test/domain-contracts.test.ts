@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   AgentTurnOutputSchema,
+  EventStreamEnvelopeSchema,
   ExpeditionFixtureSchema,
   WorldCommandSchema,
   WorldEventSchema,
@@ -212,6 +213,29 @@ describe('Helios-3 expedition fixture', () => {
 });
 
 describe('event, command, and agent-turn envelopes', () => {
+  it('requires event-stream batches to remain contiguous and expedition-scoped', () => {
+    const events = canonicalFixture.initialEvents;
+    const valid = {
+      schemaVersion: 1,
+      type: 'world.events',
+      expeditionId: canonicalFixture.expedition.id,
+      afterSequence: 0,
+      sequence: 2,
+      events,
+    };
+    expect(EventStreamEnvelopeSchema.safeParse(valid).success).toBe(true);
+
+    const gap = structuredClone(valid);
+    gap.events[1]!.sequence = 7;
+    expect(EventStreamEnvelopeSchema.safeParse(gap).success).toBe(false);
+
+    const wrongExpedition = structuredClone(valid);
+    wrongExpedition.events[0]!.expeditionId = 'exp-other';
+    expect(EventStreamEnvelopeSchema.safeParse(wrongExpedition).success).toBe(false);
+
+    expect(EventStreamEnvelopeSchema.safeParse({ ...valid, schemaVersion: 2 }).success).toBe(false);
+  });
+
   it('accepts fixture events and rejects unknown event types and schema versions', () => {
     for (const event of canonicalFixture.initialEvents) {
       expect(WorldEventSchema.safeParse(event).success).toBe(true);

@@ -91,6 +91,8 @@ export class FixtureResolutionConflictError extends Error {
   }
 }
 
+export type ExpeditionEventListener = (events: readonly WorldEvent[]) => void;
+
 interface ScheduledTravel {
   agentId: string;
   missionId: string;
@@ -172,6 +174,7 @@ export class ExpeditionRuntime {
   readonly #meetingsById = new Map<string, ScheduledMeeting>();
   readonly #meetingIdByMissionId = new Map<string, string>();
   readonly #driverEvents: CodexRuntimeEvent[] = [];
+  readonly #eventListeners = new Set<ExpeditionEventListener>();
   #missionScenario: FixtureMissionScenario = 'success';
 
   constructor(fixture: ExpeditionFixture, options: ExpeditionRuntimeOptions = {}) {
@@ -201,6 +204,13 @@ export class ExpeditionRuntime {
 
   eventsAfter(sequence: number): WorldEvent[] {
     return structuredClone(this.#events.filter((event) => event.sequence > sequence));
+  }
+
+  subscribeEvents(listener: ExpeditionEventListener): () => void {
+    this.#eventListeners.add(listener);
+    return () => {
+      this.#eventListeners.delete(listener);
+    };
   }
 
   replayAt(sequence: number): ReplayProjectionResult {
@@ -300,6 +310,7 @@ export class ExpeditionRuntime {
     for (const event of events) nextProjection = reduceWorldEvent(nextProjection, event);
     this.#projection = nextProjection;
     this.#events = [...this.#events, ...events];
+    this.#publishEvents(events);
     return {
       resolved: true,
       duplicate: false,
@@ -504,6 +515,7 @@ export class ExpeditionRuntime {
       sequence: this.#projection.sequence,
     };
     this.#acceptedByKey.set(command.idempotencyKey, result);
+    this.#publishEvents(result.events);
     return structuredClone(result);
   }
 
@@ -637,7 +649,19 @@ export class ExpeditionRuntime {
       appended.push(...this.#completeScheduledWork(task, occurredAt));
     }
 
+    this.#publishEvents(appended);
     return structuredClone(appended);
+  }
+
+  #publishEvents(events: readonly WorldEvent[]): void {
+    if (events.length === 0) return;
+    for (const listener of this.#eventListeners) {
+      try {
+        listener(structuredClone(events));
+      } catch {
+        // Stream observers are non-authoritative and cannot interrupt committed world events.
+      }
+    }
   }
 
   #createScheduledWork(

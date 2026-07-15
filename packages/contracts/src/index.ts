@@ -3,6 +3,7 @@ export * from './agents.js';
 export * from './commands.js';
 export * from './common.js';
 export * from './events.js';
+export * from './event-stream.js';
 export * from './fixture.js';
 export * from './information.js';
 export * from './market.js';

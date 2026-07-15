@@ -23,6 +23,7 @@
     "clean": "pnpm --recursive --if-present clean"
   },
   "devDependencies": {
+    "@axe-core/playwright": "4.12.1",
     "@eslint/js": "10.0.1",
     "@playwright/test": "1.61.1",
     "@types/node": "26.1.1",

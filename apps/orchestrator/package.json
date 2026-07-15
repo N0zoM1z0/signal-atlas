@@ -13,6 +13,7 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
+    "@fastify/websocket": "11.3.0",
     "@signal-atlas/archive": "workspace:*",
     "@signal-atlas/codex-runtime": "workspace:*",
     "@signal-atlas/contracts": "workspace:*",
@@ -20,5 +21,8 @@
     "@signal-atlas/simulation": "workspace:*",
     "@signal-atlas/test-fixtures": "workspace:*",
     "fastify": "5.10.0"
+  },
+  "devDependencies": {
+    "@types/ws": "^8.18.1"
   }
 }
