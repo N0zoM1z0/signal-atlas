@@ -50,6 +50,9 @@ importers:
 
   apps/orchestrator:
     dependencies:
+      '@signal-atlas/archive':
+        specifier: workspace:*
+        version: link:../../packages/archive
       '@signal-atlas/codex-runtime':
         specifier: workspace:*
         version: link:../../packages/codex-runtime

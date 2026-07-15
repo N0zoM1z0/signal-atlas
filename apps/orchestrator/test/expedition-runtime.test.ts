@@ -1,7 +1,11 @@
 import { createHelios3ExpeditionFixture } from '@signal-atlas/test-fixtures';
 import { describe, expect, it } from 'vitest';
 
-import { ExpeditionRuntime } from '../src/expedition-runtime.js';
+import {
+  ExpeditionRuntime,
+  FixtureResolutionConflictError,
+  ReplaySequenceError,
+} from '../src/expedition-runtime.js';
 import { interpretFixtureMission } from '../src/fixture-mission-interpreter.js';
 
 const issuedAt = '2027-09-26T18:32:00Z';
@@ -647,6 +651,80 @@ describe('ExpeditionRuntime commands', () => {
         }),
       ]),
     });
+  });
+
+  it('resolves from the authored fixture, scores eligible forecasts, and replays exactly', () => {
+    const runtime = runtimeWithRequiredEvidence();
+    const committed = runtime.submit(forecastCommitCommand());
+    expect(committed).toMatchObject({ accepted: true });
+
+    const sourceEvent = runtime
+      .eventsAfter(0)
+      .find(
+        (event) =>
+          event.type === 'source.recorded' && event.payload.source.id === 'src-weather-bulletin-1',
+      );
+    if (!sourceEvent) throw new Error('Expected the weather source introduction event.');
+
+    const resolved = runtime.resolveFromFixture();
+
+    expect(resolved).toMatchObject({ resolved: true, duplicate: false });
+    expect(resolved.events.map((event) => event.type)).toEqual([
+      'market.resolved',
+      'score.calculated',
+      'expedition.resolved',
+    ]);
+    expect(resolved.events[0]).toMatchObject({
+      payload: {
+        resolvedOutcomeId: 'no',
+        resolvedAt: '2027-09-30T23:59:59Z',
+        resolutionNote: expect.stringContaining('fictional fixture'),
+      },
+    });
+    expect(resolved.events[1]).toMatchObject({
+      payload: {
+        forecastCommitId: expect.stringMatching(/^evt-/u),
+        brierScore: 0.4608,
+        components: { yes: 0.2304, no: 0.2304 },
+      },
+    });
+    expect(runtime.snapshot()).toMatchObject({
+      expedition: { status: 'resolved', endedAt: '2027-09-30T23:59:59Z' },
+      market: { status: 'resolved', resolvedOutcomeId: 'no' },
+      scores: [{ brierScore: 0.4608 }],
+    });
+
+    const zero = runtime.replayAt(0);
+    expect(zero).toMatchObject({
+      sequence: 0,
+      projection: { sequence: 0, sourcesById: {}, forecasts: [], scores: [] },
+    });
+    expect(zero.selectedEvent).toBeUndefined();
+    const sourceEntry = runtime.replayAt(sourceEvent.sequence);
+    expect(sourceEntry.projection.sourcesById['src-weather-bulletin-1']).toBeDefined();
+    expect(sourceEntry.selectedEvent?.id).toBe(sourceEvent.id);
+    const final = runtime.replayAt(runtime.snapshot().sequence);
+    expect(final.hash).toBe(final.authoritativeHash);
+    expect(final.hash).toBe(resolved.projectionHash);
+    expect(final.projection).toEqual(runtime.snapshot());
+
+    const duplicate = runtime.resolveFromFixture();
+    expect(duplicate).toMatchObject({
+      resolved: true,
+      duplicate: true,
+      sequence: resolved.sequence,
+      projectionHash: resolved.projectionHash,
+    });
+    expect(duplicate.events).toEqual(resolved.events);
+  });
+
+  it('rejects missing replay sequences and resolution while mission work remains active', () => {
+    const runtime = new ExpeditionRuntime(createHelios3ExpeditionFixture());
+    runtime.submit(assignmentCommand());
+
+    expect(() => runtime.replayAt(99)).toThrow(ReplaySequenceError);
+    expect(() => runtime.resolveFromFixture()).toThrow(FixtureResolutionConflictError);
+    expect(runtime.snapshot().market.status).toBe('open');
   });
 
   it.each(['timeout', 'invalid_result'] as const)(

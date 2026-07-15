@@ -7,6 +7,10 @@ export interface BrierScoreResult {
   components: Record<string, number>;
 }
 
+function stableDecimal(value: number): number {
+  return Number(value.toFixed(12));
+}
+
 /**
  * Calculate the multiclass Brier score used by Signal Atlas.
  *
@@ -28,9 +32,9 @@ export function calculateBrierScore(
   let brierScore = 0;
   for (const [outcomeId, probability] of Object.entries(probabilities)) {
     const observation = outcomeId === resolvedOutcomeId ? 1 : 0;
-    const component = (probability - observation) ** 2;
+    const component = stableDecimal((probability - observation) ** 2);
     components[outcomeId] = component;
-    brierScore += component;
+    brierScore = stableDecimal(brierScore + component);
   }
 
   return { brierScore, components };

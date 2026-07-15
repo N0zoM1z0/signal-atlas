@@ -1,5 +1,19 @@
-import type { MeetingMemo, Signal, SourceRecord, WorldEvent } from '@signal-atlas/contracts';
-import type { MeetingMemoProjection, WorldProjection } from '@signal-atlas/simulation';
+import type {
+  Claim,
+  Expedition,
+  Market,
+  MeetingMemo,
+  Signal,
+  SourceRecord,
+  WorldEvent,
+  WorldEventType,
+} from '@signal-atlas/contracts';
+import type {
+  ForecastProjection,
+  MeetingMemoProjection,
+  ScoreProjection,
+  WorldProjection,
+} from '@signal-atlas/simulation';
 
 export type ArchiveEntryKind = 'source' | 'signal' | 'memo';
 
@@ -55,6 +69,60 @@ export interface ArchiveSearchQuery {
   placeId?: string;
   sourceClass?: SourceRecord['sourceClass'];
   agentId?: string;
+}
+
+export type CaseFileTurningPointKind = 'source' | 'signal' | 'forecast' | 'resolution' | 'score';
+
+export interface CaseFileTurningPoint {
+  sequence: number;
+  eventId: string;
+  eventType: WorldEventType;
+  occurredAt: string;
+  kind: CaseFileTurningPointKind;
+  label: string;
+  entityType: 'source' | 'signal' | 'forecast' | 'market' | 'score';
+  entityId: string;
+}
+
+export interface CaseFileForecastRationale {
+  forecastId: string;
+  commitId?: string;
+  sequence: number;
+  committedAt: string;
+  actor: ForecastProjection['actor'];
+  previousProbabilities: ForecastProjection['previousProbabilities'];
+  newProbabilities: ForecastProjection['newProbabilities'];
+  rationale: string;
+  evidenceSignalIds: string[];
+  assumptions: string[];
+  commitType?: ForecastProjection['commitType'];
+  publicNote?: string;
+  scoringEligible?: boolean;
+  score?: ScoreProjection;
+}
+
+export interface CaseFileResolution {
+  outcomeId: string;
+  resolvedAt: string;
+  note?: string;
+  marketEventId: string;
+}
+
+export interface SignalAtlasCaseFile {
+  schemaVersion: 1;
+  kind: 'signal-atlas.case-file';
+  recordedThroughSequence: number;
+  finalProjectionHash: string;
+  expedition: Expedition;
+  market: Market;
+  resolution?: CaseFileResolution;
+  sources: SourceRecord[];
+  claims: Claim[];
+  signals: Signal[];
+  forecastRationales: CaseFileForecastRationale[];
+  scores: ScoreProjection[];
+  turningPoints: CaseFileTurningPoint[];
+  events: WorldEvent[];
 }
 
 function unique(values: readonly string[]): string[] {
@@ -292,4 +360,173 @@ export function searchArchive(index: ArchiveIndex, query: ArchiveSearchQuery): A
       (!query.agentId || entry.agentIds.includes(query.agentId))
     );
   });
+}
+
+/** Derive replay navigation exclusively from authoritative domain events. */
+export function createCaseFileTurningPoints(
+  projection: WorldProjection,
+  events: readonly WorldEvent[],
+): CaseFileTurningPoint[] {
+  return events.flatMap((event): CaseFileTurningPoint[] => {
+    switch (event.type) {
+      case 'source.recorded':
+      case 'source.superseded':
+        return [
+          {
+            sequence: event.sequence,
+            eventId: event.id,
+            eventType: event.type,
+            occurredAt: event.occurredAt,
+            kind: 'source',
+            label:
+              event.type === 'source.superseded'
+                ? `Source version entered · ${event.payload.source.title}`
+                : `Source entered · ${event.payload.source.title}`,
+            entityType: 'source',
+            entityId: event.payload.source.id,
+          },
+        ];
+      case 'signal.created':
+        return [
+          {
+            sequence: event.sequence,
+            eventId: event.id,
+            eventType: event.type,
+            occurredAt: event.occurredAt,
+            kind: 'signal',
+            label: `Signal entered · ${event.payload.signal.headline}`,
+            entityType: 'signal',
+            entityId: event.payload.signal.id,
+          },
+        ];
+      case 'forecast.committed': {
+        const forecast = projection.forecasts.find((candidate) => candidate.eventId === event.id);
+        return [
+          {
+            sequence: event.sequence,
+            eventId: event.id,
+            eventType: event.type,
+            occurredAt: event.occurredAt,
+            kind: 'forecast',
+            label: `Forecast committed · ${Math.round((event.payload.newProbabilities['yes'] ?? 0) * 100)}% yes`,
+            entityType: 'forecast',
+            entityId: forecast?.id ?? event.id,
+          },
+        ];
+      }
+      case 'market.resolved': {
+        const outcome = projection.market.outcomes.find(
+          (candidate) => candidate.id === event.payload.resolvedOutcomeId,
+        );
+        return [
+          {
+            sequence: event.sequence,
+            eventId: event.id,
+            eventType: event.type,
+            occurredAt: event.occurredAt,
+            kind: 'resolution',
+            label: `Market resolved · ${outcome?.label ?? event.payload.resolvedOutcomeId}`,
+            entityType: 'market',
+            entityId: projection.market.id,
+          },
+        ];
+      }
+      case 'score.calculated': {
+        const score = projection.scores.find((candidate) => candidate.eventId === event.id);
+        return [
+          {
+            sequence: event.sequence,
+            eventId: event.id,
+            eventType: event.type,
+            occurredAt: event.occurredAt,
+            kind: 'score',
+            label: `Forecast scored · ${(score?.brierScore ?? event.payload.brierScore).toFixed(4)} Brier`,
+            entityType: 'score',
+            entityId: event.id,
+          },
+        ];
+      }
+      default:
+        return [];
+    }
+  });
+}
+
+function publicEvent(event: WorldEvent): WorldEvent {
+  if (event.type !== 'forecast.committed') return structuredClone(event);
+  const cloned = structuredClone(event);
+  delete cloned.payload.privateMemo;
+  return cloned;
+}
+
+/**
+ * Build a deterministic public case file. Forecast private memos are deliberately omitted from
+ * both the rationale section and the exported event stream.
+ */
+export function createSignalAtlasCaseFile(
+  projection: WorldProjection,
+  events: readonly WorldEvent[],
+  finalProjectionHash: string,
+): SignalAtlasCaseFile {
+  const resolutionEvent = events.findLast((event) => event.type === 'market.resolved');
+  const scoresByForecastId = new Map(
+    projection.scores.flatMap((score) =>
+      score.forecastCommitId ? [[score.forecastCommitId, score] as const] : [],
+    ),
+  );
+  const forecastRationales = projection.forecasts.map((forecast): CaseFileForecastRationale => {
+    const score = scoresByForecastId.get(forecast.id);
+    return {
+      forecastId: forecast.id,
+      ...(forecast.commitId ? { commitId: forecast.commitId } : {}),
+      sequence: forecast.sequence,
+      committedAt: forecast.committedAt,
+      actor: structuredClone(forecast.actor),
+      previousProbabilities: structuredClone(forecast.previousProbabilities),
+      newProbabilities: structuredClone(forecast.newProbabilities),
+      rationale: forecast.rationale,
+      evidenceSignalIds: [...forecast.evidenceSignalIds],
+      assumptions: [...forecast.assumptions],
+      ...(forecast.commitType ? { commitType: forecast.commitType } : {}),
+      ...(forecast.publicNote ? { publicNote: forecast.publicNote } : {}),
+      ...(forecast.scoringEligible !== undefined
+        ? { scoringEligible: forecast.scoringEligible }
+        : {}),
+      ...(score ? { score: structuredClone(score) } : {}),
+    };
+  });
+
+  return {
+    schemaVersion: 1,
+    kind: 'signal-atlas.case-file',
+    recordedThroughSequence: projection.sequence,
+    finalProjectionHash,
+    expedition: structuredClone(projection.expedition),
+    market: structuredClone(projection.market),
+    ...(resolutionEvent?.type === 'market.resolved'
+      ? {
+          resolution: {
+            outcomeId: resolutionEvent.payload.resolvedOutcomeId,
+            resolvedAt: resolutionEvent.payload.resolvedAt,
+            ...(resolutionEvent.payload.resolutionNote
+              ? { note: resolutionEvent.payload.resolutionNote }
+              : {}),
+            marketEventId: resolutionEvent.id,
+          },
+        }
+      : {}),
+    sources: Object.values(projection.sourcesById)
+      .sort((left, right) => left.id.localeCompare(right.id))
+      .map((source) => structuredClone(source)),
+    claims: Object.values(projection.claimsById)
+      .sort((left, right) => left.id.localeCompare(right.id))
+      .map((claim) => structuredClone(claim)),
+    signals: Object.values(projection.signalsById)
+      .sort((left, right) => left.id.localeCompare(right.id))
+      .map((signal) => structuredClone(signal)),
+    forecastRationales,
+    scores: projection.scores.map((score) => structuredClone(score)),
+    turningPoints: createCaseFileTurningPoints(projection, events),
+    events: events.map(publicEvent),
+  };
 }

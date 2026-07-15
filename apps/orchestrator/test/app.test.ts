@@ -207,4 +207,120 @@ describe('orchestrator health endpoint', () => {
     expect(rejected.statusCode).toBe(400);
     expect(rejected.json()).toMatchObject({ error: 'invalid_fixture_mission_scenario' });
   });
+
+  it('resolves only from the fixture and serves exact replay plus a public case file', async () => {
+    const app = buildApp();
+    openApps.push(app);
+    const forecast = {
+      id: 'cmd-api-forecast-hold-1',
+      idempotencyKey: 'api:forecast:hold:1',
+      expeditionId: 'exp-helios3-demo',
+      issuedAt: '2027-09-26T18:42:00Z',
+      actor: { kind: 'player' },
+      schemaVersion: 1,
+      type: 'forecast.commit',
+      payload: {
+        commit: {
+          id: 'forecast-api-hold-1',
+          expeditionId: 'exp-helios3-demo',
+          actor: { kind: 'player' },
+          previousProbabilities: { yes: 0.55, no: 0.45 },
+          newProbabilities: { yes: 0.55, no: 0.45 },
+          rationale: 'Holding the team prior before the final fixture resolution.',
+          evidenceSignalIds: [],
+          assumptions: ['No additional evidence was introduced.'],
+          createdAt: '2027-09-26T18:42:00Z',
+          commitType: 'hold',
+          publicNote: 'Holding at 55% yes.',
+          privateMemo: 'This private note must never enter the public export.',
+          scoringEligible: true,
+        },
+      },
+    };
+    const committed = await app.inject({
+      method: 'POST',
+      url: '/api/expeditions/exp-helios3-demo/commands',
+      payload: forecast,
+    });
+    expect(committed.statusCode).toBe(202);
+
+    const forged = await app.inject({
+      method: 'POST',
+      url: '/api/expeditions/exp-helios3-demo/resolve-fixture',
+      payload: { resolvedOutcomeId: 'yes' },
+    });
+    expect(forged.statusCode).toBe(400);
+    expect(forged.json()).toEqual({ error: 'fixture_resolution_body_must_be_empty' });
+
+    const resolved = await app.inject({
+      method: 'POST',
+      url: '/api/expeditions/exp-helios3-demo/resolve-fixture',
+      payload: {},
+    });
+    expect(resolved.statusCode).toBe(202);
+    expect(resolved.json()).toMatchObject({
+      resolved: true,
+      duplicate: false,
+      events: [
+        { type: 'market.resolved', payload: { resolvedOutcomeId: 'no' } },
+        { type: 'score.calculated', payload: { brierScore: 0.605 } },
+        { type: 'expedition.resolved', payload: { resolvedOutcomeId: 'no' } },
+      ],
+    });
+
+    const replayZero = await app.inject({
+      method: 'GET',
+      url: '/api/expeditions/exp-helios3-demo/replay?sequence=0',
+    });
+    const replayFinal = await app.inject({
+      method: 'GET',
+      url: '/api/expeditions/exp-helios3-demo/replay',
+    });
+    const invalidReplay = await app.inject({
+      method: 'GET',
+      url: '/api/expeditions/exp-helios3-demo/replay?sequence=999',
+    });
+    expect(replayZero.statusCode).toBe(200);
+    expect(replayZero.json()).toMatchObject({
+      sequence: 0,
+      projection: { sequence: 0, forecasts: [], scores: [] },
+    });
+    expect(replayFinal.statusCode).toBe(200);
+    expect(replayFinal.json()).toMatchObject({
+      projection: { expedition: { status: 'resolved' }, scores: [{ brierScore: 0.605 }] },
+    });
+    expect(replayFinal.json().hash).toBe(replayFinal.json().authoritativeHash);
+    expect(invalidReplay.statusCode).toBe(400);
+    expect(invalidReplay.json()).toMatchObject({ error: 'invalid_replay_sequence' });
+
+    const caseFile = await app.inject({
+      method: 'GET',
+      url: '/api/expeditions/exp-helios3-demo/case-file',
+    });
+    expect(caseFile.statusCode).toBe(200);
+    expect(caseFile.headers['content-disposition']).toContain('signal-atlas-exp-helios3-demo');
+    expect(caseFile.json()).toMatchObject({
+      kind: 'signal-atlas.case-file',
+      resolution: { outcomeId: 'no' },
+      sources: [],
+      claims: [],
+      signals: [],
+      forecastRationales: expect.arrayContaining([
+        expect.objectContaining({
+          commitId: 'forecast-api-hold-1',
+          rationale: 'Holding the team prior before the final fixture resolution.',
+          score: expect.objectContaining({ brierScore: expect.any(Number) }),
+        }),
+      ]),
+    });
+    expect(caseFile.body).not.toContain('This private note must never enter the public export.');
+
+    const duplicate = await app.inject({
+      method: 'POST',
+      url: '/api/expeditions/exp-helios3-demo/resolve-fixture',
+      payload: {},
+    });
+    expect(duplicate.statusCode).toBe(200);
+    expect(duplicate.json()).toMatchObject({ resolved: true, duplicate: true });
+  });
 });

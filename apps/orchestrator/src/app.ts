@@ -2,7 +2,11 @@ import Fastify, { type FastifyInstance } from 'fastify';
 
 import { createHelios3ExpeditionFixture } from '@signal-atlas/test-fixtures';
 
-import { ExpeditionRuntime } from './expedition-runtime.js';
+import {
+  ExpeditionRuntime,
+  FixtureResolutionConflictError,
+  ReplaySequenceError,
+} from './expedition-runtime.js';
 import { fixtureMissionScenarios, type FixtureMissionScenario } from './fixture-mission-driver.js';
 import { interpretFixtureMission } from './fixture-mission-interpreter.js';
 import {
@@ -32,6 +36,10 @@ interface ExpeditionParams {
 
 interface EventsQuery {
   after?: string;
+}
+
+interface ReplayQuery {
+  sequence?: string;
 }
 
 interface InterpretMissionBody {
@@ -127,6 +135,67 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
         return reply.code(400).send({ error: 'invalid_sequence' });
       }
       return { events: runtime.eventsAfter(after), sequence: runtime.snapshot().sequence };
+    },
+  );
+
+  app.get<{ Params: ExpeditionParams; Querystring: ReplayQuery }>(
+    '/api/expeditions/:id/replay',
+    async (request, reply) => {
+      if (request.params.id !== runtime.expeditionId) {
+        return reply.code(404).send({ error: 'expedition_not_found' });
+      }
+      const sequence = Number(request.query.sequence ?? runtime.snapshot().sequence);
+      try {
+        return runtime.replayAt(sequence);
+      } catch (error: unknown) {
+        if (error instanceof ReplaySequenceError) {
+          return reply.code(400).send({ error: 'invalid_replay_sequence', message: error.message });
+        }
+        throw error;
+      }
+    },
+  );
+
+  app.get<{ Params: ExpeditionParams }>(
+    '/api/expeditions/:id/case-file',
+    async (request, reply) => {
+      if (request.params.id !== runtime.expeditionId) {
+        return reply.code(404).send({ error: 'expedition_not_found' });
+      }
+      reply.header(
+        'content-disposition',
+        `attachment; filename="signal-atlas-${runtime.expeditionId}-case-file.json"`,
+      );
+      return runtime.caseFile();
+    },
+  );
+
+  app.post<{ Params: ExpeditionParams; Body: unknown }>(
+    '/api/expeditions/:id/resolve-fixture',
+    async (request, reply) => {
+      if (request.params.id !== runtime.expeditionId) {
+        return reply.code(404).send({ error: 'expedition_not_found' });
+      }
+      if (
+        request.body !== undefined &&
+        (request.body === null ||
+          typeof request.body !== 'object' ||
+          Array.isArray(request.body) ||
+          Object.keys(request.body).length > 0)
+      ) {
+        return reply.code(400).send({ error: 'fixture_resolution_body_must_be_empty' });
+      }
+      try {
+        const result = runtime.resolveFromFixture();
+        return reply.code(result.duplicate ? 200 : 202).send(result);
+      } catch (error: unknown) {
+        if (error instanceof FixtureResolutionConflictError) {
+          return reply
+            .code(409)
+            .send({ error: 'fixture_resolution_conflict', message: error.message });
+        }
+        throw error;
+      }
     },
   );
 

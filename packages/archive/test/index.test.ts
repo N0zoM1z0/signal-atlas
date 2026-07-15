@@ -1,9 +1,14 @@
 import { parseWorldEvent, SCHEMA_VERSION, type WorldEvent } from '@signal-atlas/contracts';
-import { replayFixture } from '@signal-atlas/simulation';
+import { projectionHash, replayFixture, replayWorldEvents } from '@signal-atlas/simulation';
 import { createHelios3ExpeditionFixture } from '@signal-atlas/test-fixtures';
 import { describe, expect, it } from 'vitest';
 
-import { createArchiveIndex, searchArchive } from '../src/index.js';
+import {
+  createArchiveIndex,
+  createCaseFileTurningPoints,
+  createSignalAtlasCaseFile,
+  searchArchive,
+} from '../src/index.js';
 
 function evidenceState() {
   const fixture = createHelios3ExpeditionFixture();
@@ -99,5 +104,133 @@ describe('local archive index', () => {
     ).toMatchObject({
       status: 'current',
     });
+  });
+});
+
+describe('resolved case files', () => {
+  it('derives source entry markers from events rather than entity timestamps', () => {
+    const { projection, events } = evidenceState();
+
+    const markers = createCaseFileTurningPoints(projection, events);
+
+    expect(markers).toEqual([
+      expect.objectContaining({
+        sequence: 3,
+        eventId: 'evt-archive-source-introduced',
+        kind: 'source',
+        entityId: 'src-archive-crosswind-1',
+      }),
+      expect.objectContaining({
+        sequence: 5,
+        eventId: 'evt-archive-signal-introduced',
+        kind: 'signal',
+        entityId: 'sig-base-rate',
+      }),
+    ]);
+  });
+
+  it('exports distinct provenance sections without leaking a private forecast memo', () => {
+    const fixture = createHelios3ExpeditionFixture();
+    const initial = replayFixture(fixture).projection;
+    const envelope = {
+      expeditionId: fixture.expedition.id,
+      recordedAt: '2027-09-30T23:59:59Z',
+      actor: { kind: 'system' as const },
+      schemaVersion: SCHEMA_VERSION,
+      correlationId: 'fixture-resolution:exp-helios3-demo',
+    };
+    const events: WorldEvent[] = [
+      parseWorldEvent({
+        ...envelope,
+        id: 'evt-case-forecast',
+        sequence: 3,
+        type: 'forecast.committed',
+        occurredAt: '2027-09-26T18:42:00Z',
+        actor: { kind: 'player' },
+        payload: {
+          commitId: 'forecast-case-1',
+          actor: { kind: 'player' },
+          previousProbabilities: { yes: 0.55, no: 0.45 },
+          newProbabilities: { yes: 0.48, no: 0.52 },
+          rationale: 'Public evidence rationale.',
+          evidenceSignalIds: [],
+          assumptions: [],
+          publicNote: 'Public note.',
+          privateMemo: 'Never export this note.',
+          scoringEligible: true,
+        },
+      }),
+      parseWorldEvent({
+        ...envelope,
+        id: 'evt-case-market-resolved',
+        sequence: 4,
+        type: 'market.resolved',
+        occurredAt: fixture.resolutionFixture.resolvedAt,
+        payload: {
+          resolvedOutcomeId: fixture.resolutionFixture.resolvedOutcomeId,
+          resolvedAt: fixture.resolutionFixture.resolvedAt,
+          resolutionNote: fixture.resolutionFixture.resolutionNote,
+        },
+      }),
+      parseWorldEvent({
+        ...envelope,
+        id: 'evt-case-score',
+        sequence: 5,
+        type: 'score.calculated',
+        occurredAt: fixture.resolutionFixture.resolvedAt,
+        payload: {
+          forecastCommitId: 'evt-case-forecast',
+          brierScore: 0.4608,
+          components: { yes: 0.2304, no: 0.2304 },
+        },
+      }),
+      parseWorldEvent({
+        ...envelope,
+        id: 'evt-case-expedition-resolved',
+        sequence: 6,
+        type: 'expedition.resolved',
+        occurredAt: fixture.resolutionFixture.resolvedAt,
+        payload: {
+          resolvedOutcomeId: fixture.resolutionFixture.resolvedOutcomeId,
+          resolvedAt: fixture.resolutionFixture.resolvedAt,
+        },
+      }),
+    ];
+    const projection = replayWorldEvents(initial, events);
+    const hash = projectionHash(projection);
+
+    const exported = createSignalAtlasCaseFile(
+      projection,
+      [...fixture.initialEvents, ...events],
+      hash,
+    );
+
+    expect(exported).toMatchObject({
+      schemaVersion: 1,
+      kind: 'signal-atlas.case-file',
+      recordedThroughSequence: 6,
+      finalProjectionHash: hash,
+      resolution: { outcomeId: 'no', marketEventId: 'evt-case-market-resolved' },
+      sources: [],
+      claims: [],
+      signals: [],
+      forecastRationales: expect.arrayContaining([
+        expect.objectContaining({
+          forecastId: 'evt-case-forecast',
+          commitId: 'forecast-case-1',
+          rationale: 'Public evidence rationale.',
+          score: expect.objectContaining({ brierScore: 0.4608 }),
+        }),
+      ]),
+      turningPoints: expect.arrayContaining([
+        expect.objectContaining({ kind: 'forecast', sequence: 3 }),
+        expect.objectContaining({ kind: 'resolution', sequence: 4 }),
+        expect.objectContaining({ kind: 'score', sequence: 5 }),
+      ]),
+    });
+    expect(JSON.stringify(exported)).not.toContain('Never export this note.');
+    expect(exported.events.find((event) => event.id === 'evt-case-forecast')).not.toHaveProperty(
+      'payload.privateMemo',
+    );
   });
 });

@@ -21,4 +21,11 @@ describe('Brier scoring', () => {
       IllegalTransitionError,
     );
   });
+
+  it('normalizes harmless floating-point tails in exported scores', () => {
+    expect(calculateBrierScore({ yes: 0.55, no: 0.45 }, 'no')).toEqual({
+      brierScore: 0.605,
+      components: { yes: 0.3025, no: 0.3025 },
+    });
+  });
 });

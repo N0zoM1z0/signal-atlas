@@ -9,6 +9,7 @@ import {
   type WorldCommand,
   type WorldEvent,
 } from '@signal-atlas/contracts';
+import { createSignalAtlasCaseFile, type SignalAtlasCaseFile } from '@signal-atlas/archive';
 import {
   CodexTurnScheduler,
   getAgentRoleProfile,
@@ -20,12 +21,16 @@ import {
   type RuntimeTurnStatus,
 } from '@signal-atlas/codex-runtime';
 import {
+  calculateBrierScore,
+  createInitialWorldStateFromFixture,
   recordAcceptedCommand,
   reduceWorldEvent,
   replayFixture,
+  replayWorldEventsWithHash,
   selectRoutePlan,
   validateWorldCommand,
   knowledgeKey,
+  projectionHash,
   type CommandIdempotencyLedger,
   type CommandValidationIssue,
   type RouteLeg,
@@ -54,6 +59,37 @@ export interface RejectedCommandResult {
 }
 
 export type SubmitCommandResult = AcceptedCommandResult | RejectedCommandResult;
+
+export interface ReplayProjectionResult {
+  sequence: number;
+  latestSequence: number;
+  projection: WorldProjection;
+  hash: string;
+  authoritativeHash: string;
+  selectedEvent?: WorldEvent;
+}
+
+export interface FixtureResolutionResult {
+  resolved: true;
+  duplicate: boolean;
+  events: WorldEvent[];
+  sequence: number;
+  projectionHash: string;
+}
+
+export class ReplaySequenceError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ReplaySequenceError';
+  }
+}
+
+export class FixtureResolutionConflictError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'FixtureResolutionConflictError';
+  }
+}
 
 interface ScheduledTravel {
   agentId: string;
@@ -165,6 +201,117 @@ export class ExpeditionRuntime {
 
   eventsAfter(sequence: number): WorldEvent[] {
     return structuredClone(this.#events.filter((event) => event.sequence > sequence));
+  }
+
+  replayAt(sequence: number): ReplayProjectionResult {
+    const latestSequence = this.#projection.sequence;
+    if (!Number.isInteger(sequence) || sequence < 0 || sequence > latestSequence) {
+      throw new ReplaySequenceError(
+        `Replay sequence must be an integer from 0 through ${latestSequence}; received ${sequence}.`,
+      );
+    }
+    const events = this.#events.filter((event) => event.sequence <= sequence);
+    const replay = replayWorldEventsWithHash(
+      createInitialWorldStateFromFixture(this.#fixture),
+      events,
+    );
+    if (replay.projection.sequence !== sequence) {
+      throw new ReplaySequenceError(
+        `Replay sequence ${sequence} is not present; stopped at ${replay.projection.sequence}.`,
+      );
+    }
+    const authoritativeHash = projectionHash(this.#projection);
+    if (sequence === latestSequence && replay.hash !== authoritativeHash) {
+      throw new Error(
+        `Authoritative projection hash ${authoritativeHash} diverged from replay hash ${replay.hash}.`,
+      );
+    }
+    const selectedEvent = events.at(-1);
+    return {
+      sequence,
+      latestSequence,
+      projection: structuredClone(replay.projection),
+      hash: replay.hash,
+      authoritativeHash,
+      ...(selectedEvent ? { selectedEvent: structuredClone(selectedEvent) } : {}),
+    };
+  }
+
+  resolveFromFixture(): FixtureResolutionResult {
+    const correlationId = `fixture-resolution:${this.expeditionId}`;
+    if (this.#projection.market.status === 'resolved') {
+      const existingEvents = this.#events.filter((event) => event.correlationId === correlationId);
+      return {
+        resolved: true,
+        duplicate: true,
+        events: structuredClone(existingEvents),
+        sequence: this.#projection.sequence,
+        projectionHash: projectionHash(this.#projection),
+      };
+    }
+    const unresolvedWork = Object.values(this.#projection.agentsById).some(
+      (agent) => Boolean(agent.activeMissionId) || agent.queuedMissionIds.length > 0,
+    );
+    if (unresolvedWork || this.#travelByAgentId.size > 0 || this.#workByAgentId.size > 0) {
+      throw new FixtureResolutionConflictError(
+        'Finish or cancel every active and queued mission before resolving the fixture case.',
+      );
+    }
+
+    const { resolvedOutcomeId, resolvedAt, resolutionNote } = this.#fixture.resolutionFixture;
+    const plans: Array<{ id: string; type: WorldEvent['type']; payload: unknown }> = [
+      {
+        id: `evt-resolution-market-${this.expeditionId}`,
+        type: 'market.resolved',
+        payload: { resolvedOutcomeId, resolvedAt, resolutionNote },
+      },
+      ...this.#projection.forecasts
+        .filter((forecast) => forecast.scoringEligible === true)
+        .map((forecast) => ({
+          id: `evt-resolution-score-${forecast.id}`,
+          type: 'score.calculated' as const,
+          payload: {
+            forecastCommitId: forecast.id,
+            ...calculateBrierScore(forecast.newProbabilities, resolvedOutcomeId),
+          },
+        })),
+      {
+        id: `evt-resolution-expedition-${this.expeditionId}`,
+        type: 'expedition.resolved',
+        payload: { resolvedOutcomeId, resolvedAt },
+      },
+    ];
+    const events = plans.map((plan, index) =>
+      parseWorldEvent({
+        id: plan.id,
+        expeditionId: this.expeditionId,
+        sequence: this.#projection.sequence + index + 1,
+        type: plan.type,
+        occurredAt: resolvedAt,
+        recordedAt: resolvedAt,
+        actor: { kind: 'system' },
+        causationId: correlationId,
+        correlationId,
+        schemaVersion: SCHEMA_VERSION,
+        payload: plan.payload,
+      }),
+    );
+    let nextProjection = this.#projection;
+    for (const event of events) nextProjection = reduceWorldEvent(nextProjection, event);
+    this.#projection = nextProjection;
+    this.#events = [...this.#events, ...events];
+    return {
+      resolved: true,
+      duplicate: false,
+      events: structuredClone(events),
+      sequence: this.#projection.sequence,
+      projectionHash: projectionHash(this.#projection),
+    };
+  }
+
+  caseFile(): SignalAtlasCaseFile {
+    const replay = this.replayAt(this.#projection.sequence);
+    return createSignalAtlasCaseFile(replay.projection, this.#events, replay.hash);
   }
 
   fixtureConfiguration(): { seed: string; missionScenario: FixtureMissionScenario } {
