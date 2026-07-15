@@ -102,6 +102,13 @@ Use a credential explicitly issued for this application. Do not copy Codex OAuth
 
 The first live mission calls the exact read-only primitive `weather.get_current_conditions`. Because Helios-3 and Galehaven are fictional, Cape Canaveral is disclosed everywhere as a real-world interface-testing proxy. Its signal is always context-only with unknown impact and never changes the fictional market forecast.
 
+With `SIGNAL_ATLAS_CODEX_MODE=local`, Professor Vale is also a real bounded local Codex turn rather
+than a simulated reply. Open the study with `P`, select the exact sources/signals to disclose, and
+ask a question. The consultation starts a fresh session with shell, apps, multi-agent, and web search
+disabled; only a repair may resume it. The response badge states **Local Codex**, **Scripted
+fixture**, or **Scripted fallback**, and Runtime Diagnostics exposes run/repair/fallback counts
+without prompts, transcripts, credentials, or private reasoning.
+
 ### Resolution, replay, and case-file export
 
 Open **Replay** from the world toolbar or press `R` outside an editable field. The replay workspace reconstructs the world from sequence zero, exposes event-backed evidence and forecast turning points, and verifies the latest projection against the orchestrator's canonical hash.
@@ -122,6 +129,7 @@ Connection failures remain distinct in the UI and diagnostics:
 - **Stream reconnecting/schema error** means live notifications failed while the last projection remains readable.
 - **Pref disconnected** means the read-only source gateway is unavailable; it does not imply that Codex or the orchestrator failed.
 - **Local Codex unavailable · scripted fixture fallback active** means local execution could not start and the deterministic authored driver remains available.
+- **Professor · Scripted fallback** means the consultation process timed out, failed, or remained invalid after one repair; the authored bounded answer is shown and labeled instead.
 - **Agent output schema boundary rejected** means no source, claim, signal, or world action from that result was applied.
 
 All essential world places, agents, movement progress, routes, and actions have semantic React representations outside Phaser. Modal dialogs contain focus and restore it on close; Archive, Professor, Meeting, and Replay focus their main landmark and return to the originating world control. The required journey supports `/`, `1`–`3`, `A`, `P`, `C`, `R`, `M`, `Space`, `[`/`]`, `F`, `Home`, `Tab`, `Enter`, and `Escape`. Closed responsive drawers leave the focus order, reduced-motion disables nonessential motion, and forced-colors mode restores explicit borders and focus/selection outlines. The 200% reflow target is the 720 × 450 CSS viewport equivalent of the 1440 × 900 reference desktop.

@@ -161,6 +161,12 @@ Each game agent stores:
 
 The runtime starts or resumes the session when a mission turn is scheduled. It does not require a permanently running CLI process for every visible character.
 
+Professor Vale uses a deliberately different session boundary. Every consultation starts a fresh
+local Codex session so a later question cannot inherit evidence that is no longer selected. Only a
+single repair attempt may resume that consultation's temporary session. Professor turns receive no
+Pref credential or MCP registration: the authoritative orchestrator first materializes canonical
+Pref sources/signals, then sends only the player's selected records to the consultation driver.
+
 ## 8.9 Agent prompt packet
 
 Each turn receives a compact packet:
@@ -217,6 +223,14 @@ Validation layers:
 6. Idempotency check.
 
 One repair turn may receive only the validation errors and original output. A second failure becomes a safe wait event.
+
+Professor output uses the separate strict
+`professor-response.codex.schema.json` transport contract. In addition to Zod validation, the
+orchestrator requires the query ID, mode, and selected-signal set to match; rejects duplicate or
+unselected evidence references; and permits suggested destinations only from the current world
+manifest. Local failure, timeout, or a second invalid result returns the authored evidence-bounded
+answer with `scripted_fallback` runtime metadata. The UI never presents that fallback as a local
+model result.
 
 ## 8.11 Sandbox and permissions
 

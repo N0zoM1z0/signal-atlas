@@ -388,6 +388,8 @@ interface ProfessorQuery {
 
 interface ProfessorResponse {
   queryId: string;
+  mode?: ProfessorQuery['mode'];
+  selectedSignalIds?: string[];
   answer: string;
   evidenceUsed: Array<{ type: 'source' | 'signal'; id: string }>;
   assumptions: string[];
@@ -398,8 +400,20 @@ interface ProfessorResponse {
     objective: string;
     destinationPlaceId?: string;
   };
+  runtime?: {
+    mode: 'scripted' | 'local_exec' | 'scripted_fallback';
+    driverId: string;
+    durationMs: number;
+    repairAttempts: 0 | 1;
+    fallbackReason?: string;
+  };
 }
 ```
+
+In local mode, `professor.query.started` is committed immediately and
+`professor.response.created` is appended only after the bounded Codex output passes validation (or
+the runtime selects an explicitly labeled authored fallback). A fixture reset cancels pending
+consultations and prevents their late results from entering the new projection.
 
 ## 10.13 Agent turn output
 
