@@ -85,6 +85,8 @@ test('forecast commit validates probability, links evidence, and updates event h
   await commit.click();
 
   await expect(dialog.getByRole('status')).toContainText('Revision committed at 48%');
+  await expect(dialog.getByText('Revision · −7 pts')).toBeVisible();
+  await expect(dialog.getByRole('button', { name: 'Forecast committed · 48%' })).toBeDisabled();
   await expect(comparison).toContainText('Prior player48%');
   const history = dialog.getByRole('region', { name: 'Forecast path' });
   await expect(history).toContainText('2 commits');

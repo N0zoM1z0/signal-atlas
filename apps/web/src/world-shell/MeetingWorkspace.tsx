@@ -106,7 +106,7 @@ export function MeetingWorkspace({
     }
     return result;
   }, [events, participantAgentIds, startedSequence]);
-  const sharedSignalIds = meeting?.sharedSignalIds ?? [
+  const tableSignalIds = meeting?.sharedSignalIds ?? [
     ...new Set(Object.values(beforeSignalsByAgentId).flat()),
   ];
   const meetingPlaceId =
@@ -267,11 +267,13 @@ export function MeetingWorkspace({
         <section className="atlas-meeting-shares" aria-label="Shared signals">
           <header>
             <span className="atlas-kicker">Center table / shared evidence</span>
-            <h3>{sharedSignalIds.length} signals in common</h3>
+            <h3>
+              {tableSignalIds.length} {meeting ? 'signals now shared' : 'signals queued to share'}
+            </h3>
           </header>
-          {sharedSignalIds.length > 0 ? (
+          {tableSignalIds.length > 0 ? (
             <ol>
-              {sharedSignalIds.map((signalId) => {
+              {tableSignalIds.map((signalId) => {
                 const signal = projection.signalsById[signalId];
                 const share = shareEvents.find((event) => event.payload.signalId === signalId);
                 const fromName = share
@@ -282,6 +284,9 @@ export function MeetingWorkspace({
                 const recipientNames = share?.payload.toAgentIds.map(
                   (id) => projection.agentsById[id]?.displayName ?? id,
                 );
+                const holderNames = participantAgentIds
+                  .filter((agentId) => beforeSignalsByAgentId[agentId]?.includes(signalId))
+                  .map((agentId) => projection.agentsById[agentId]?.displayName ?? agentId);
                 return (
                   <li key={signalId}>
                     <span>
@@ -293,7 +298,7 @@ export function MeetingWorkspace({
                     <small>
                       {share
                         ? `${fromName ?? share.payload.fromAgentId} shared to ${recipientNames?.join(', ')}`
-                        : `Held in common before the meeting${fromName ? ` · first found by ${fromName}` : ''}`}
+                        : `Held before meeting by ${holderNames.join(', ') || 'no participant'}`}
                     </small>
                   </li>
                 );

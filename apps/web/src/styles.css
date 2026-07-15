@@ -1763,6 +1763,28 @@ kbd {
   gap: var(--sa-spacing-5);
 }
 
+.atlas-technical-receipt {
+  border: var(--sa-border-hairline) solid var(--sa-color-slate-cloud);
+  border-radius: var(--sa-radius-small);
+  background: color-mix(in srgb, var(--sa-color-atlas-night) 82%, transparent);
+}
+
+.atlas-technical-receipt summary {
+  padding: var(--sa-spacing-2) var(--sa-spacing-3);
+  color: var(--sa-color-weather-cyan);
+  cursor: pointer;
+  font-family: var(--sa-typography-mono-family);
+  font-size: var(--sa-typography-size-xs);
+}
+
+.atlas-technical-receipt .atlas-provenance-block {
+  margin: 0 var(--sa-spacing-3) var(--sa-spacing-3);
+}
+
+.atlas-technical-receipt .atlas-source-uri {
+  margin: var(--sa-spacing-3) 0 0;
+}
+
 .atlas-inspector-summary {
   display: grid;
   gap: var(--sa-spacing-2);
@@ -2415,6 +2437,24 @@ kbd {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--sa-spacing-2);
   margin: 0;
+}
+
+.atlas-archive-technical {
+  border: var(--sa-border-hairline) solid var(--sa-color-slate-cloud);
+  border-radius: var(--sa-radius-small);
+  background: var(--sa-color-atlas-night);
+}
+
+.atlas-archive-technical summary {
+  padding: var(--sa-spacing-2) var(--sa-spacing-3);
+  color: var(--sa-color-weather-cyan);
+  cursor: pointer;
+  font-family: var(--sa-typography-mono-family);
+  font-size: var(--sa-typography-size-xs);
+}
+
+.atlas-archive-technical dl {
+  padding: 0 var(--sa-spacing-3) var(--sa-spacing-3);
 }
 
 .atlas-archive-detail-copy dt {
@@ -4829,11 +4869,68 @@ kbd {
   min-width: 0;
   min-height: 0;
   align-content: start;
-  grid-template-rows: auto auto minmax(0, 1fr);
+  grid-template-rows: auto auto auto minmax(0, 1fr);
   overflow: auto;
   background: color-mix(in srgb, var(--sa-color-atlas-night) 90%, transparent);
   scrollbar-color: var(--sa-color-harbor-blue) transparent;
   scrollbar-width: thin;
+}
+
+.atlas-professor-history {
+  display: grid;
+  max-height: 10rem;
+  gap: var(--sa-spacing-2);
+  padding: var(--sa-spacing-3);
+  overflow: auto;
+  border-bottom: var(--sa-border-hairline) solid var(--sa-color-slate-cloud);
+  background: color-mix(in srgb, var(--sa-color-scholar-violet) 10%, var(--sa-color-deep-ink));
+}
+
+.atlas-professor-history > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sa-spacing-2);
+}
+
+.atlas-professor-history > header strong {
+  color: var(--sa-color-muted-steel);
+  font-family: var(--sa-typography-mono-family);
+  font-size: 8px;
+  text-transform: uppercase;
+}
+
+.atlas-professor-history ol {
+  display: grid;
+  gap: var(--sa-spacing-1);
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.atlas-professor-history button {
+  display: grid;
+  width: 100%;
+  gap: 2px;
+  padding: var(--sa-spacing-2);
+  border: var(--sa-border-hairline) solid var(--sa-color-slate-cloud);
+  color: var(--sa-color-paper-light);
+  background: var(--sa-color-atlas-night);
+  text-align: left;
+}
+
+.atlas-professor-history button span {
+  color: var(--sa-color-weather-cyan);
+  font-family: var(--sa-typography-mono-family);
+  font-size: 8px;
+  text-transform: uppercase;
+}
+
+.atlas-professor-history button strong {
+  overflow: hidden;
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .atlas-professor-modes {

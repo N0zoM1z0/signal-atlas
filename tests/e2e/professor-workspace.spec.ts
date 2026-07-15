@@ -60,9 +60,13 @@ test('Professor Vale cites only selected evidence and states an insufficient sel
   await reachProfessorJourney(page);
   const study = page.getByRole('main', { name: "Professor Vale's Study" });
   const tray = study.getByRole('region', { name: 'Evidence selection tray' });
-  await expect(study.getByText('2 selected records')).toBeVisible();
+  await expect(study.getByText('4 selected records')).toBeVisible();
   await expect(tray.getByLabel(weatherHeadline)).toBeChecked();
   await expect(tray.getByLabel(historicalHeadline)).toBeChecked();
+  await expect(tray.getByLabel('Galehaven Crosswind Advisory 18:10Z')).toBeChecked();
+  await expect(
+    tray.getByLabel('Case File: Twenty Comparable Coastal Launch Windows'),
+  ).toBeChecked();
 
   const correlationTab = study.getByRole('tab', { name: 'Correlation check' });
   await expect(correlationTab).toHaveAttribute('aria-selected', 'true');
@@ -79,21 +83,30 @@ test('Professor Vale cites only selected evidence and states an insufficient sel
   const response = study.getByRole('article', { name: 'Professor response' });
   await expect(response).toContainText('The signals are related but not duplicates');
   await expect(response).toContainText('Scripted fixture');
-  await expect(response).toContainText('Evidence used · 2');
+  await expect(response).toContainText('Evidence used · 4');
   await expect(response).toContainText(weatherHeadline);
   await expect(response).toContainText(historicalHeadline);
+  await expect(response).toContainText('Galehaven Crosswind Advisory 18:10Z');
   await expect(response).toContainText('Assumptions');
   await expect(response).toContainText('Limitations');
   await expect(response).toContainText('The archive sample is small');
-  await expect(response).not.toContainText('Galehaven Crosswind Advisory');
   await expect(
     page.getByRole('complementary', { name: 'Signals' }).getByText('Correlated'),
   ).toHaveCount(2);
 
+  await page.keyboard.press('Escape');
+  await page.getByRole('main', { name: 'Interactive world stage' }).focus();
+  await page.keyboard.press('p');
+  await expect(study.getByRole('region', { name: 'Consultation history' })).toContainText(
+    '1 recorded',
+  );
+  await study.getByRole('button', { name: /Review prior consultation:/ }).click();
+  await expect(response).toContainText('The signals are related but not duplicates');
+
   await tray.getByLabel(historicalHeadline).uncheck();
   await study.getByRole('button', { name: 'Ask Professor' }).click();
   await expect(response).toContainText('Insufficient evidence');
-  await expect(response).toContainText('Evidence used · 1');
+  await expect(response).toContainText('Evidence used · 2');
   await expect(response).not.toContainText(historicalHeadline);
 
   await tray.getByLabel(historicalHeadline).check();

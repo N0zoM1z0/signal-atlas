@@ -219,3 +219,22 @@ unstaged.
 - Validation: web typecheck passed; 12 web test files / 29 tests passed; three focused Replay and
   Archive Playwright journeys covering reflow and historical scrubbing exited successfully. Full
   repository gates remain for completion.
+
+### Evidence-synthesis truth and progressive disclosure
+
+- Meeting cards are labeled as evidence queued to share before the exchange event, name the actual
+  pre-meeting holder, and change to “now shared” only after the authoritative meeting exchange.
+- Forecast drafts retain the baseline from the current open session, so the displayed revision
+  remains anchored after projection refresh. A successful draft signature cannot be submitted
+  twice until the operator changes the probability, evidence, rationale, memo, or uncertainty.
+- Professor consultations automatically include sources linked by the initially selected signals.
+  Completed query/response pairs in the projection appear as local consultation history and can
+  restore the exact mode, question, selection, and bounded answer after the workspace is reopened.
+- Source Inspector and Archive keep publisher, time, source class, relevance, and caveats primary;
+  hashes, call IDs, gateway receipts, and transport identifiers remain available under explicit
+  technical disclosures. Archive result rows also expose publisher, class, and version to
+  disambiguate similarly titled records.
+- Validation: web typecheck passed; 12 web test files / 29 tests passed; focused ESLint passed for
+  all five changed workspaces; four non-visual Playwright journeys for Meeting, Forecast,
+  Professor, and Source Inspector exited successfully. Full repository gates remain for
+  completion.

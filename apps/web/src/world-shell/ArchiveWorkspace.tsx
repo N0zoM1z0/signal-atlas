@@ -65,17 +65,22 @@ function EntryDetail({ entry }: { entry: ArchiveEntry }) {
             <dt>Version</dt>
             <dd>{entry.source.version}</dd>
           </div>
-          <div>
-            <dt>Content hash</dt>
-            <dd>
-              <code>{entry.source.contentHash}</code>
-            </dd>
-          </div>
-          <div>
-            <dt>Gateway</dt>
-            <dd>{entry.source.provenance.serverName}</dd>
-          </div>
         </dl>
+        <details className="atlas-archive-technical">
+          <summary>Technical archive receipt</summary>
+          <dl>
+            <div>
+              <dt>Content hash</dt>
+              <dd>
+                <code>{entry.source.contentHash}</code>
+              </dd>
+            </div>
+            <div>
+              <dt>Gateway</dt>
+              <dd>{entry.source.provenance.serverName}</dd>
+            </div>
+          </dl>
+        </details>
         {entry.supersededBySourceId && (
           <p className="atlas-archive-warning">
             Superseded by source <code>{entry.supersededBySourceId}</code>. This version remains
@@ -349,7 +354,12 @@ export function ArchiveWorkspace({
                       {entryKindLabel(entry.kind)} · {sentenceCase(entry.status)}
                     </span>
                     <strong>{entry.title}</strong>
-                    <small>{dateLabel(entry.entryDate)} UTC</small>
+                    <small>
+                      {entry.kind === 'source'
+                        ? `${entry.source.publisher ?? 'Unknown publisher'} · ${sentenceCase(entry.source.sourceClass)} · v${entry.source.version} · `
+                        : ''}
+                      {dateLabel(entry.entryDate)} UTC
+                    </small>
                     <p>{entry.summary}</p>
                   </button>
                 </li>

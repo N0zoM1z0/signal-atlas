@@ -69,6 +69,12 @@ function initialSignalSelection(
   return Object.keys(projection.signalsById).slice(0, 2);
 }
 
+function linkedSourceIds(projection: WorldProjection, signalIds: readonly string[]): string[] {
+  return [
+    ...new Set(signalIds.flatMap((signalId) => projection.signalsById[signalId]?.sourceIds ?? [])),
+  ].filter((sourceId) => projection.sourcesById[sourceId]);
+}
+
 function sentenceCase(value: string): string {
   return value
     .split('_')
@@ -124,12 +130,13 @@ export function ProfessorWorkspace({
   onUseSuggestedMission,
   projection,
 }: ProfessorWorkspaceProps) {
+  const initialSignalIds = initialSignalSelection(projection, caseFileEntryIds);
   const [mode, setMode] = useState<ProfessorMode>('correlation_check');
   const [question, setQuestion] = useState(defaultQuestions.correlation_check);
-  const [selectedSignalIds, setSelectedSignalIds] = useState(() =>
-    initialSignalSelection(projection, caseFileEntryIds),
+  const [selectedSignalIds, setSelectedSignalIds] = useState(initialSignalIds);
+  const [selectedSourceIds, setSelectedSourceIds] = useState(() =>
+    linkedSourceIds(projection, initialSignalIds),
   );
-  const [selectedSourceIds, setSelectedSourceIds] = useState<string[]>([]);
   const [response, setResponse] = useState<ProfessorResponse>();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
@@ -179,6 +186,12 @@ export function ProfessorWorkspace({
     }
   };
   const selectedCount = selectedSignalIds.length + selectedSourceIds.length;
+  const consultationHistory = Object.values(projection.professorQueriesById)
+    .flatMap((query) => {
+      const recordedResponse = projection.professorResponsesByQueryId[query.id];
+      return recordedResponse ? [{ query, response: recordedResponse }] : [];
+    })
+    .sort((left, right) => right.query.createdAt.localeCompare(left.query.createdAt));
 
   return (
     <main className="atlas-professor-workspace" aria-label="Professor Vale's Study" tabIndex={-1}>
@@ -245,7 +258,7 @@ export function ProfessorWorkspace({
             </header>
             <div>
               <section>
-                <h4>Signals</h4>
+                <h4>Signals · linked sources included</h4>
                 {Object.values(projection.signalsById).length ? (
                   <ul>
                     {Object.values(projection.signalsById).map((signal) => (
@@ -255,7 +268,27 @@ export function ProfessorWorkspace({
                             checked={selectedSignalIds.includes(signal.id)}
                             disabled={busy}
                             onChange={() => {
-                              toggleSelection(signal.id, selectedSignalIds, setSelectedSignalIds);
+                              const selecting = !selectedSignalIds.includes(signal.id);
+                              const nextSignalIds = selecting
+                                ? [...selectedSignalIds, signal.id]
+                                : selectedSignalIds.filter((id) => id !== signal.id);
+                              setSelectedSignalIds(nextSignalIds);
+                              if (selecting) {
+                                setSelectedSourceIds((current) => [
+                                  ...new Set([...current, ...signal.sourceIds]),
+                                ]);
+                              } else {
+                                const stillLinked = new Set(
+                                  linkedSourceIds(projection, nextSignalIds),
+                                );
+                                setSelectedSourceIds((current) =>
+                                  current.filter(
+                                    (sourceId) =>
+                                      !signal.sourceIds.includes(sourceId) ||
+                                      stillLinked.has(sourceId),
+                                  ),
+                                );
+                              }
                               setResponse(undefined);
                             }}
                             type="checkbox"
@@ -308,6 +341,40 @@ export function ProfessorWorkspace({
         </section>
 
         <aside className="atlas-professor-console" aria-label="Professor consultation panel">
+          {consultationHistory.length > 0 && (
+            <section className="atlas-professor-history" aria-label="Consultation history">
+              <header>
+                <span className="atlas-kicker">Local consultation history</span>
+                <strong>{consultationHistory.length} recorded</strong>
+              </header>
+              <ol>
+                {consultationHistory.map(({ query: recordedQuery, response: recordedResponse }) => (
+                  <li key={recordedQuery.id}>
+                    <button
+                      aria-label={`Review prior consultation: ${recordedQuery.question}`}
+                      onClick={() => {
+                        setMode(recordedQuery.mode);
+                        setQuestion(recordedQuery.question);
+                        setSelectedSignalIds(recordedQuery.selectedSignalIds);
+                        setSelectedSourceIds(recordedQuery.selectedSourceIds);
+                        setResponse(recordedResponse);
+                        setError(undefined);
+                      }}
+                      type="button"
+                    >
+                      <span>
+                        {sentenceCase(recordedQuery.mode)} ·{' '}
+                        {recordedQuery.selectedSignalIds.length +
+                          recordedQuery.selectedSourceIds.length}{' '}
+                        records
+                      </span>
+                      <strong>{recordedQuery.question}</strong>
+                    </button>
+                  </li>
+                ))}
+              </ol>
+            </section>
+          )}
           <div className="atlas-professor-modes" role="tablist" aria-label="Professor modes">
             {modes.map((item) => (
               <button
@@ -343,7 +410,7 @@ export function ProfessorWorkspace({
               />
             </label>
             <button disabled={busy || question.trim().length === 0} type="submit">
-              {busy ? 'Professor agent reviewing…' : 'Ask Professor'}
+              {busy ? 'Reviewing selected evidence…' : 'Ask Professor'}
             </button>
           </form>
 
@@ -447,10 +514,11 @@ export function ProfessorWorkspace({
           ) : busy ? (
             <div className="atlas-professor-empty-response" role="status">
               <span aria-hidden="true">⌛</span>
-              <strong>Professor agent is reviewing the selection</strong>
+              <strong>Professor Vale is reviewing this evidence</strong>
               <p>
-                One bounded local turn may make one repair. Only the {selectedCount} selected record
-                {selectedCount === 1 ? '' : 's'} are available to it.
+                The review is limited to the {selectedCount} selected record
+                {selectedCount === 1 ? '' : 's'} shown here. No unselected source can enter the
+                answer.
               </p>
             </div>
           ) : (

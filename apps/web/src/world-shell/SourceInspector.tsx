@@ -187,69 +187,72 @@ export function SourceInspector({
                           </dd>
                         </div>
                       </dl>
-                      <div className="atlas-provenance-block">
-                        <h4>Retrieval provenance</h4>
-                        <dl>
-                          <div>
-                            <dt>Source record</dt>
-                            <dd>
-                              <code>{source.id}</code>
-                            </dd>
-                          </div>
-                          <div>
-                            <dt>Supersedes</dt>
-                            <dd>
-                              <code>{source.supersedesSourceId ?? 'No earlier version'}</code>
-                            </dd>
-                          </div>
-                          <div>
-                            <dt>Gateway</dt>
-                            <dd>{source.provenance.serverName}</dd>
-                          </div>
-                          <div>
-                            <dt>Transport</dt>
-                            <dd>{sentenceCase(source.provenance.transport)}</dd>
-                          </div>
-                          <div>
-                            <dt>Primitive</dt>
-                            <dd>
-                              {sentenceCase(source.provenance.primitive)} ·{' '}
-                              {source.provenance.primitiveName}
-                            </dd>
-                          </div>
-                          <div>
-                            <dt>Call ID</dt>
-                            <dd>{source.provenance.callId ?? 'Not recorded'}</dd>
-                          </div>
-                          <div>
-                            <dt>Arguments hash</dt>
-                            <dd>
-                              <code>{source.provenance.argumentsHash ?? 'Not recorded'}</code>
-                            </dd>
-                          </div>
-                          <div>
-                            <dt>Response hash</dt>
-                            <dd>
-                              <code>{source.provenance.responseHash}</code>
-                            </dd>
-                          </div>
-                          <div>
-                            <dt>Content hash</dt>
-                            <dd>
-                              <code>{source.contentHash}</code>
-                            </dd>
-                          </div>
-                          <div>
-                            <dt>Source tags</dt>
-                            <dd>{source.tags.length > 0 ? source.tags.join(' · ') : 'None'}</dd>
-                          </div>
-                        </dl>
-                      </div>
-                      {source.externalUri && (
-                        <p className="atlas-source-uri">
-                          Source identifier: <code>{source.externalUri}</code>
-                        </p>
-                      )}
+                      <details className="atlas-technical-receipt">
+                        <summary>Technical retrieval receipt</summary>
+                        <div className="atlas-provenance-block">
+                          <h4>Retrieval provenance</h4>
+                          <dl>
+                            <div>
+                              <dt>Source record</dt>
+                              <dd>
+                                <code>{source.id}</code>
+                              </dd>
+                            </div>
+                            <div>
+                              <dt>Supersedes</dt>
+                              <dd>
+                                <code>{source.supersedesSourceId ?? 'No earlier version'}</code>
+                              </dd>
+                            </div>
+                            <div>
+                              <dt>Gateway</dt>
+                              <dd>{source.provenance.serverName}</dd>
+                            </div>
+                            <div>
+                              <dt>Transport</dt>
+                              <dd>{sentenceCase(source.provenance.transport)}</dd>
+                            </div>
+                            <div>
+                              <dt>Primitive</dt>
+                              <dd>
+                                {sentenceCase(source.provenance.primitive)} ·{' '}
+                                {source.provenance.primitiveName}
+                              </dd>
+                            </div>
+                            <div>
+                              <dt>Call ID</dt>
+                              <dd>{source.provenance.callId ?? 'Not recorded'}</dd>
+                            </div>
+                            <div>
+                              <dt>Arguments hash</dt>
+                              <dd>
+                                <code>{source.provenance.argumentsHash ?? 'Not recorded'}</code>
+                              </dd>
+                            </div>
+                            <div>
+                              <dt>Response hash</dt>
+                              <dd>
+                                <code>{source.provenance.responseHash}</code>
+                              </dd>
+                            </div>
+                            <div>
+                              <dt>Content hash</dt>
+                              <dd>
+                                <code>{source.contentHash}</code>
+                              </dd>
+                            </div>
+                            <div>
+                              <dt>Source tags</dt>
+                              <dd>{source.tags.length > 0 ? source.tags.join(' · ') : 'None'}</dd>
+                            </div>
+                          </dl>
+                          {source.externalUri && (
+                            <p className="atlas-source-uri">
+                              Source identifier: <code>{source.externalUri}</code>
+                            </p>
+                          )}
+                        </div>
+                      </details>
                     </article>
                   ))}
                 </div>

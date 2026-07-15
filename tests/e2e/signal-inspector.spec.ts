@@ -45,6 +45,8 @@ test('a discovered signal exposes source provenance and durable case-file action
   await expect(inspector).toContainText('Galehaven Crosswind Advisory 18:10Z');
   await expect(inspector).toContainText('Galehaven Weather Service');
   await expect(inspector).toContainText('Retrieved');
+  await expect(inspector.getByText('pref-fixture')).toBeHidden();
+  await inspector.getByText('Technical retrieval receipt').click();
   await expect(inspector).toContainText('pref-fixture');
   await expect(inspector).toContainText('fixture.weather.advisory');
   await expect(inspector).toContainText('call-src-weather-bulletin-1');
