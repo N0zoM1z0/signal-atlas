@@ -26,9 +26,14 @@ export const codexAgentTurnOutputJsonSchema = {
     sourceIdsUsed: { type: 'array', items: { $ref: '#/$defs/entityId' } },
     proposedClaims: { type: 'array', items: { $ref: '#/$defs/proposedClaim' } },
     proposedSignals: { type: 'array', items: { $ref: '#/$defs/proposedSignal' } },
-    rationale: { type: 'string', minLength: 1 },
+    rationale: { type: 'string', minLength: 1, maxLength: 320 },
     assumptions: { type: 'array', items: { type: 'string', minLength: 1 } },
-    unknowns: { type: 'array', items: { type: 'string', minLength: 1 } },
+    unknowns: {
+      type: 'array',
+      items: { type: 'string', minLength: 1 },
+      minItems: 1,
+      maxItems: 6,
+    },
     suggestedFollowUp: {
       anyOf: [{ $ref: '#/$defs/suggestedFollowUp' }, { type: 'null' }],
     },

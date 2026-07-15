@@ -40,5 +40,9 @@ describe('published contract artifacts', () => {
       Object.values(record).forEach(visit);
     };
     visit(schema);
+    const properties = (schema as { properties: Record<string, Record<string, unknown>> })
+      .properties;
+    expect(properties['rationale']).toMatchObject({ minLength: 1, maxLength: 320 });
+    expect(properties['unknowns']).toMatchObject({ minItems: 1, maxItems: 6 });
   });
 });

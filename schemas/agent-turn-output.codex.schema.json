@@ -384,6 +384,7 @@
       "type": "string"
     },
     "rationale": {
+      "maxLength": 320,
       "minLength": 1,
       "type": "string"
     },
@@ -412,6 +413,8 @@
         "minLength": 1,
         "type": "string"
       },
+      "maxItems": 6,
+      "minItems": 1,
       "type": "array"
     }
   },
