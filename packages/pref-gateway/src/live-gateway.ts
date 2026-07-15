@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import type { SourceRecord } from '@signal-atlas/contracts';
+import { SourceRecordSchema, type SourceRecord } from '@signal-atlas/contracts';
 
 import {
   projectPrefCapabilityInput,
@@ -12,13 +12,18 @@ import { normalizePrefRawResult } from './normalize.js';
 import {
   PrefCallContextSchema,
   PrefCanonicalCapabilitySchema,
+  PrefArticleMatchEvidenceSchema,
   PrefEconomicSeriesReadRequestSchema,
+  PrefEconomicSeriesEvidenceSchema,
   PrefEconomicSeriesSearchRequestSchema,
+  PrefEconomicSeriesSearchEvidenceSchema,
   PrefGatewayConfigSchema,
   PrefLocalConditionsEvidenceSchema,
   PrefLocalConditionsRequestSchema,
   PrefMarketSearchRequestSchema,
+  PrefMarketSummaryEvidenceSchema,
   PrefReadRequestSchema,
+  PrefResolutionHistoryEvidenceSchema,
   PrefResolutionHistoryRequestSchema,
   PrefSearchRequestSchema,
   PrefGatewayError,
@@ -36,6 +41,7 @@ import {
   type PrefGatewayErrorCode,
   type PrefGatewayHealth,
   type PrefLocalConditionsEvidence,
+  type PrefMarketSearchRequest,
   type PrefMcpCallResult,
   type PrefMcpConnection,
   type PrefReadRequest,
@@ -86,6 +92,104 @@ const ArticleSearchPayloadSchema = z.strictObject({
   requested_max: z.number().finite().positive().optional(),
   total_returned: z.number().int().nonnegative(),
   note: z.string().max(2_000).optional(),
+});
+
+const MarketSearchPayloadSchema = z
+  .object({
+    query: z.string().trim().min(1).max(1_000),
+    data: z
+      .array(
+        z
+          .object({
+            id: z.string().trim().min(1).max(500),
+            slug: z.string().trim().min(1).max(500),
+            question: z.string().trim().min(1).max(1_000).optional(),
+            outcomes: z.array(z.string().trim().min(1).max(256)).max(20).optional(),
+            active: z.boolean().optional(),
+            closed: z.boolean().optional(),
+          })
+          .strip(),
+      )
+      .max(100),
+    pagination: z
+      .object({
+        limit: z.number().int().nonnegative(),
+        offset: z.number().int().nonnegative(),
+        returned: z.number().int().nonnegative(),
+        has_more: z.boolean(),
+      })
+      .strip(),
+  })
+  .strip();
+
+const ResolutionHistoryPayloadSchema = z.strictObject({
+  matches: z
+    .array(
+      z.strictObject({
+        market_id: z.string().trim().min(1).max(500),
+        question: z.string().trim().min(1).max(1_000),
+        tags: z.array(z.string().trim().min(1).max(100)).max(50),
+        resolution: z.enum(['YES', 'NO']),
+        resolution_date: z.string().trim().min(1).max(64),
+        reference_class: z.string().trim().min(1).max(256),
+      }),
+    )
+    .max(500),
+  statistics: z.strictObject({
+    total: z.number().int().nonnegative(),
+    yes_count: z.number().int().nonnegative(),
+    no_count: z.number().int().nonnegative(),
+    base_rate: z.number().min(0).max(1).nullable(),
+    sample_size_confidence: z.enum(['low', 'medium', 'high']),
+  }),
+});
+
+const EconomicSeriesSearchPayloadSchema = z.strictObject({
+  search_text: z.string().trim().min(1).max(1_000),
+  count: z.number().int().nonnegative(),
+  series: z
+    .array(
+      z.strictObject({
+        id: z
+          .string()
+          .trim()
+          .min(1)
+          .max(100)
+          .regex(/^[A-Za-z0-9._-]+$/u),
+        title: z.string().trim().min(1).max(1_000),
+        observation_start: z.string().regex(/^\d{4}-\d{2}-\d{2}$/u),
+        observation_end: z.string().regex(/^\d{4}-\d{2}-\d{2}$/u),
+        frequency_short: z.string().trim().min(1).max(256),
+        units_short: z.string().trim().min(1).max(256),
+      }),
+    )
+    .max(1_000),
+});
+
+const EconomicSeriesReadPayloadSchema = z.strictObject({
+  scope: z.literal('full'),
+  series_id: z
+    .string()
+    .trim()
+    .min(1)
+    .max(100)
+    .regex(/^[A-Za-z0-9._-]+$/u),
+  title: z.string().trim().min(1).max(1_000),
+  units: z.string().trim().min(1).max(256),
+  frequency: z.string().trim().min(1).max(256),
+  observation_start: z.string().regex(/^\d{4}-\d{2}-\d{2}$/u),
+  observation_end: z.string().regex(/^\d{4}-\d{2}-\d{2}$/u),
+  count: z.number().int().nonnegative(),
+  observations: z
+    .array(
+      z.strictObject({
+        date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/u),
+        value: z.string().trim().min(1).max(100),
+      }),
+    )
+    .max(500),
+  date: z.string().nullable().optional(),
+  value: z.string().nullable().optional(),
 });
 
 type LiveCanonicalInput =
@@ -214,6 +318,16 @@ function parseArticleSearchPayload(result: PrefMcpCallResult) {
   }
 }
 
+function mappedPayload<T>(result: PrefMcpCallResult, schema: z.ZodType<T>): T {
+  if (result.structuredContent) return schema.parse(result.structuredContent);
+  if (!result.text) throw safeError('pref_invalid_response');
+  try {
+    return schema.parse(JSON.parse(result.text) as unknown);
+  } catch {
+    throw safeError('pref_invalid_response');
+  }
+}
+
 function gdeltPublishedAt(value: string): string | undefined {
   if (!value) return undefined;
   const match = /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z$/u.exec(value);
@@ -222,6 +336,24 @@ function gdeltPublishedAt(value: string): string | undefined {
   const parsed = new Date(`${year}-${month}-${day}T${hour}:${minute}:${second}Z`);
   if (Number.isNaN(parsed.getTime())) throw safeError('pref_invalid_response');
   return parsed.toISOString();
+}
+
+function providerDateTime(value: string): string {
+  const normalized = /^\d{4}-\d{2}-\d{2}$/u.test(value) ? `${value}T00:00:00Z` : value;
+  const parsed = new Date(normalized);
+  if (Number.isNaN(parsed.getTime())) throw safeError('pref_invalid_response');
+  return parsed.toISOString();
+}
+
+function economicValue(value: string): number | null {
+  if (value === '.') return null;
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) throw safeError('pref_invalid_response');
+  return parsed;
+}
+
+function safeTag(value: string): string {
+  return value.slice(0, 100);
 }
 
 function validatedFreshCacheMs(value: number | undefined): number {
@@ -584,23 +716,56 @@ export class LivePrefGateway implements PrefGateway {
         if (mapping.canonicalName !== 'search_sources' || !('query' in input)) {
           throw safeError('pref_invalid_response');
         }
-        return {
-          sources: this.#normalizeArticleSearch(
-            parseArticleSearchPayload(result),
-            mapping,
-            input,
-            callId,
-            argumentsHash,
-            responseHash,
-            retrievedAt,
-          ),
-          evidence: [],
-        };
+        return this.#normalizeArticleSearch(
+          parseArticleSearchPayload(result),
+          mapping,
+          PrefSearchRequestSchema.parse(input),
+          callId,
+          argumentsHash,
+          responseHash,
+          retrievedAt,
+        );
       case 'market_search_v1':
+        return this.#normalizeMarketSearch(
+          mappedPayload(result, MarketSearchPayloadSchema),
+          mapping,
+          PrefMarketSearchRequestSchema.parse(input),
+          callId,
+          argumentsHash,
+          responseHash,
+          retrievedAt,
+        );
       case 'resolution_history_v1':
+        return this.#normalizeResolutionHistory(
+          mappedPayload(result, ResolutionHistoryPayloadSchema),
+          mapping,
+          PrefResolutionHistoryRequestSchema.parse(input),
+          callId,
+          argumentsHash,
+          responseHash,
+          retrievedAt,
+        );
       case 'economic_series_search_v1':
+        return this.#normalizeEconomicSeriesSearch(
+          mappedPayload(result, EconomicSeriesSearchPayloadSchema),
+          mapping,
+          PrefEconomicSeriesSearchRequestSchema.parse(input),
+          callId,
+          argumentsHash,
+          responseHash,
+          retrievedAt,
+        );
       case 'economic_series_read_v1':
-        throw safeError('pref_invalid_response');
+        return this.#normalizeEconomicSeriesRead(
+          mappedPayload(result, EconomicSeriesReadPayloadSchema),
+          mapping,
+          PrefEconomicSeriesReadRequestSchema.parse(input),
+          callId,
+          argumentsHash,
+          responseHash,
+          retrievedAt,
+          previous,
+        );
     }
   }
 
@@ -612,11 +777,11 @@ export class LivePrefGateway implements PrefGateway {
     argumentsHash: string,
     responseHash: string,
     retrievedAt: string,
-  ): SourceRecord[] {
+  ): { sources: SourceRecord[]; evidence: PrefCanonicalEvidence[] } {
     const limit = Math.min(input.limit ?? 20, 50);
-    return payload.articles.slice(0, limit).map((article) => {
+    const entries = payload.articles.slice(0, limit).map((article) => {
       const publishedAt = gdeltPublishedAt(article.seendate);
-      return normalizePrefRawResult(
+      const source = normalizePrefRawResult(
         {
           primitive: 'tool',
           primitiveName: mapping.toolRef,
@@ -631,13 +796,239 @@ export class LivePrefGateway implements PrefGateway {
           rights: {
             display: 'metadata_only',
             notes:
-              'The provider did not grant article-content display rights; matched sentences and context are hashed but not retained.',
+              'The provider did not grant article-content display rights; matched context is hashed but not persisted in the source record.',
           },
           tags: ['article-search', 'gdelt', 'live', article.language.toLowerCase()],
         },
         { config: this.#config, callId, argumentsHash, responseHash, retrievedAt },
       );
+      const evidence = PrefArticleMatchEvidenceSchema.parse({
+        kind: 'article_match',
+        sourceId: source.id,
+        matchedSentence: article.sentence.slice(0, 1_000),
+        publishedAt: publishedAt ?? null,
+      });
+      return { source, evidence };
     });
+    return {
+      sources: entries.map(({ source }) => source),
+      evidence: entries.map(({ evidence }) => evidence),
+    };
+  }
+
+  #normalizeMarketSearch(
+    payload: z.infer<typeof MarketSearchPayloadSchema>,
+    mapping: PrefCapabilityMapping,
+    input: PrefMarketSearchRequest,
+    callId: string,
+    argumentsHash: string,
+    responseHash: string,
+    retrievedAt: string,
+  ): { sources: SourceRecord[]; evidence: PrefCanonicalEvidence[] } {
+    const limit = input.limit ?? 10;
+    if (payload.data.length > limit) throw safeError('pref_invalid_response');
+    const entries = payload.data.map((market) => {
+      const source = normalizePrefRawResult(
+        {
+          primitive: 'tool',
+          primitiveName: mapping.toolRef,
+          externalId: market.id,
+          uri: `https://polymarket.com/event/${encodeURIComponent(market.slug)}`,
+          title: market.question ?? `Prediction market ${market.slug}`,
+          publisher: 'Polymarket via Preference',
+          sourceClass: 'market',
+          mediaType: 'application/json',
+          payload: market,
+          rights: {
+            display: 'metadata_only',
+            notes:
+              'Market discovery is retained as read-only context and cannot mutate the scenario forecast.',
+          },
+          tags: ['live', 'market-discovery', 'prediction-market'],
+        },
+        { config: this.#config, callId, argumentsHash, responseHash, retrievedAt },
+      );
+      const evidence = PrefMarketSummaryEvidenceSchema.parse({
+        kind: 'market_summary',
+        sourceId: source.id,
+        provider: 'Polymarket via Preference',
+        marketId: market.id,
+        slug: market.slug,
+        question: market.question ?? null,
+        outcomes: market.outcomes ?? [],
+        active: market.active ?? null,
+        closed: market.closed ?? null,
+      });
+      return { source, evidence };
+    });
+    return {
+      sources: entries.map(({ source }) => source),
+      evidence: entries.map(({ evidence }) => evidence),
+    };
+  }
+
+  #normalizeResolutionHistory(
+    payload: z.infer<typeof ResolutionHistoryPayloadSchema>,
+    mapping: PrefCapabilityMapping,
+    input: ReturnType<typeof PrefResolutionHistoryRequestSchema.parse>,
+    callId: string,
+    argumentsHash: string,
+    responseHash: string,
+    retrievedAt: string,
+  ): { sources: SourceRecord[]; evidence: PrefCanonicalEvidence[] } {
+    if (
+      payload.statistics.yes_count + payload.statistics.no_count !== payload.statistics.total ||
+      payload.statistics.total < payload.matches.length
+    ) {
+      throw safeError('pref_invalid_response');
+    }
+    const sources = payload.matches.slice(0, input.limit ?? 20).map((match) =>
+      normalizePrefRawResult(
+        {
+          primitive: 'tool',
+          primitiveName: mapping.toolRef,
+          externalId: match.market_id,
+          title: match.question,
+          publisher: 'Preference Resolution Tracker',
+          sourceClass: 'archive',
+          publishedAt: providerDateTime(match.resolution_date),
+          mediaType: 'application/json',
+          payload: match,
+          rights: {
+            display: 'metadata_only',
+            notes: 'Historical resolution metadata is retained without provider-internal payloads.',
+          },
+          tags: [
+            'historical-resolution',
+            `resolved-${match.resolution.toLowerCase()}`,
+            safeTag(match.reference_class),
+            ...match.tags.slice(0, 47).map(safeTag),
+          ],
+        },
+        { config: this.#config, callId, argumentsHash, responseHash, retrievedAt },
+      ),
+    );
+    const evidence = PrefResolutionHistoryEvidenceSchema.parse({
+      kind: 'resolution_history',
+      sourceIds: sources.map((source) => source.id),
+      referenceClass: input.referenceClass,
+      total: payload.statistics.total,
+      yesCount: payload.statistics.yes_count,
+      noCount: payload.statistics.no_count,
+      baseRate: payload.statistics.base_rate,
+      sampleSizeConfidence: payload.statistics.sample_size_confidence,
+    });
+    return { sources, evidence: [evidence] };
+  }
+
+  #normalizeEconomicSeriesSearch(
+    payload: z.infer<typeof EconomicSeriesSearchPayloadSchema>,
+    mapping: PrefCapabilityMapping,
+    input: ReturnType<typeof PrefEconomicSeriesSearchRequestSchema.parse>,
+    callId: string,
+    argumentsHash: string,
+    responseHash: string,
+    retrievedAt: string,
+  ): { sources: SourceRecord[]; evidence: PrefCanonicalEvidence[] } {
+    if (payload.series.length > input.limit) throw safeError('pref_invalid_response');
+    const entries = payload.series.map((series) => {
+      const source = normalizePrefRawResult(
+        {
+          primitive: 'tool',
+          primitiveName: mapping.toolRef,
+          externalId: series.id,
+          uri: `https://fred.stlouisfed.org/series/${encodeURIComponent(series.id)}`,
+          title: series.title,
+          publisher: 'Federal Reserve Bank of St. Louis',
+          sourceClass: 'official_primary',
+          mediaType: 'application/json',
+          payload: series,
+          rights: {
+            display: 'metadata_only',
+            notes: 'Economic-series discovery retains identifiers and descriptive metadata only.',
+          },
+          tags: ['economic-series', 'fred', 'official-data'],
+        },
+        { config: this.#config, callId, argumentsHash, responseHash, retrievedAt },
+      );
+      const evidence = PrefEconomicSeriesSearchEvidenceSchema.parse({
+        kind: 'economic_series_search',
+        sourceId: source.id,
+        seriesId: series.id,
+        title: series.title,
+        frequency: series.frequency_short,
+        units: series.units_short,
+        observationStart: series.observation_start,
+        observationEnd: series.observation_end,
+      });
+      return { source, evidence };
+    });
+    return {
+      sources: entries.map(({ source }) => source),
+      evidence: entries.map(({ evidence }) => evidence),
+    };
+  }
+
+  #normalizeEconomicSeriesRead(
+    payload: z.infer<typeof EconomicSeriesReadPayloadSchema>,
+    mapping: PrefCapabilityMapping,
+    input: ReturnType<typeof PrefEconomicSeriesReadRequestSchema.parse>,
+    callId: string,
+    argumentsHash: string,
+    responseHash: string,
+    retrievedAt: string,
+    previous: LiveCacheEntry | undefined,
+  ): { sources: SourceRecord[]; evidence: PrefCanonicalEvidence[] } {
+    if (payload.series_id !== input.seriesId || payload.observations.length > input.limit) {
+      throw safeError('pref_invalid_response');
+    }
+    const observations = payload.observations.map((observation) => ({
+      observedAt: providerDateTime(observation.date),
+      value: economicValue(observation.value),
+    }));
+    const latestObservedAt = observations
+      .map(({ observedAt }) => observedAt)
+      .sort((left, right) => right.localeCompare(left))[0];
+    let source = normalizePrefRawResult(
+      {
+        primitive: 'tool',
+        primitiveName: mapping.toolRef,
+        externalId: payload.series_id,
+        uri: `https://fred.stlouisfed.org/series/${encodeURIComponent(payload.series_id)}`,
+        title: payload.title,
+        publisher: 'Federal Reserve Bank of St. Louis',
+        sourceClass: 'official_primary',
+        ...(latestObservedAt ? { observedAt: latestObservedAt } : {}),
+        mediaType: 'application/json',
+        payload,
+        rights: {
+          display: 'metadata_only',
+          notes: 'Values remain bounded transient evidence linked to this source snapshot.',
+        },
+        tags: ['economic-series', 'fred', 'official-data', 'series-observations'],
+      },
+      { config: this.#config, callId, argumentsHash, responseHash, retrievedAt },
+    );
+    const previousSource = previous?.sources[0];
+    if (previousSource && previousSource.contentHash !== source.contentHash) {
+      source = SourceRecordSchema.parse({
+        ...source,
+        version: previousSource.version + 1,
+        supersedesSourceId: previousSource.id,
+      });
+    }
+    const evidence = PrefEconomicSeriesEvidenceSchema.parse({
+      kind: 'economic_series',
+      sourceId: source.id,
+      seriesId: payload.series_id,
+      title: payload.title,
+      frequency: payload.frequency,
+      units: payload.units,
+      observationStart: payload.observation_start,
+      observationEnd: payload.observation_end,
+      observations,
+    });
+    return { sources: [source], evidence: [evidence] };
   }
 
   #normalizeWeather(

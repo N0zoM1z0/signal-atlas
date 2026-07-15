@@ -4,6 +4,7 @@ import {
   StreamableHttpPrefConnection,
   loadPrefCapabilityMapSync,
   type PrefCapabilityMap,
+  type PrefCanonicalCapability,
   type PrefGateway,
   type PrefGatewayConfig,
   type PrefMcpConnection,
@@ -69,9 +70,7 @@ function createLiveGateway(
     serverName: capabilityMap.server.name,
     transport: capabilityMap.server.transport,
     readOnly: true,
-    allowCapabilities: capabilityMap.mappings
-      .filter((mapping) => mapping.enabled)
-      .map((mapping) => mapping.canonicalName),
+    allowCapabilities: enabledCanonicalCapabilities(capabilityMap),
     timeoutMs: 10_000,
     maxResponseBytes: 1_000_000,
     maxCallsPerMission: 3,
@@ -84,6 +83,18 @@ function createLiveGateway(
     ...(options.now ? { now: options.now } : {}),
     ...(options.freshCacheMs === undefined ? {} : { freshCacheMs: options.freshCacheMs }),
   });
+}
+
+export function enabledCanonicalCapabilities(
+  capabilityMap: PrefCapabilityMap,
+): PrefCanonicalCapability[] {
+  return [
+    ...new Set(
+      capabilityMap.mappings
+        .filter((mapping) => mapping.enabled)
+        .map((mapping) => mapping.canonicalName),
+    ),
+  ];
 }
 
 class LivePrefRuntime implements PrefRuntime {

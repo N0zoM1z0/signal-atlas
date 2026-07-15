@@ -68,6 +68,25 @@ function weatherResult(
   };
 }
 
+function mappedResult(payload: Record<string, unknown>): PrefMcpCallResult {
+  const text = JSON.stringify(payload);
+  return {
+    structuredContent: payload,
+    text,
+    responseBytes: new TextEncoder().encode(text).byteLength,
+  };
+}
+
+function enabledMap(canonicalName: string) {
+  const capabilityMap = loadPrefCapabilityMapSync();
+  const mapping = capabilityMap.mappings.find(
+    (candidate) => candidate.canonicalName === canonicalName,
+  );
+  if (!mapping) throw new Error(`Missing test mapping for ${canonicalName}.`);
+  mapping.enabled = true;
+  return { capabilityMap, mapping };
+}
+
 class FakeConnection implements PrefMcpConnection {
   readonly responses: Array<PrefMcpCallResult | Error>;
   readonly calls: Array<{ toolRef: string; argumentsValue: Record<string, unknown> }> = [];
@@ -204,7 +223,9 @@ describe('LivePrefGateway', () => {
     expect(result.sources[0]).not.toHaveProperty('publishedAt');
     expect(result.sources[0]).not.toHaveProperty('structuredData');
     expect(result.sources[0]).not.toHaveProperty('excerpt');
-    expect(result.evidence[0]?.sourceId).toBe(result.sources[0]?.id);
+    expect(result.evidence.find((evidence) => evidence.kind === 'local_conditions')?.sourceId).toBe(
+      result.sources[0]?.id,
+    );
     expect(events.map(({ type }) => type)).toEqual(['pref.call.started', 'pref.call.completed']);
   });
 
@@ -370,7 +391,13 @@ describe('LivePrefGateway', () => {
     ]);
     expect(result).toMatchObject({
       capability: 'search_sources',
-      evidence: [],
+      evidence: [
+        {
+          kind: 'article_match',
+          matchedSentence: 'The launch-window review was delayed by upper-level winds.',
+          publishedAt: '2026-07-15T00:30:00.000Z',
+        },
+      ],
       sources: [
         {
           title: 'Launch window review delayed by upper-level winds',
@@ -386,6 +413,8 @@ describe('LivePrefGateway', () => {
     expect(result.sources[0]).not.toHaveProperty('excerpt');
     expect(result.sources[0]).not.toHaveProperty('structuredData');
     expect(JSON.stringify(result.sources[0])).not.toContain('Untrusted provider context');
+    expect(JSON.stringify(result.evidence)).not.toContain('Untrusted provider context');
+    expect(result.evidence[0]).toMatchObject({ sourceId: result.sources[0]?.id });
   });
 
   it('exposes the inspected search mapping after its bounded live acceptance gate passes', async () => {
@@ -410,5 +439,298 @@ describe('LivePrefGateway', () => {
         }),
       ]),
     );
+  });
+
+  it('normalizes a bounded market search as context without retaining unknown provider fields', async () => {
+    const { capabilityMap, mapping } = enabledMap('search_markets');
+    const payload = {
+      query: 'central bank rate cut',
+      data: [
+        {
+          id: 'market-101',
+          slug: 'central-bank-rate-cut',
+          question: 'Will the central bank cut rates this month?',
+          outcomes: ['Yes', 'No'],
+          active: true,
+          outcomePrices: ['0.61', '0.39'],
+          privateProviderNote: 'must be stripped',
+        },
+      ],
+      pagination: { limit: 1, offset: 0, returned: 1, has_more: false },
+      metadata: { ignored: true },
+    };
+    const connection = new FakeConnection(
+      [mappedResult(payload)],
+      [
+        {
+          canonicalName: 'search_markets',
+          toolRef: mapping.toolRef,
+          providerServer: mapping.providerServer,
+          status: 'valid',
+        },
+      ],
+    );
+    const pref = gateway(connection, {
+      capabilityMap,
+      config: { ...config(), allowCapabilities: ['search_markets'] },
+    });
+
+    const result = await pref.invokeCanonicalCapability(
+      'search_markets',
+      { query: 'central bank rate cut', limit: 1 },
+      context({ correlationId: 'turn-live-market-search' }),
+    );
+
+    expect(connection.calls).toEqual([
+      {
+        toolRef: 'polymarket.discovery.search_markets',
+        argumentsValue: {
+          active: true,
+          closed: false,
+          fields: { question: true, outcomes: true, active: true },
+          query: 'central bank rate cut',
+          limit: 1,
+        },
+      },
+    ]);
+    expect(result).toMatchObject({
+      capability: 'search_markets',
+      sources: [
+        {
+          title: 'Will the central bank cut rates this month?',
+          sourceClass: 'market',
+          rights: { display: 'metadata_only' },
+          provenance: { primitiveName: 'polymarket.discovery.search_markets' },
+        },
+      ],
+      evidence: [
+        {
+          kind: 'market_summary',
+          marketId: 'market-101',
+          outcomes: ['Yes', 'No'],
+          active: true,
+          closed: null,
+        },
+      ],
+    });
+    expect(JSON.stringify(result)).not.toContain('outcomePrices');
+    expect(JSON.stringify(result)).not.toContain('privateProviderNote');
+  });
+
+  it('normalizes strict resolution history and applies the canonical result cap adapter-side', async () => {
+    const { capabilityMap, mapping } = enabledMap('search_resolution_history');
+    const payload = {
+      matches: [
+        {
+          market_id: 'resolved-1',
+          question: 'Did the first comparable meeting cut rates?',
+          tags: ['rates'],
+          resolution: 'YES',
+          resolution_date: '2025-06-12',
+          reference_class: 'central-bank-rate-cuts',
+        },
+        {
+          market_id: 'resolved-2',
+          question: 'Did the second comparable meeting cut rates?',
+          tags: ['rates'],
+          resolution: 'NO',
+          resolution_date: '2025-07-24',
+          reference_class: 'central-bank-rate-cuts',
+        },
+      ],
+      statistics: {
+        total: 2,
+        yes_count: 1,
+        no_count: 1,
+        base_rate: 0.5,
+        sample_size_confidence: 'low',
+      },
+    };
+    const connection = new FakeConnection(
+      [mappedResult(payload)],
+      [
+        {
+          canonicalName: 'search_resolution_history',
+          toolRef: mapping.toolRef,
+          providerServer: mapping.providerServer,
+          status: 'valid',
+        },
+      ],
+    );
+    const pref = gateway(connection, {
+      capabilityMap,
+      config: { ...config(), allowCapabilities: ['search_resolution_history'] },
+    });
+
+    const result = await pref.invokeCanonicalCapability(
+      'search_resolution_history',
+      { referenceClass: 'central-bank-rate-cuts', limit: 1 },
+      context({ correlationId: 'turn-live-resolution-history' }),
+    );
+
+    expect(connection.calls[0]).toEqual({
+      toolRef: 'resolution.search_historical_resolutions',
+      argumentsValue: { reference_class: 'central-bank-rate-cuts' },
+    });
+    expect(result.sources).toHaveLength(1);
+    expect(result.sources[0]).toMatchObject({
+      title: 'Did the first comparable meeting cut rates?',
+      sourceClass: 'archive',
+      publishedAt: '2025-06-12T00:00:00.000Z',
+      rights: { display: 'metadata_only' },
+    });
+    expect(result.evidence).toEqual([
+      expect.objectContaining({
+        kind: 'resolution_history',
+        sourceIds: [result.sources[0]?.id],
+        total: 2,
+        yesCount: 1,
+        noCount: 1,
+        baseRate: 0.5,
+        sampleSizeConfidence: 'low',
+      }),
+    ]);
+  });
+
+  it('normalizes bounded economic-series discovery with canonical source links', async () => {
+    const { capabilityMap, mapping } = enabledMap('search_economic_series');
+    const payload = {
+      search_text: 'consumer prices',
+      count: 1,
+      series: [
+        {
+          id: 'CPIAUCSL',
+          title: 'Consumer Price Index for All Urban Consumers',
+          observation_start: '1947-01-01',
+          observation_end: '2026-06-01',
+          frequency_short: 'Monthly',
+          units_short: 'Index 1982-1984=100',
+        },
+      ],
+    };
+    const connection = new FakeConnection(
+      [mappedResult(payload)],
+      [
+        {
+          canonicalName: 'search_economic_series',
+          toolRef: mapping.toolRef,
+          providerServer: mapping.providerServer,
+          status: 'valid',
+        },
+      ],
+    );
+    const pref = gateway(connection, {
+      capabilityMap,
+      config: { ...config(), allowCapabilities: ['search_economic_series'] },
+    });
+
+    const result = await pref.invokeCanonicalCapability(
+      'search_economic_series',
+      { query: 'consumer prices' },
+      context({ correlationId: 'turn-live-series-search' }),
+    );
+
+    expect(connection.calls[0]).toEqual({
+      toolRef: 'fred.search_series',
+      argumentsValue: { search_text: 'consumer prices', limit: 20 },
+    });
+    expect(result).toMatchObject({
+      sources: [
+        {
+          externalUri: 'https://fred.stlouisfed.org/series/CPIAUCSL',
+          sourceClass: 'official_primary',
+          rights: { display: 'metadata_only' },
+        },
+      ],
+      evidence: [
+        {
+          kind: 'economic_series_search',
+          seriesId: 'CPIAUCSL',
+          frequency: 'Monthly',
+        },
+      ],
+    });
+    expect(result.evidence[0]).toMatchObject({ sourceId: result.sources[0]?.id });
+  });
+
+  it('bounds full economic series, maps missing values to null, and versions revisions', async () => {
+    let currentTime = new Date('2026-07-15T00:00:00Z');
+    const { capabilityMap, mapping } = enabledMap('read_economic_series');
+    const firstPayload = {
+      scope: 'full',
+      series_id: 'UNRATE',
+      title: 'Unemployment Rate',
+      units: 'Percent',
+      frequency: 'Monthly',
+      observation_start: '2026-05-01',
+      observation_end: '2026-06-01',
+      count: 2,
+      observations: [
+        { date: '2026-06-01', value: '.' },
+        { date: '2026-05-01', value: '3.5' },
+      ],
+    };
+    const revisedPayload = {
+      ...firstPayload,
+      observations: [
+        { date: '2026-06-01', value: '3.6' },
+        { date: '2026-05-01', value: '3.5' },
+      ],
+    };
+    const connection = new FakeConnection(
+      [mappedResult(firstPayload), mappedResult(revisedPayload)],
+      [
+        {
+          canonicalName: 'read_economic_series',
+          toolRef: mapping.toolRef,
+          providerServer: mapping.providerServer,
+          status: 'valid',
+        },
+      ],
+    );
+    const pref = gateway(connection, {
+      capabilityMap,
+      config: { ...config(), allowCapabilities: ['read_economic_series'] },
+      now: () => currentTime,
+      freshCacheMs: 0,
+    });
+    const input = { seriesId: 'UNRATE' };
+
+    const first = await pref.invokeCanonicalCapability(
+      'read_economic_series',
+      input,
+      context({ correlationId: 'turn-live-series-read-1' }),
+    );
+    currentTime = new Date('2026-07-15T00:01:00Z');
+    const revised = await pref.invokeCanonicalCapability(
+      'read_economic_series',
+      input,
+      context({ correlationId: 'turn-live-series-read-2' }),
+    );
+
+    expect(connection.calls[0]).toEqual({
+      toolRef: 'fred.get_series',
+      argumentsValue: { scope: 'full', sort_order: 'desc', series_id: 'UNRATE', limit: 250 },
+    });
+    expect(first.evidence).toEqual([
+      expect.objectContaining({
+        kind: 'economic_series',
+        seriesId: 'UNRATE',
+        observations: [
+          { observedAt: '2026-06-01T00:00:00.000Z', value: null },
+          { observedAt: '2026-05-01T00:00:00.000Z', value: 3.5 },
+        ],
+      }),
+    ]);
+    expect(revised.sources[0]).toMatchObject({
+      version: 2,
+      supersedesSourceId: first.sources[0]?.id,
+      observedAt: '2026-06-01T00:00:00.000Z',
+      rights: { display: 'metadata_only' },
+    });
+    expect(revised.evidence[0]).toMatchObject({
+      sourceId: revised.sources[0]?.id,
+      observations: expect.arrayContaining([expect.objectContaining({ value: 3.6 })]),
+    });
   });
 });

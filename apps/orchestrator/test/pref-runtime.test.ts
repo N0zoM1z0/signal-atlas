@@ -1,8 +1,29 @@
 import { describe, expect, it } from 'vitest';
 
-import { createConfiguredPrefRuntime } from '../src/pref-runtime.js';
+import { loadPrefCapabilityMapSync } from '@signal-atlas/pref-gateway';
+
+import { createConfiguredPrefRuntime, enabledCanonicalCapabilities } from '../src/pref-runtime.js';
 
 describe('configured Pref runtime', () => {
+  it('deduplicates enabled canonical capabilities across provider candidates', () => {
+    const capabilityMap = loadPrefCapabilityMapSync();
+    const sourceMapping = capabilityMap.mappings.find(
+      ({ canonicalName }) => canonicalName === 'search_sources',
+    );
+    if (!sourceMapping) throw new Error('Missing source-search mapping fixture.');
+    capabilityMap.mappings.push({
+      ...structuredClone(sourceMapping),
+      mappingId: 'backup-source-search-v1',
+      toolRef: 'backup.search_sources',
+    });
+
+    expect(enabledCanonicalCapabilities(capabilityMap)).toEqual([
+      'local_conditions',
+      'search_sources',
+      'search_resolution_history',
+    ]);
+  });
+
   it('defaults to a deterministic, network-free fixture connection', async () => {
     const runtime = createConfiguredPrefRuntime({
       environment: {},

@@ -124,13 +124,14 @@ hint.
 
 Only sanitized contract fields and aggregate results were recorded.
 
-| Capability                            | Catalog contract                  | Synchronous result                                                                     | Audit conclusion                                                                       |
-| ------------------------------------- | --------------------------------- | -------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
-| `weather.get_current_conditions`      | Read-only, strict, task optional  | Already valid in the running Signal Atlas mapping                                      | Usable now for disclosed current-condition context                                     |
-| `gdelt.context.search_context`        | Read-only, strict, task forbidden | Success; three bounded article metadata records                                        | Usable now for `search_sources` after the Signal task-policy fix                       |
-| `polymarket.discovery.search_markets` | Read-only, strict, task forbidden | Success; three bounded market records                                                  | Usable now for a read-only expedition board or market context adapter                  |
-| `resolution.get_registry_stats`       | Read-only, strict, task forbidden | Success; 108 markets across 8 reference classes                                        | Usable now as typed archive/base-rate context                                          |
-| `fred.get_series`                     | Read-only, strict, task forbidden | Failed with sanitized `missing_credentials`: hosted FRED provider lacks `FRED_API_KEY` | Advertised but not operational; do not enable until deployment and catalog truth agree |
+| Capability                                 | Catalog contract                       | Synchronous result                                                                     | Audit conclusion                                                                       |
+| ------------------------------------------ | -------------------------------------- | -------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| `weather.get_current_conditions`           | Read-only, strict, task optional       | Already valid in the running Signal Atlas mapping                                      | Usable now for disclosed current-condition context                                     |
+| `gdelt.context.search_context`             | Read-only, strict, task forbidden      | Success; three bounded article metadata records                                        | Usable now for `search_sources` after the Signal task-policy fix                       |
+| `polymarket.discovery.search_markets`      | Read-only, open output, task forbidden | Success; three bounded market records                                                  | Adapter implemented, but mapping denied until the output contract is closed            |
+| `resolution.get_registry_stats`            | Read-only, strict, task forbidden      | Success; 108 markets across 8 reference classes                                        | Usable now as typed archive/base-rate context                                          |
+| `resolution.search_historical_resolutions` | Read-only, strict, task forbidden      | Success; 3 bounded records from a 50-record reference class in about 10.2 seconds      | Enabled as canonical `search_resolution_history` after strict adapter validation       |
+| `fred.get_series`                          | Read-only, strict, task forbidden      | Failed with sanitized `missing_credentials`: hosted FRED provider lacks `FRED_API_KEY` | Advertised but not operational; do not enable until deployment and catalog truth agree |
 
 The FRED record says `requires_auth: false`, `requires_billing: false`, and
 `requires_provider_transport: false`, yet the hosted execution requires a provider key that is not
@@ -221,7 +222,12 @@ Preference already has useful read-only research surfaces that do not expose tra
 
 Signal Atlas should prefer these discovery and resolution packages over the six stale thin records
 currently labeled `external_write`. The hosted Polymarket search and resolution statistics probes
-both succeeded despite `task_support: forbidden`.
+both succeeded despite `task_support: forbidden`. The exact
+`resolution.search_historical_resolutions` contract and a bounded three-record hosted invocation
+also passed; Signal Atlas now enables that capability with metadata-only canonical sources and an
+aggregate base-rate evidence record. Polymarket remains disabled because its catalog output schema
+is open at both the root and result-row levels, so a consumer cannot prove complete response shape
+compatibility before dispatch.
 
 Recommended canonical capabilities:
 
@@ -354,6 +360,12 @@ Provider differences remain in mappings and bounded response adapters, not in pe
 drivers or microservices.
 
 ### 3. Add a small adapter family
+
+Implementation status: the first bounded family now includes article search, market summary,
+resolution history, economic-series discovery, and full-series read adapters. Only GDELT and
+Resolution are live-enabled. Polymarket is blocked by its open output schema, while FRED is blocked
+by hosted provider-secret readiness. Contract tests preserve those distinctions instead of treating
+an implemented parser as deployment eligibility.
 
 Recommended initial adapters:
 

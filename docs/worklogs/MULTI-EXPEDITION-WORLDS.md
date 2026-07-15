@@ -39,6 +39,12 @@ In progress.
   projection semantics; and disabled mappings for every candidate that has not passed its own live
   gate. FRED full reads default to 250 observations and cap at 500 instead of inheriting the
   provider's 100,000-observation ceiling.
+- `f36fb83` committed the canonical capability contracts and disabled provider candidates. The
+  current adapter milestone implements bounded normalization for article matches, market summaries,
+  resolution history, economic-series discovery, and full-series revisions. Exact catalog tests
+  distinguish strict Resolution/FRED schemas from Polymarket's open output. A proxy-enabled hosted
+  Resolution call then passed in about 10.2 seconds with three unique metadata-only sources and a
+  50-sample aggregate, so only `search_resolution_history` advances to enabled status.
 - Focused validation after the first two commits: contracts 18/18, simulation 34/34, codex-runtime
   25/25, game-scene 13/13, archive 4/4, web 19/19, orchestrator 95/95, and repository lint with zero
   warnings. Persistence milestone validation currently passes contracts 19/19, world-content 2/2,
@@ -50,7 +56,8 @@ In progress.
   new 1440 x 900 baseline. Pref policy validation currently passes typecheck and 43/43 gateway
   tests, including both synchronous-compatible task policies and fail-closed task-policy drift.
   GDELT enablement keeps the complete gateway suite green; the canonical adapter foundation
-  currently passes 46 focused gateway tests, package typecheck, and focused lint.
+  currently passes 54 focused gateway tests, orchestrator 106/106, full-workspace typecheck, and
+  repository lint with zero warnings.
 
 ## Goal
 

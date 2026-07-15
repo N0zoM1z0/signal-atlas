@@ -78,19 +78,26 @@ fields, incompatible schemas, write-capable annotations, side effects, or task-s
 closed. A synchronous mapping accepts `task_support: forbidden` or `optional`; `required`, missing,
 and unknown values are rejected because Signal Atlas does not implement the MCP Tasks lifecycle.
 
-The implemented v3 registry enables `weather.get_current_conditions` for `local_conditions` and
-`gdelt.context.search_context` for `search_sources`. GDELT passed exact catalog discovery and a
-bounded synchronous live smoke; the generic article adapter retains stable URL identity and
-metadata while discarding matched sentences and context under a metadata-only rights policy. No
-provider is enabled for `read_source` until one passes the same contract and policy checks.
+The implemented v3 registry enables `weather.get_current_conditions` for `local_conditions`,
+`gdelt.context.search_context` for `search_sources`, and
+`resolution.search_historical_resolutions` for `search_resolution_history`. GDELT passed exact
+catalog discovery and a bounded synchronous live smoke; the generic article adapter retains stable
+URL identity and metadata, exposes only the bounded matched sentence as transient untrusted turn
+evidence, and discards the larger context field under a metadata-only source policy. Resolution
+history passed exact discovery plus a bounded hosted call and normalizes at most 50 comparable
+resolved markets with one aggregate base-rate evidence record. No provider is enabled for
+`read_source` until one passes the same contract and policy checks.
 
 The same registry defines provider-neutral request contracts for `search_markets`,
-`search_resolution_history`, `search_economic_series`, and `read_economic_series`. Their provider
-mappings begin disabled. Polymarket discovery has a loose catalog output schema; resolution history
-still needs a bounded hosted execution smoke; and hosted FRED requires an undeclared provider key.
-FRED discovery defaults to 20 results and caps at 50. Full-series reads always project descending
-order plus a canonical limit that defaults to 250 and cannot exceed 500, so a provider default of
-100,000 observations is never the normal path.
+`search_resolution_history`, `search_economic_series`, and `read_economic_series`. The Resolution
+mapping is enabled after its live gate. Polymarket discovery remains disabled because its hosted
+output schema permits unknown root and row fields, even though its bounded response adapter is
+implemented. Hosted FRED still requires an undeclared provider key, so both FRED mappings remain
+disabled despite strict compatible catalog contracts and implemented adapters. FRED discovery
+defaults to 20 results and caps at 50. Full-series reads always project descending order plus a
+canonical limit that defaults to 250 and cannot exceed 500, so a provider default of 100,000
+observations is never the normal path. Revisions create a new canonical source version linked by
+`supersedesSourceId`; missing FRED values normalize to `null` rather than zero.
 
 ## 8.5 Dual access pattern
 

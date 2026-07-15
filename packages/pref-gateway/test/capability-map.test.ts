@@ -56,7 +56,7 @@ describe('Pref capability map', () => {
         },
         {
           canonicalName: 'search_resolution_history',
-          enabled: false,
+          enabled: true,
           toolRef: 'resolution.search_historical_resolutions',
           responseAdapter: 'resolution_history_v1',
         },

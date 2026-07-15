@@ -5,6 +5,7 @@ import {
   StreamableHttpPrefConnection,
   createBoundedPrefFetch,
   loadPrefCapabilityMap,
+  type PrefCanonicalCapability,
   type PrefMcpCallOptions,
   type PrefMcpSdkCallResult,
   type PrefMcpSdkClient,
@@ -25,6 +26,222 @@ interface FakeClientOptions {
   credentialEcho?: 'server_version' | 'provider_payload';
   echoedCredential?: string;
   refreshCredentialOnConnect?: boolean;
+}
+
+function strictObjectSchema(
+  properties: Record<string, unknown>,
+  required: string[] = [],
+): Record<string, unknown> {
+  return {
+    type: 'object',
+    additionalProperties: false,
+    properties,
+    ...(required.length > 0 ? { required } : {}),
+  };
+}
+
+function readOnlyCatalogContract(
+  toolRef: string,
+  serverName: string,
+  inputSchema: Record<string, unknown>,
+  outputSchema: Record<string, unknown>,
+): Record<string, unknown> {
+  return {
+    tool_ref: toolRef,
+    server_name: serverName,
+    input_schema: inputSchema,
+    output_schema: outputSchema,
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+    },
+    security_hints: {
+      side_effect: 'read_only',
+      task_support: 'forbidden',
+    },
+  };
+}
+
+function optionalCatalogContract(toolRef: unknown): Record<string, unknown> | undefined {
+  switch (toolRef) {
+    case 'polymarket.discovery.search_markets':
+      return readOnlyCatalogContract(
+        toolRef,
+        'polymarket_market_discovery',
+        strictObjectSchema(
+          {
+            query: { type: 'string', minLength: 1 },
+            limit: { type: 'integer', minimum: 1, maximum: 100 },
+            active: { type: 'boolean' },
+            closed: { type: 'boolean' },
+            fields: strictObjectSchema({
+              question: { type: 'boolean' },
+              outcomes: { type: 'boolean' },
+              active: { type: 'boolean' },
+            }),
+          },
+          ['query'],
+        ),
+        {
+          type: 'object',
+          additionalProperties: {},
+          properties: {
+            query: { type: 'string' },
+            data: {
+              type: 'array',
+              items: {
+                type: 'object',
+                additionalProperties: {},
+                properties: { id: { type: 'string' }, slug: { type: 'string' } },
+                required: ['id', 'slug'],
+              },
+            },
+            pagination: { type: 'object', additionalProperties: {} },
+            metadata: { type: 'object', additionalProperties: {} },
+          },
+          required: ['query', 'data', 'pagination', 'metadata'],
+        },
+      );
+    case 'resolution.search_historical_resolutions':
+      return readOnlyCatalogContract(
+        toolRef,
+        'resolution_tracker',
+        strictObjectSchema({
+          reference_class: { type: 'string' },
+          outcome: { type: 'string' },
+          min_sample_size: { type: 'number', minimum: 1 },
+        }),
+        strictObjectSchema(
+          {
+            matches: {
+              type: 'array',
+              items: strictObjectSchema(
+                {
+                  market_id: { type: 'string' },
+                  question: { type: 'string' },
+                  tags: { type: 'array', items: { type: 'string' } },
+                  resolution: { type: 'string', enum: ['YES', 'NO'] },
+                  resolution_date: { type: 'string' },
+                  reference_class: { type: 'string' },
+                },
+                [
+                  'market_id',
+                  'question',
+                  'tags',
+                  'resolution',
+                  'resolution_date',
+                  'reference_class',
+                ],
+              ),
+            },
+            statistics: strictObjectSchema(
+              {
+                total: { type: 'number' },
+                yes_count: { type: 'number' },
+                no_count: { type: 'number' },
+                base_rate: { anyOf: [{ type: 'number' }, { type: 'null' }] },
+                sample_size_confidence: {
+                  type: 'string',
+                  enum: ['low', 'medium', 'high'],
+                },
+              },
+              ['total', 'yes_count', 'no_count', 'base_rate', 'sample_size_confidence'],
+            ),
+          },
+          ['matches', 'statistics'],
+        ),
+      );
+    case 'fred.search_series':
+      return readOnlyCatalogContract(
+        toolRef,
+        'fred',
+        strictObjectSchema(
+          {
+            search_text: { type: 'string', minLength: 1 },
+            limit: { type: 'integer', minimum: 1, maximum: 1_000 },
+          },
+          ['search_text'],
+        ),
+        strictObjectSchema(
+          {
+            search_text: { type: 'string' },
+            count: { type: 'integer' },
+            series: {
+              type: 'array',
+              items: strictObjectSchema(
+                {
+                  id: { type: 'string' },
+                  title: { type: 'string' },
+                  observation_start: { type: 'string' },
+                  observation_end: { type: 'string' },
+                  frequency_short: { type: 'string' },
+                  units_short: { type: 'string' },
+                },
+                [
+                  'id',
+                  'title',
+                  'observation_start',
+                  'observation_end',
+                  'frequency_short',
+                  'units_short',
+                ],
+              ),
+            },
+          },
+          ['search_text', 'count', 'series'],
+        ),
+      );
+    case 'fred.get_series':
+      return readOnlyCatalogContract(
+        toolRef,
+        'fred',
+        strictObjectSchema(
+          {
+            scope: { type: 'string', enum: ['full', 'latest', 'batch_latest'] },
+            sort_order: { type: 'string', enum: ['asc', 'desc'] },
+            series_id: {
+              type: 'string',
+              minLength: 1,
+              maxLength: 100,
+              pattern: '^[A-Za-z0-9._-]+$',
+            },
+            observation_start: { type: 'string', pattern: '^\\d{4}-\\d{2}-\\d{2}$' },
+            observation_end: { type: 'string', pattern: '^\\d{4}-\\d{2}-\\d{2}$' },
+            limit: { type: 'integer', minimum: 1, maximum: 100_000 },
+          },
+          ['scope'],
+        ),
+        strictObjectSchema(
+          {
+            scope: { type: 'string', enum: ['full', 'latest', 'batch_latest'] },
+            observations: {
+              type: 'array',
+              items: {
+                anyOf: [
+                  strictObjectSchema({ date: { type: 'string' }, value: { type: 'string' } }, [
+                    'date',
+                    'value',
+                  ]),
+                  strictObjectSchema(
+                    {
+                      series_id: { type: 'string' },
+                      date: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+                      value: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+                      status: { type: 'string', enum: ['success', 'failed'] },
+                    },
+                    ['series_id', 'date', 'value', 'status'],
+                  ),
+                ],
+              },
+            },
+          },
+          ['scope'],
+        ),
+      );
+    default:
+      return undefined;
+  }
 }
 
 class FakeSdkClient implements PrefMcpSdkClient {
@@ -179,6 +396,18 @@ class FakeSdkClient implements PrefMcpSdkClient {
           content: [],
         };
       case 'search_tools':
+        {
+          const contract = optionalCatalogContract(argumentsValue['tool_ref']);
+          if (contract) {
+            return {
+              structuredContent: {
+                tools: [contract],
+                _meta: { snapshot_version: 'snapshot-v1' },
+              },
+              content: [],
+            };
+          }
+        }
         if (argumentsValue['tool_ref'] === 'gdelt.context.search_context') {
           return {
             structuredContent: {
@@ -315,7 +544,7 @@ async function connectionFixture(
   overrides: Omit<FakeClientOptions, 'onClose'> = {},
   connectionOverrides: {
     credentialConfigured?: boolean;
-    enableSearchMapping?: boolean;
+    enableCanonicalMapping?: PrefCanonicalCapability;
     maxDiscoveryBytes?: number;
     searchFixedFormat?: string;
     token?: () => string | undefined;
@@ -326,11 +555,19 @@ async function connectionFixture(
   factoryCalls: number;
 }> {
   const capabilityMap = await loadPrefCapabilityMap();
-  if (connectionOverrides.enableSearchMapping) {
-    capabilityMap.mappings[1]!.enabled = true;
+  if (connectionOverrides.enableCanonicalMapping) {
+    const mapping = capabilityMap.mappings.find(
+      ({ canonicalName }) => canonicalName === connectionOverrides.enableCanonicalMapping,
+    );
+    if (!mapping) throw new Error('Missing requested Pref test mapping.');
+    mapping.enabled = true;
   }
   if (connectionOverrides.searchFixedFormat) {
-    capabilityMap.mappings[1]!.fixedArguments['format'] = connectionOverrides.searchFixedFormat;
+    const mapping = capabilityMap.mappings.find(
+      ({ canonicalName }) => canonicalName === 'search_sources',
+    );
+    if (!mapping) throw new Error('Missing Pref source-search test mapping.');
+    mapping.fixedArguments['format'] = connectionOverrides.searchFixedFormat;
   }
   const clients: FakeSdkClient[] = [];
   let factoryCalls = 0;
@@ -397,7 +634,7 @@ describe('Streamable HTTP Pref connection', () => {
         {
           canonicalName: 'search_resolution_history',
           toolRef: 'resolution.search_historical_resolutions',
-          status: 'disabled',
+          status: 'valid',
         },
         {
           canonicalName: 'search_economic_series',
@@ -514,7 +751,7 @@ describe('Streamable HTTP Pref connection', () => {
   });
 
   it('validates the exact GDELT catalog contract with synchronous task support forbidden', async () => {
-    const fixture = await connectionFixture({}, { enableSearchMapping: true });
+    const fixture = await connectionFixture({}, { enableCanonicalMapping: 'search_sources' });
 
     const diagnostics = await fixture.connection.connect();
 
@@ -527,21 +764,68 @@ describe('Streamable HTTP Pref connection', () => {
       fixture.clients[0]?.calls
         .filter((call) => call.name === 'search_tools')
         .map((call) => call.argumentsValue['tool_ref']),
-    ).toEqual(['weather.get_current_conditions', 'gdelt.context.search_context']);
+    ).toEqual([
+      'weather.get_current_conditions',
+      'gdelt.context.search_context',
+      'resolution.search_historical_resolutions',
+    ]);
   });
 
   it('validates fixed arguments against the discovered provider property schema', async () => {
     const valid = await connectionFixture(
       {},
-      { enableSearchMapping: true, searchFixedFormat: 'json' },
+      { enableCanonicalMapping: 'search_sources', searchFixedFormat: 'json' },
     );
     const invalid = await connectionFixture(
       {},
-      { enableSearchMapping: true, searchFixedFormat: 'jsonfeed' },
+      { enableCanonicalMapping: 'search_sources', searchFixedFormat: 'jsonfeed' },
     );
 
     expect((await valid.connection.connect()).mappings[1]).toMatchObject({ status: 'valid' });
     expect((await invalid.connection.connect()).mappings[1]).toMatchObject({ status: 'invalid' });
+  });
+
+  it('accepts the strict Resolution history catalog while its canonical class remains required', async () => {
+    const fixture = await connectionFixture(
+      {},
+      { enableCanonicalMapping: 'search_resolution_history' },
+    );
+
+    const mapping = (await fixture.connection.connect()).mappings.find(
+      ({ canonicalName }) => canonicalName === 'search_resolution_history',
+    );
+
+    expect(mapping).toMatchObject({
+      toolRef: 'resolution.search_historical_resolutions',
+      status: 'valid',
+    });
+  });
+
+  it.each([
+    ['search_economic_series', 'fred.search_series'],
+    ['read_economic_series', 'fred.get_series'],
+  ] as const)('accepts the strict %s FRED catalog contract', async (canonicalName, toolRef) => {
+    const fixture = await connectionFixture({}, { enableCanonicalMapping: canonicalName });
+
+    const mapping = (await fixture.connection.connect()).mappings.find(
+      (candidate) => candidate.canonicalName === canonicalName,
+    );
+
+    expect(mapping).toMatchObject({ toolRef, status: 'valid' });
+  });
+
+  it('rejects the open Polymarket output contract even when the mapping is requested', async () => {
+    const fixture = await connectionFixture({}, { enableCanonicalMapping: 'search_markets' });
+
+    const mapping = (await fixture.connection.connect()).mappings.find(
+      ({ canonicalName }) => canonicalName === 'search_markets',
+    );
+
+    expect(mapping).toMatchObject({
+      toolRef: 'polymarket.discovery.search_markets',
+      status: 'invalid',
+      message: 'The discovered Pref contract does not match the approved mapping.',
+    });
   });
 
   it.each([

@@ -220,8 +220,73 @@ export const PrefLocalConditionsEvidenceSchema = z.strictObject({
   pressureHpa: z.number().finite().nullable(),
 });
 
+export const PrefArticleMatchEvidenceSchema = z.strictObject({
+  kind: z.literal('article_match'),
+  sourceId: EntityIdSchema,
+  matchedSentence: z.string().trim().min(1).max(1_000),
+  publishedAt: DateTimeSchema.nullable(),
+});
+
+export const PrefMarketSummaryEvidenceSchema = z.strictObject({
+  kind: z.literal('market_summary'),
+  sourceId: EntityIdSchema,
+  provider: z.string().trim().min(1).max(256),
+  marketId: z.string().trim().min(1).max(500),
+  slug: z.string().trim().min(1).max(500),
+  question: z.string().trim().min(1).max(1_000).nullable(),
+  outcomes: z.array(z.string().trim().min(1).max(256)).max(20),
+  active: z.boolean().nullable(),
+  closed: z.boolean().nullable(),
+});
+
+export const PrefResolutionHistoryEvidenceSchema = z.strictObject({
+  kind: z.literal('resolution_history'),
+  sourceIds: z.array(EntityIdSchema).max(50),
+  referenceClass: z.string().trim().min(1).max(256),
+  total: z.number().int().nonnegative(),
+  yesCount: z.number().int().nonnegative(),
+  noCount: z.number().int().nonnegative(),
+  baseRate: z.number().min(0).max(1).nullable(),
+  sampleSizeConfidence: z.enum(['low', 'medium', 'high']),
+});
+
+export const PrefEconomicSeriesSearchEvidenceSchema = z.strictObject({
+  kind: z.literal('economic_series_search'),
+  sourceId: EntityIdSchema,
+  seriesId: z.string().trim().min(1).max(100),
+  title: z.string().trim().min(1).max(1_000),
+  frequency: z.string().trim().min(1).max(256),
+  units: z.string().trim().min(1).max(256),
+  observationStart: z.string().regex(/^\d{4}-\d{2}-\d{2}$/u),
+  observationEnd: z.string().regex(/^\d{4}-\d{2}-\d{2}$/u),
+});
+
+export const PrefEconomicSeriesEvidenceSchema = z.strictObject({
+  kind: z.literal('economic_series'),
+  sourceId: EntityIdSchema,
+  seriesId: z.string().trim().min(1).max(100),
+  title: z.string().trim().min(1).max(1_000),
+  frequency: z.string().trim().min(1).max(256),
+  units: z.string().trim().min(1).max(256),
+  observationStart: z.string().regex(/^\d{4}-\d{2}-\d{2}$/u),
+  observationEnd: z.string().regex(/^\d{4}-\d{2}-\d{2}$/u),
+  observations: z
+    .array(
+      z.strictObject({
+        observedAt: DateTimeSchema,
+        value: z.number().finite().nullable(),
+      }),
+    )
+    .max(500),
+});
+
 export const PrefCanonicalEvidenceSchema = z.discriminatedUnion('kind', [
   PrefLocalConditionsEvidenceSchema,
+  PrefArticleMatchEvidenceSchema,
+  PrefMarketSummaryEvidenceSchema,
+  PrefResolutionHistoryEvidenceSchema,
+  PrefEconomicSeriesSearchEvidenceSchema,
+  PrefEconomicSeriesEvidenceSchema,
 ]);
 
 export interface PrefCacheInfo {
@@ -231,6 +296,13 @@ export interface PrefCacheInfo {
 }
 
 export type PrefLocalConditionsEvidence = z.infer<typeof PrefLocalConditionsEvidenceSchema>;
+export type PrefArticleMatchEvidence = z.infer<typeof PrefArticleMatchEvidenceSchema>;
+export type PrefMarketSummaryEvidence = z.infer<typeof PrefMarketSummaryEvidenceSchema>;
+export type PrefResolutionHistoryEvidence = z.infer<typeof PrefResolutionHistoryEvidenceSchema>;
+export type PrefEconomicSeriesSearchEvidence = z.infer<
+  typeof PrefEconomicSeriesSearchEvidenceSchema
+>;
+export type PrefEconomicSeriesEvidence = z.infer<typeof PrefEconomicSeriesEvidenceSchema>;
 export type PrefCanonicalEvidence = z.infer<typeof PrefCanonicalEvidenceSchema>;
 
 export interface PrefCapabilityResult {
