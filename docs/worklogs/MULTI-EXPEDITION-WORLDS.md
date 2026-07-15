@@ -24,6 +24,10 @@ In progress.
 - `1dfc3df` committed the process-wide external-call boundary. The current Lobby milestone adds a
   1440 x 900 world shelf, stable expedition deep links, explicit shell teardown on return, scoped
   runtime diagnostics, and expedition-namespaced evidence and travel preferences.
+- `64c11f7` committed the Lobby and switching boundary. The current Pref policy milestone makes
+  synchronous execution explicit in capability-map v3, treats `task_support: forbidden` and
+  `optional` as compatible, rejects task-required or ambiguous contracts, and gives each fake
+  catalog lookup an exact provider-specific response before any second live mapping is enabled.
 - Focused validation after the first two commits: contracts 18/18, simulation 34/34, codex-runtime
   25/25, game-scene 13/13, archive 4/4, web 19/19, orchestrator 95/95, and repository lint with zero
   warnings. Persistence milestone validation currently passes contracts 19/19, world-content 2/2,
@@ -32,7 +36,8 @@ In progress.
   zero warnings. Shared-gate focused validation passes three admission, cancellation, and overload
   tests; the complete orchestrator suite currently passes 105/105. Lobby validation currently
   passes web 25/25 and two focused Playwright flows including WCAG serious/critical scanning and a
-  new 1440 x 900 baseline.
+  new 1440 x 900 baseline. Pref policy validation currently passes typecheck and 43/43 gateway
+  tests, including both synchronous-compatible task policies and fail-closed task-policy drift.
 
 ## Goal
 

@@ -7,11 +7,11 @@ import {
 } from '../src/index.js';
 
 describe('Pref capability map', () => {
-  it('loads the provider-neutral v2 registry with approved and policy-blocked mappings', async () => {
+  it('loads the provider-neutral v3 registry with explicit synchronous execution policy', async () => {
     const map = await loadPrefCapabilityMap();
 
     expect(map).toMatchObject({
-      version: 2,
+      version: 3,
       server: {
         name: 'pref',
         transport: 'streamable_http',
@@ -30,6 +30,7 @@ describe('Pref capability map', () => {
           enabled: true,
           toolRef: 'weather.get_current_conditions',
           providerServer: 'weather_toolkit',
+          executionMode: 'synchronous',
         },
         {
           mappingId: 'gdelt-context-articles-v1',
@@ -37,6 +38,7 @@ describe('Pref capability map', () => {
           enabled: false,
           toolRef: 'gdelt.context.search_context',
           providerServer: 'gdelt_context',
+          executionMode: 'synchronous',
           responseAdapter: 'article_search_v1',
         },
       ],

@@ -49,7 +49,7 @@ export const PrefInputTransformSchema = z.enum(['identity', 'iso_to_gdelt_dateti
 
 export const PrefInputProjectionSchema = z.strictObject({
   selector: PrefInputProjectionSelectorSchema,
-  required: z.boolean(),
+  requiredFromCanonical: z.boolean(),
   transform: PrefInputTransformSchema.default('identity'),
 });
 
@@ -60,6 +60,7 @@ export const PrefCapabilityMappingSchema = z.strictObject({
   priority: z.number().int().min(0).max(1_000),
   toolRef: ToolRefSchema,
   providerServer: SafeNameSchema,
+  executionMode: z.literal('synchronous'),
   inputProjection: z.record(SafeNameSchema, PrefInputProjectionSchema),
   expectedInput: z.record(SafeNameSchema, z.enum(['string', 'number', 'boolean'])),
   responseAdapter: z.enum(['local_conditions_v1', 'article_search_v1']),
@@ -70,13 +71,12 @@ export const PrefCapabilityMappingSchema = z.strictObject({
   }),
   requiredSecurityHints: z.strictObject({
     sideEffect: z.literal('read_only'),
-    taskSupport: z.enum(['optional', 'required']),
   }),
 });
 
 export const PrefCapabilityMapSchema = z
   .strictObject({
-    version: z.literal(2),
+    version: z.literal(3),
     server: z.strictObject({
       name: SafeNameSchema,
       transport: z.literal('streamable_http'),
@@ -255,7 +255,7 @@ export function projectPrefCapabilityInput(
     Object.entries(mapping.inputProjection).flatMap(([argumentName, projection]) => {
       const selected = projectedValue(projection.selector, input);
       if (selected === undefined) {
-        if (projection.required) {
+        if (projection.requiredFromCanonical) {
           throw new Error(`Missing required canonical Pref field ${projection.selector}.`);
         }
         return [];

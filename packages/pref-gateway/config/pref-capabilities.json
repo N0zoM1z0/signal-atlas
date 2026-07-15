@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "version": 3,
   "server": {
     "name": "pref",
     "transport": "streamable_http",
@@ -23,10 +23,11 @@
       "priority": 100,
       "toolRef": "weather.get_current_conditions",
       "providerServer": "weather_toolkit",
+      "executionMode": "synchronous",
       "inputProjection": {
         "location": {
           "selector": "location.query",
-          "required": true,
+          "requiredFromCanonical": true,
           "transform": "identity"
         }
       },
@@ -40,8 +41,7 @@
         "idempotentHint": true
       },
       "requiredSecurityHints": {
-        "sideEffect": "read_only",
-        "taskSupport": "optional"
+        "sideEffect": "read_only"
       }
     },
     {
@@ -51,25 +51,26 @@
       "priority": 100,
       "toolRef": "gdelt.context.search_context",
       "providerServer": "gdelt_context",
+      "executionMode": "synchronous",
       "inputProjection": {
         "query": {
           "selector": "query",
-          "required": true,
+          "requiredFromCanonical": true,
           "transform": "identity"
         },
         "maxrecords": {
           "selector": "limit",
-          "required": false,
+          "requiredFromCanonical": false,
           "transform": "identity"
         },
         "startdatetime": {
           "selector": "since",
-          "required": false,
+          "requiredFromCanonical": false,
           "transform": "iso_to_gdelt_datetime"
         },
         "enddatetime": {
           "selector": "until",
-          "required": false,
+          "requiredFromCanonical": false,
           "transform": "iso_to_gdelt_datetime"
         }
       },
@@ -86,8 +87,7 @@
         "idempotentHint": true
       },
       "requiredSecurityHints": {
-        "sideEffect": "read_only",
-        "taskSupport": "optional"
+        "sideEffect": "read_only"
       }
     }
   ]

@@ -17,6 +17,7 @@ interface FakeClientOptions {
   failConnect?: boolean;
   driftMapping?: boolean;
   securityTaskSupport?: string;
+  omitSecurityTaskSupport?: boolean;
   extraRequiredArgument?: boolean;
   oversized?: boolean;
   nativePrimitives?: boolean;
@@ -177,6 +178,71 @@ class FakeSdkClient implements PrefMcpSdkClient {
           content: [],
         };
       case 'search_tools':
+        if (argumentsValue['tool_ref'] === 'gdelt.context.search_context') {
+          return {
+            structuredContent: {
+              tools: [
+                {
+                  tool_ref: 'gdelt.context.search_context',
+                  server_name: this.#options.driftMapping ? 'unexpected_server' : 'gdelt_context',
+                  input_schema: {
+                    type: 'object',
+                    additionalProperties: false,
+                    properties: {
+                      query: { type: 'string' },
+                      maxrecords: { type: 'number' },
+                      startdatetime: { type: 'string' },
+                      enddatetime: { type: 'string' },
+                      format: { type: 'string' },
+                      searchlang: { type: 'string' },
+                      sort: { type: 'string' },
+                      timespan: { type: 'string' },
+                      isquote: { type: 'number' },
+                    },
+                    required: ['query'],
+                  },
+                  annotations: {
+                    readOnlyHint: true,
+                    destructiveHint: false,
+                    idempotentHint: true,
+                  },
+                  security_hints: {
+                    side_effect: 'read_only',
+                    ...(this.#options.omitSecurityTaskSupport
+                      ? {}
+                      : {
+                          task_support: this.#options.securityTaskSupport ?? 'forbidden',
+                        }),
+                  },
+                  output_schema: {
+                    type: 'object',
+                    additionalProperties: false,
+                    properties: {
+                      articles: {
+                        type: 'array',
+                        items: {
+                          type: 'object',
+                          additionalProperties: false,
+                          properties: {
+                            url: { type: 'string' },
+                            title: { type: 'string' },
+                            domain: { type: 'string' },
+                            seendate: { type: 'string' },
+                            sentence: { type: 'string' },
+                            context: { type: 'string' },
+                          },
+                          required: ['url', 'title', 'domain', 'seendate', 'sentence', 'context'],
+                        },
+                      },
+                    },
+                  },
+                },
+              ],
+              _meta: { snapshot_version: 'snapshot-v1' },
+            },
+            content: [],
+          };
+        }
         return {
           structuredContent: {
             tools: [
@@ -204,7 +270,9 @@ class FakeSdkClient implements PrefMcpSdkClient {
                 },
                 security_hints: {
                   side_effect: 'read_only',
-                  task_support: this.#options.securityTaskSupport ?? 'optional',
+                  ...(this.#options.omitSecurityTaskSupport
+                    ? {}
+                    : { task_support: this.#options.securityTaskSupport ?? 'optional' }),
                 },
                 output_schema: {
                   type: 'object',
@@ -246,6 +314,7 @@ async function connectionFixture(
   overrides: Omit<FakeClientOptions, 'onClose'> = {},
   connectionOverrides: {
     credentialConfigured?: boolean;
+    enableSearchMapping?: boolean;
     maxDiscoveryBytes?: number;
     token?: () => string | undefined;
   } = {},
@@ -255,6 +324,9 @@ async function connectionFixture(
   factoryCalls: number;
 }> {
   const capabilityMap = await loadPrefCapabilityMap();
+  if (connectionOverrides.enableSearchMapping) {
+    capabilityMap.mappings[1]!.enabled = true;
+  }
   const clients: FakeSdkClient[] = [];
   let factoryCalls = 0;
   const factory: PrefMcpSdkClientFactory = ({ onClose, credentialProvider }) => {
@@ -394,8 +466,43 @@ describe('Streamable HTTP Pref connection', () => {
     ).rejects.toMatchObject({ code: 'pref_tool_denied' });
   });
 
+  it.each(['forbidden', 'optional'] as const)(
+    'accepts task_support=%s for a synchronous read-only mapping',
+    async (securityTaskSupport) => {
+      const fixture = await connectionFixture({ securityTaskSupport });
+
+      const diagnostics = await fixture.connection.connect();
+
+      expect(diagnostics.mappings[0]).toMatchObject({ status: 'valid' });
+      await expect(
+        fixture.connection.callProviderTool('weather.get_current_conditions', {
+          location: 'Galehaven',
+        }),
+      ).resolves.toMatchObject({ structuredContent: { temperature_c: 17 } });
+    },
+  );
+
+  it('validates the exact GDELT catalog contract with synchronous task support forbidden', async () => {
+    const fixture = await connectionFixture({}, { enableSearchMapping: true });
+
+    const diagnostics = await fixture.connection.connect();
+
+    expect(diagnostics.mappings[1]).toMatchObject({
+      canonicalName: 'search_sources',
+      toolRef: 'gdelt.context.search_context',
+      status: 'valid',
+    });
+    expect(
+      fixture.clients[0]?.calls
+        .filter((call) => call.name === 'search_tools')
+        .map((call) => call.argumentsValue['tool_ref']),
+    ).toEqual(['weather.get_current_conditions', 'gdelt.context.search_context']);
+  });
+
   it.each([
-    ['provider task policy', { securityTaskSupport: 'forbidden' }],
+    ['task-required transport', { securityTaskSupport: 'required' }],
+    ['unknown task policy', { securityTaskSupport: 'unknown' }],
+    ['missing task policy', { omitSecurityTaskSupport: true }],
     ['unmapped required argument', { extraRequiredArgument: true }],
   ] as const)('rejects a mapping with %s drift', async (_label, overrides) => {
     const fixture = await connectionFixture(overrides);

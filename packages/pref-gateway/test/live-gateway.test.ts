@@ -391,14 +391,15 @@ describe('LivePrefGateway', () => {
     expect(JSON.stringify(result.sources[0])).not.toContain('Untrusted provider context');
   });
 
-  it('keeps the inspected search mapping disabled while provider task support is forbidden', async () => {
+  it('keeps the inspected search mapping disabled until the bounded live acceptance gate passes', async () => {
     const map = loadPrefCapabilityMapSync();
     const searchMapping = map.mappings.find(
       (mapping) => mapping.canonicalName === 'search_sources',
     );
     expect(searchMapping).toMatchObject({
       enabled: false,
-      requiredSecurityHints: { taskSupport: 'optional' },
+      executionMode: 'synchronous',
+      requiredSecurityHints: { sideEffect: 'read_only' },
     });
     const pref = gateway(new FakeConnection([]));
     await expect(

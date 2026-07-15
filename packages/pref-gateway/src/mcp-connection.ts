@@ -991,7 +991,7 @@ function mappingMatchesContract(
       !property ||
       !projection ||
       property['type'] !== expectedType ||
-      (projection.required && !required.includes(argumentName))
+      (projection.requiredFromCanonical && !required.includes(argumentName))
     ) {
       return false;
     }
@@ -999,7 +999,7 @@ function mappingMatchesContract(
   if (
     required.some(
       (argumentName) =>
-        !mapping.inputProjection[argumentName]?.required ||
+        !mapping.inputProjection[argumentName]?.requiredFromCanonical ||
         mapping.expectedInput[argumentName] === undefined,
     )
   ) {
@@ -1013,9 +1013,19 @@ function mappingMatchesContract(
   const securityHints = recordValue(contract['security_hints']);
   return (
     securityHints?.['side_effect'] === mapping.requiredSecurityHints.sideEffect &&
-    securityHints['task_support'] === mapping.requiredSecurityHints.taskSupport &&
+    taskSupportMatchesExecutionMode(mapping, securityHints['task_support']) &&
     responseAdapterMatchesContract(mapping, contract)
   );
+}
+
+function taskSupportMatchesExecutionMode(
+  mapping: PrefCapabilityMapping,
+  taskSupport: unknown,
+): boolean {
+  switch (mapping.executionMode) {
+    case 'synchronous':
+      return taskSupport === 'forbidden' || taskSupport === 'optional';
+  }
 }
 
 function responseAdapterMatchesContract(
