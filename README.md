@@ -112,6 +112,8 @@ Fixture resolution is deliberately not a general outcome command. `POST /api/exp
 
 The world shell receives committed event notifications from `GET /api/expeditions/:id/stream?after=N` over WebSocket. Every envelope is versioned, bounded to 100 events, and requires contiguous expedition-owned sequences. The browser advances its reconnect cursor only after the envelope validates and a fresh authoritative snapshot covers that batch; stream data never mutates the projection directly. Temporary transport loss uses bounded backoff from the last validated sequence. A malformed envelope keeps the last valid projection visible and names the event-stream schema boundary.
 
+Browser access is restricted to the fixed local web origins served on port `4173`; a foreign `Origin` cannot open the expedition stream or submit a state-changing API request to the localhost orchestrator. Origin-less requests remain available to explicit native/CLI clients. Stream notifications omit private forecast memos even though the authoritative local snapshot retains them for the player.
+
 Connection failures remain distinct in the UI and diagnostics:
 
 - **Orchestrator offline** means the local API/snapshot boundary is unavailable.

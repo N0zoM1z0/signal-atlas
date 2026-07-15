@@ -96,6 +96,58 @@ describe('orchestrator health endpoint', () => {
     expect(reconnected.body).not.toMatch(/authorization|bearer|api[_-]?key|token/iu);
   });
 
+  it('rejects foreign browser mutation origins without changing local state', async () => {
+    const app = buildApp();
+    openApps.push(app);
+
+    const disconnected = await app.inject({
+      method: 'POST',
+      url: '/api/runtime/pref/disconnect',
+      headers: { origin: 'https://attacker.example' },
+    });
+    const resolved = await app.inject({
+      method: 'POST',
+      url: '/api/expeditions/exp-helios3-demo/resolve-fixture',
+      headers: { origin: 'https://attacker.example' },
+      payload: {},
+    });
+    const crossSiteWithoutOrigin = await app.inject({
+      method: 'POST',
+      url: '/api/runtime/pref/disconnect',
+      headers: { 'sec-fetch-site': 'cross-site' },
+    });
+
+    expect(disconnected.statusCode).toBe(403);
+    expect(resolved.statusCode).toBe(403);
+    expect(crossSiteWithoutOrigin.statusCode).toBe(403);
+    expect((await app.inject({ method: 'GET', url: '/api/runtime/pref' })).json()).toMatchObject({
+      state: 'connected',
+    });
+    expect(
+      (
+        await app.inject({
+          method: 'GET',
+          url: '/api/expeditions/exp-helios3-demo/snapshot',
+        })
+      ).json(),
+    ).toMatchObject({ projection: { market: { status: 'open' } } });
+  });
+
+  it('accepts the fixed local web origin and origin-less native clients', async () => {
+    const app = buildApp();
+    openApps.push(app);
+
+    const localBrowser = await app.inject({
+      method: 'POST',
+      url: '/api/runtime/pref/disconnect',
+      headers: { origin: 'http://127.0.0.1:4173' },
+    });
+    const nativeClient = await app.inject({ method: 'POST', url: '/api/runtime/pref/test' });
+
+    expect(localBrowser.statusCode).toBe(200);
+    expect(nativeClient.statusCode).toBe(200);
+  });
+
   it('selects the visible scripted fallback when local Codex is absent', async () => {
     const previousMode = process.env['SIGNAL_ATLAS_CODEX_MODE'];
     const previousExecutable = process.env['SIGNAL_ATLAS_CODEX_EXECUTABLE'];

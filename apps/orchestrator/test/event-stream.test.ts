@@ -25,6 +25,35 @@ function pauseCommand(index: number) {
   };
 }
 
+function privateForecastCommand() {
+  return {
+    id: 'cmd-stream-private-forecast',
+    idempotencyKey: 'stream:private:forecast',
+    expeditionId: 'exp-helios3-demo',
+    issuedAt: '2027-09-26T18:38:00Z',
+    actor: { kind: 'player' as const },
+    schemaVersion: 1 as const,
+    type: 'forecast.commit' as const,
+    payload: {
+      commit: {
+        id: 'forecast-stream-private',
+        expeditionId: 'exp-helios3-demo',
+        actor: { kind: 'player' as const },
+        previousProbabilities: { yes: 0.55, no: 0.45 },
+        newProbabilities: { yes: 0.55, no: 0.45 },
+        rationale: 'A public rationale remains available to the event choreography.',
+        evidenceSignalIds: [],
+        assumptions: ['No new source was added.'],
+        createdAt: '2027-09-26T18:38:00Z',
+        commitType: 'hold' as const,
+        publicNote: 'Public stream note.',
+        privateMemo: 'private-stream-sentinel-must-not-leave-local-authority',
+        scoringEligible: true,
+      },
+    },
+  };
+}
+
 function collectMessages(messages: EventStreamEnvelope[]): InjectWebSocketOptions {
   return {
     onInit(socket) {
@@ -128,5 +157,51 @@ describe('expedition event stream', () => {
       code: 'unsupported_client_message',
     });
     clientMessageSocket.terminate();
+  });
+
+  it('rejects foreign browser origins before streaming any local event', async () => {
+    const app = buildApp();
+    openApps.push(app);
+    await app.ready();
+    const messages: EventStreamEnvelope[] = [];
+
+    const socket = await app.injectWS(
+      '/api/expeditions/exp-helios3-demo/stream?after=0',
+      { headers: { origin: 'https://attacker.example' } },
+      collectMessages(messages),
+    );
+    await vi.waitFor(() => expect(socket.readyState).toBeGreaterThanOrEqual(2));
+
+    expect(messages).toEqual([]);
+  });
+
+  it('strips private forecast memos from same-origin browser stream events', async () => {
+    const runtime = new ExpeditionRuntime(createHelios3ExpeditionFixture());
+    const app = buildApp({ runtime });
+    openApps.push(app);
+    await app.ready();
+    const accepted = runtime.submit(privateForecastCommand());
+    expect(accepted).toMatchObject({ accepted: true, sequence: 3 });
+    const messages: EventStreamEnvelope[] = [];
+
+    const socket = await app.injectWS(
+      '/api/expeditions/exp-helios3-demo/stream?after=2',
+      { headers: { origin: 'http://127.0.0.1:4173' } },
+      collectMessages(messages),
+    );
+    await vi.waitFor(() => expect(messages).toHaveLength(2));
+    const eventEnvelope = messages[0];
+    if (eventEnvelope?.type !== 'world.events') {
+      throw new Error('Expected the private forecast catch-up batch.');
+    }
+    const forecastEvent = eventEnvelope.events[0];
+    expect(forecastEvent).toMatchObject({
+      type: 'forecast.committed',
+      payload: { publicNote: 'Public stream note.' },
+    });
+    expect(JSON.stringify(eventEnvelope)).not.toContain(
+      'private-stream-sentinel-must-not-leave-local-authority',
+    );
+    socket.close();
   });
 });

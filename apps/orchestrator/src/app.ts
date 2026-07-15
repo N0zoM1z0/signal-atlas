@@ -62,6 +62,22 @@ interface FixtureScenarioBody {
   missionScenario?: unknown;
 }
 
+const allowedBrowserOrigins = new Set([
+  'http://127.0.0.1:4173',
+  'http://localhost:4173',
+  'http://[::1]:4173',
+]);
+
+function hasRejectedBrowserOrigin(origin: string | undefined): boolean {
+  return origin !== undefined && !allowedBrowserOrigins.has(origin);
+}
+
+function publicStreamEvent(event: WorldEvent): WorldEvent {
+  const cloned = structuredClone(event);
+  if (cloned.type === 'forecast.committed') delete cloned.payload.privateMemo;
+  return cloned;
+}
+
 function statusForRejectedCommand(issues: readonly { code: string }[]): number {
   return issues.some((issue) => issue.code === 'idempotency_conflict') ? 409 : 422;
 }
@@ -73,6 +89,13 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   });
   const prefRuntime = options.prefRuntime ?? createConfiguredPrefRuntime();
   app.register(websocket, { options: { maxPayload: 1_024 } });
+  app.addHook('onRequest', async (request, reply) => {
+    if (!['DELETE', 'PATCH', 'POST', 'PUT'].includes(request.method)) return;
+    const origin = request.headers.origin;
+    const crossSite = request.headers['sec-fetch-site'] === 'cross-site';
+    if (!hasRejectedBrowserOrigin(origin) && !crossSite) return;
+    return reply.code(403).send({ error: 'browser_origin_not_allowed' });
+  });
   const runtime =
     options.runtime ??
     (() => {
@@ -155,6 +178,10 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
       '/api/expeditions/:id/stream',
       { websocket: true },
       (socket, request) => {
+        if (hasRejectedBrowserOrigin(request.headers.origin)) {
+          socket.close(1008, 'browser_origin_not_allowed');
+          return;
+        }
         let cursor = Number(request.query.after ?? 0);
         let unsubscribe: () => void = () => undefined;
         const send = (envelope: EventStreamEnvelope) => {
@@ -223,7 +250,7 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
               expeditionId: runtime.expeditionId,
               afterSequence: cursor,
               sequence: last.sequence,
-              events: structuredClone(chunk),
+              events: chunk.map(publicStreamEvent),
             });
             cursor = last.sequence;
           }

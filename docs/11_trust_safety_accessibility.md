@@ -81,6 +81,8 @@ Recommended controls:
 - explicit user approval to add a new MCP server;
 - visible connection status and last successful call.
 
+The local orchestrator additionally rejects state-changing browser requests and WebSocket upgrades from any origin outside the fixed loopback shell allow-list. This protects localhost state from cross-site forms/fetches and protects the event stream from cross-site WebSocket reads; the decision is not derived from the mutable `Host` header. Explicit native and CLI clients may omit `Origin`. Public stream copies remove forecast private memos before serialization.
+
 ## 11.6 Codex runtime isolation
 
 Use a separate runtime profile for game agents.
