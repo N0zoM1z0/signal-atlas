@@ -1,6 +1,7 @@
 import {
   parseWorldEvent,
   type MissionVerb,
+  type ScenarioMetadata,
   type WorldCommand,
   type WorldEvent,
 } from '@signal-atlas/contracts';
@@ -39,10 +40,28 @@ export interface FixtureConfiguration {
 
 export interface ExpeditionListItem {
   id: string;
+  scenarioId: string;
+  scenarioVersion: number;
+  definitionHash: string;
   latestSequence: number;
   marketQuestion: string;
-  status: string;
+  status: 'setup' | 'active' | 'paused' | 'resolved' | 'archived';
   title: string;
+  createdAt: string;
+}
+
+export type ScenarioListItem = ScenarioMetadata & {
+  authoredExpeditionId: string;
+  definitionHash: string;
+  definitionSchemaVersion: number;
+  available: boolean;
+  availabilityReason: string;
+};
+
+export interface CreateExpeditionResponse {
+  created: boolean;
+  duplicate: boolean;
+  expedition: ExpeditionListItem;
 }
 
 interface CommandResponse {
@@ -116,6 +135,15 @@ export interface WorkspaceRuntimeDiagnostics {
 export interface SignalAtlasRuntimeDiagnostics extends CodexRuntimeDiagnostics {
   professor: ProfessorRuntimeDiagnostics;
   workspace: WorkspaceRuntimeDiagnostics;
+  registry: { runtimeCount: number };
+  globalExternalCalls: {
+    maxConcurrency: number;
+    maxQueued: number;
+    activeCount: number;
+    queuedCount: number;
+    admittedCount: number;
+    rejectedCount: number;
+  };
 }
 
 const requestTimeoutMs = 10_000;
@@ -136,8 +164,14 @@ async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
     });
     const payload: unknown = await response.json();
     if (!response.ok) {
-      const rejected = payload as Partial<RejectedCommandResponse> & { error?: string };
-      const detail = rejected.issues?.map((issue) => issue.message).join(' ') ?? rejected.error;
+      const rejected = payload as Partial<RejectedCommandResponse> & {
+        error?: string;
+        message?: string;
+      };
+      const detail =
+        rejected.issues?.map((issue) => issue.message).join(' ') ??
+        rejected.message ??
+        rejected.error;
       throw new Error(detail ?? `Orchestrator request failed with status ${response.status}.`);
     }
     return payload as T;
@@ -167,6 +201,34 @@ export async function fetchExpeditions(): Promise<ExpeditionListItem[]> {
   return response.expeditions;
 }
 
+export async function fetchScenarios(): Promise<ScenarioListItem[]> {
+  const response = await requestJson<{ scenarios: ScenarioListItem[] }>('/api/scenarios');
+  if (!Array.isArray(response.scenarios)) {
+    throw new Error('The orchestrator returned an invalid scenario list.');
+  }
+  return response.scenarios;
+}
+
+export async function createExpedition(
+  scenarioId: string,
+  scenarioVersion: number,
+  idempotencyKey: string,
+): Promise<CreateExpeditionResponse> {
+  const response = await requestJson<CreateExpeditionResponse>('/api/expeditions', {
+    method: 'POST',
+    body: JSON.stringify({ scenarioId, scenarioVersion, idempotencyKey }),
+  });
+  if (
+    typeof response.created !== 'boolean' ||
+    typeof response.duplicate !== 'boolean' ||
+    !response.expedition ||
+    typeof response.expedition.id !== 'string'
+  ) {
+    throw new Error('The orchestrator returned an invalid expedition creation receipt.');
+  }
+  return response;
+}
+
 export async function fetchExpeditionSnapshot(expeditionId: string): Promise<WorldProjection> {
   const response = await requestJson<{ projection: unknown }>(
     `/api/expeditions/${expeditionId}/snapshot`,
@@ -183,8 +245,11 @@ export async function fetchExpeditionSnapshot(expeditionId: string): Promise<Wor
   return projection;
 }
 
-export async function fetchRuntimeDiagnostics(): Promise<SignalAtlasRuntimeDiagnostics> {
-  return requestJson<SignalAtlasRuntimeDiagnostics>('/api/runtime/diagnostics');
+export async function fetchRuntimeDiagnostics(
+  expeditionId?: string,
+): Promise<SignalAtlasRuntimeDiagnostics> {
+  const query = expeditionId ? `?expeditionId=${encodeURIComponent(expeditionId)}` : '';
+  return requestJson<SignalAtlasRuntimeDiagnostics>(`/api/runtime/diagnostics${query}`);
 }
 
 export async function fetchPrefDiagnostics(): Promise<PrefMcpConnectionDiagnostics> {

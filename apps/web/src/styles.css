@@ -27,6 +27,474 @@ body {
   margin: 0;
 }
 
+.atlas-bootstrap-boundary {
+  display: grid;
+  min-height: 100dvh;
+  align-content: center;
+  justify-items: center;
+  gap: var(--sa-spacing-3);
+  padding: var(--sa-spacing-6);
+  color: var(--sa-color-paper-light);
+  background: var(--sa-color-atlas-night);
+  text-align: center;
+}
+
+.atlas-bootstrap-boundary strong {
+  font-family: var(--sa-typography-display-family);
+  font-size: var(--sa-typography-size-2xl);
+}
+
+.atlas-bootstrap-boundary span {
+  color: var(--sa-color-muted-steel);
+}
+
+/* Expedition Lobby */
+
+.atlas-lobby {
+  min-height: 100dvh;
+  padding: var(--sa-spacing-4) clamp(var(--sa-spacing-4), 5vw, var(--sa-spacing-12));
+  color: var(--sa-color-paper-light);
+  background: var(--sa-color-atlas-night);
+}
+
+.atlas-lobby button {
+  min-height: var(--sa-size-min-touch-target);
+  border-radius: var(--sa-radius-small);
+  color: inherit;
+  cursor: pointer;
+}
+
+.atlas-lobby button:focus-visible,
+.atlas-lobby [tabindex]:focus-visible {
+  outline: var(--sa-border-pixel) solid var(--sa-color-focus);
+  outline-offset: var(--sa-border-pixel);
+  box-shadow: var(--sa-shadow-focus);
+}
+
+.atlas-lobby button:disabled {
+  cursor: not-allowed;
+  opacity: 0.52;
+}
+
+.atlas-lobby__header,
+.atlas-lobby__catalog,
+.atlas-lobby__error,
+.atlas-lobby__footer {
+  width: min(86rem, 100%);
+  margin-inline: auto;
+}
+
+.atlas-lobby__header {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(18rem, 0.85fr);
+  gap: var(--sa-spacing-5) var(--sa-spacing-10);
+  padding: var(--sa-spacing-4);
+  border: var(--sa-border-pixel) solid var(--sa-color-harbor-blue);
+  border-radius: var(--sa-radius-large);
+  background: var(--sa-color-deep-ink);
+  box-shadow: var(--sa-shadow-panel);
+}
+
+.atlas-lobby__identity {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--sa-spacing-5);
+}
+
+.atlas-lobby__identity .atlas-brand__mark {
+  width: 3rem;
+  height: 3rem;
+}
+
+.atlas-lobby__identity h1 {
+  margin: var(--sa-spacing-2) 0 0;
+  font-family: var(--sa-typography-display-family);
+  font-size: clamp(var(--sa-typography-size-2xl), 4vw, var(--sa-typography-size-3xl));
+  letter-spacing: -0.04em;
+  line-height: var(--sa-typography-line-height-tight);
+}
+
+.atlas-lobby__header > p {
+  align-self: center;
+  margin: 0;
+  color: var(--sa-color-muted-steel);
+  font-size: var(--sa-typography-size-sm);
+  line-height: var(--sa-typography-line-height-relaxed);
+}
+
+.atlas-lobby__summary {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 0;
+  border-top: var(--sa-border-hairline) solid var(--sa-color-slate-cloud);
+}
+
+.atlas-lobby__summary div {
+  display: grid;
+  gap: var(--sa-spacing-1);
+  padding: var(--sa-spacing-3) var(--sa-spacing-4) 0;
+  border-left: var(--sa-border-hairline) solid var(--sa-color-slate-cloud);
+}
+
+.atlas-lobby__summary div:first-child {
+  border-left: 0;
+}
+
+.atlas-lobby__summary dt,
+.atlas-expedition-card__saved dt {
+  color: var(--sa-color-muted-steel);
+  font-family: var(--sa-typography-mono-family);
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.atlas-lobby__summary dd,
+.atlas-expedition-card__saved dd {
+  margin: 0;
+}
+
+.atlas-lobby__summary dd {
+  color: var(--sa-color-weather-cyan);
+  font-family: var(--sa-typography-display-family);
+  font-size: var(--sa-typography-size-lg);
+}
+
+.atlas-lobby__error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sa-spacing-4);
+  margin-top: var(--sa-spacing-5);
+  padding: var(--sa-spacing-4);
+  border: var(--sa-border-pixel) solid var(--sa-color-disputed);
+  background: color-mix(in srgb, var(--sa-color-disputed) 12%, var(--sa-color-deep-ink));
+}
+
+.atlas-lobby__error > div {
+  display: grid;
+  gap: var(--sa-spacing-1);
+}
+
+.atlas-lobby__error span {
+  color: var(--sa-color-muted-steel);
+}
+
+.atlas-lobby__error button {
+  padding: 0 var(--sa-spacing-4);
+  border: var(--sa-border-hairline) solid var(--sa-color-disputed);
+  background: var(--sa-color-deep-ink);
+}
+
+.atlas-lobby__catalog {
+  scroll-margin-top: var(--sa-spacing-5);
+  margin-top: var(--sa-spacing-4);
+}
+
+.atlas-lobby__catalog > header {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: var(--sa-spacing-6);
+  margin-bottom: var(--sa-spacing-3);
+}
+
+.atlas-lobby__catalog h2 {
+  margin: var(--sa-spacing-1) 0 0;
+  font-family: var(--sa-typography-display-family);
+  font-size: var(--sa-typography-size-2xl);
+}
+
+.atlas-lobby__catalog > header p {
+  max-width: 32rem;
+  margin: 0;
+  color: var(--sa-color-muted-steel);
+  font-size: var(--sa-typography-size-xs);
+  line-height: var(--sa-typography-line-height-normal);
+  text-align: right;
+}
+
+.atlas-lobby__cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(23rem, 100%), 1fr));
+  gap: var(--sa-spacing-5);
+}
+
+.atlas-expedition-card {
+  display: grid;
+  grid-template-rows: 8.5rem 1fr auto;
+  overflow: hidden;
+  border: var(--sa-border-pixel) solid var(--sa-color-slate-cloud);
+  border-radius: var(--sa-radius-large);
+  background: var(--sa-color-panel);
+  box-shadow: var(--sa-shadow-card);
+}
+
+.atlas-expedition-diorama {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border-bottom: var(--sa-border-pixel) solid var(--sa-color-harbor-blue);
+  background: var(--sa-color-deep-ink);
+}
+
+.atlas-expedition-diorama::before {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 42%;
+  background: var(--sa-color-harbor-blue);
+  content: '';
+}
+
+.atlas-expedition-diorama b {
+  position: absolute;
+  z-index: 4;
+  bottom: var(--sa-spacing-3);
+  left: var(--sa-spacing-4);
+  padding: var(--sa-spacing-1) var(--sa-spacing-2);
+  color: var(--sa-color-paper-light);
+  background: var(--sa-color-atlas-night);
+  font-family: var(--sa-typography-mono-family);
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.atlas-expedition-diorama__moon {
+  position: absolute;
+  top: var(--sa-spacing-4);
+  right: var(--sa-spacing-5);
+  width: var(--sa-spacing-6);
+  height: var(--sa-spacing-6);
+  border: var(--sa-border-pixel) solid var(--sa-color-window-gold);
+  border-radius: 50%;
+  background: var(--sa-color-paper-light);
+  box-shadow: 0 0 0 var(--sa-spacing-1) var(--sa-color-deep-ink);
+}
+
+.atlas-expedition-diorama__landmark {
+  position: absolute;
+  z-index: 2;
+  bottom: 28%;
+  left: 42%;
+  width: 3.5rem;
+  height: 5rem;
+  border: var(--sa-border-pixel) solid var(--sa-color-paper-light);
+  background: var(--sa-color-muted-steel);
+  box-shadow:
+    inset 0.8rem 0 var(--sa-color-slate-cloud),
+    1.1rem -1.2rem 0 -0.8rem var(--sa-color-window-gold);
+}
+
+.atlas-expedition-diorama__path {
+  position: absolute;
+  z-index: 1;
+  right: 0;
+  bottom: 0;
+  left: 22%;
+  height: 36%;
+  border-left: var(--sa-border-heavy) solid var(--sa-color-parchment);
+  transform: skewX(-28deg);
+}
+
+.atlas-expedition-diorama__signal {
+  position: absolute;
+  z-index: 3;
+  right: 24%;
+  bottom: 34%;
+  width: var(--sa-spacing-2);
+  height: var(--sa-spacing-2);
+  border: var(--sa-border-pixel) solid var(--sa-color-deep-ink);
+  border-radius: 50%;
+  background: var(--sa-color-moss-signal);
+  box-shadow:
+    0 0 0 var(--sa-spacing-1) var(--sa-color-weather-cyan),
+    0 0 var(--sa-spacing-4) var(--sa-color-weather-cyan);
+}
+
+.atlas-expedition-diorama[data-template*='harbor']::before {
+  background: var(--sa-color-weather-cyan);
+}
+
+.atlas-expedition-diorama[data-template*='harbor'] .atlas-expedition-diorama__landmark {
+  width: 5.5rem;
+  height: 2.8rem;
+  background: var(--sa-color-window-gold);
+}
+
+.atlas-expedition-diorama[data-template*='civic']::before,
+.atlas-expedition-diorama[data-template*='ledger']::before {
+  background: var(--sa-color-slate-cloud);
+}
+
+.atlas-expedition-diorama[data-template*='civic'] .atlas-expedition-diorama__landmark,
+.atlas-expedition-diorama[data-template*='ledger'] .atlas-expedition-diorama__landmark {
+  width: 6rem;
+  height: 3.8rem;
+  background: var(--sa-color-parchment);
+}
+
+.atlas-expedition-card__body {
+  padding: var(--sa-spacing-4);
+}
+
+.atlas-expedition-card__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sa-spacing-2);
+  color: var(--sa-color-muted-steel);
+  font-family: var(--sa-typography-mono-family);
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.atlas-expedition-card__meta span {
+  padding: var(--sa-spacing-1) var(--sa-spacing-2);
+  border: var(--sa-border-hairline) solid var(--sa-color-slate-cloud);
+}
+
+.atlas-expedition-card__meta [data-status='active'],
+.atlas-expedition-card__meta [data-status='paused'] {
+  color: var(--sa-color-moss-signal);
+}
+
+.atlas-expedition-card__meta [data-status='resolved'],
+.atlas-expedition-card__meta [data-status='archived'] {
+  color: var(--sa-color-window-gold);
+}
+
+.atlas-expedition-card h3 {
+  margin: var(--sa-spacing-3) 0 var(--sa-spacing-2);
+  font-family: var(--sa-typography-display-family);
+  font-size: var(--sa-typography-size-xl);
+}
+
+.atlas-expedition-card__body > p {
+  color: var(--sa-color-muted-steel);
+  font-size: var(--sa-typography-size-sm);
+  line-height: var(--sa-typography-line-height-normal);
+}
+
+.atlas-expedition-card__body .atlas-expedition-card__tagline {
+  margin: 0;
+  color: var(--sa-color-weather-cyan);
+  font-weight: var(--sa-typography-weight-semibold);
+}
+
+.atlas-expedition-card__body ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sa-spacing-2);
+  padding: 0;
+  margin: var(--sa-spacing-3) 0 0;
+  list-style: none;
+}
+
+.atlas-expedition-card__body li {
+  padding: var(--sa-spacing-1) var(--sa-spacing-2);
+  border-left: var(--sa-border-pixel) solid var(--sa-color-context);
+  color: var(--sa-color-paper-light);
+  background: var(--sa-color-atlas-night);
+  font-family: var(--sa-typography-mono-family);
+  font-size: 9px;
+}
+
+.atlas-expedition-card__saved {
+  display: grid;
+  gap: var(--sa-spacing-2);
+  padding-top: var(--sa-spacing-3);
+  margin: var(--sa-spacing-3) 0 0;
+  border-top: var(--sa-border-hairline) solid var(--sa-color-slate-cloud);
+}
+
+.atlas-expedition-card__saved div {
+  display: grid;
+  gap: var(--sa-spacing-1);
+}
+
+.atlas-expedition-card__saved dd {
+  color: var(--sa-color-paper-light);
+  font-size: var(--sa-typography-size-xs);
+  line-height: var(--sa-typography-line-height-normal);
+}
+
+.atlas-expedition-card footer {
+  display: grid;
+  gap: var(--sa-spacing-3);
+  padding: var(--sa-spacing-3) var(--sa-spacing-4);
+  border-top: var(--sa-border-hairline) solid var(--sa-color-slate-cloud);
+  background: var(--sa-color-deep-ink);
+}
+
+.atlas-expedition-card footer span {
+  color: var(--sa-color-muted-steel);
+  font-size: 10px;
+  line-height: var(--sa-typography-line-height-normal);
+}
+
+.atlas-expedition-card footer button {
+  padding: var(--sa-spacing-2) var(--sa-spacing-4);
+  border: var(--sa-border-pixel) solid var(--sa-color-weather-cyan);
+  color: var(--sa-color-atlas-night);
+  background: var(--sa-color-weather-cyan);
+  font-family: var(--sa-typography-mono-family);
+  font-size: var(--sa-typography-size-xs);
+  font-weight: var(--sa-typography-weight-bold);
+}
+
+.atlas-expedition-card footer button:hover:not(:disabled) {
+  background: var(--sa-color-paper-light);
+}
+
+.atlas-lobby__footer {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--sa-spacing-4);
+  margin-top: var(--sa-spacing-4);
+  padding-top: var(--sa-spacing-3);
+  border-top: var(--sa-border-hairline) solid var(--sa-color-slate-cloud);
+  color: var(--sa-color-muted-steel);
+  font-family: var(--sa-typography-mono-family);
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+@media (max-width: 760px) {
+  .atlas-lobby {
+    padding: var(--sa-spacing-4);
+  }
+
+  .atlas-lobby__header {
+    grid-template-columns: 1fr;
+    padding: var(--sa-spacing-5);
+  }
+
+  .atlas-lobby__summary {
+    grid-template-columns: 1fr;
+  }
+
+  .atlas-lobby__summary div {
+    border-top: var(--sa-border-hairline) solid var(--sa-color-slate-cloud);
+    border-left: 0;
+  }
+
+  .atlas-lobby__catalog > header,
+  .atlas-lobby__footer {
+    align-items: start;
+    flex-direction: column;
+  }
+
+  .atlas-lobby__catalog > header p {
+    text-align: left;
+  }
+}
+
 button,
 input,
 textarea {
@@ -180,6 +648,17 @@ textarea {
   display: flex;
   align-items: center;
   gap: var(--sa-spacing-3);
+}
+
+.atlas-brand--button {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  text-align: left;
+}
+
+.atlas-brand--button:hover .atlas-brand__copy small {
+  color: var(--sa-color-weather-cyan);
 }
 
 .atlas-brand__mark {
@@ -6829,7 +7308,12 @@ kbd {
   .atlas-professor-workspace,
   .atlas-meeting-workspace,
   .atlas-replay-workspace,
-  .atlas-stream-boundary-alert {
+  .atlas-stream-boundary-alert,
+  .atlas-lobby,
+  .atlas-lobby__header,
+  .atlas-expedition-card,
+  .atlas-expedition-card footer,
+  .atlas-expedition-diorama {
     border-color: CanvasText;
     color: CanvasText;
     background: Canvas;
@@ -6843,6 +7327,13 @@ kbd {
     display: none;
   }
 
+  .atlas-expedition-diorama__moon,
+  .atlas-expedition-diorama__landmark,
+  .atlas-expedition-diorama__path,
+  .atlas-expedition-diorama__signal {
+    forced-color-adjust: auto;
+  }
+
   .atlas-phaser-mount,
   .atlas-react-world-layer {
     opacity: 0.3;
@@ -6852,6 +7343,7 @@ kbd {
   .signal-atlas-shell input,
   .signal-atlas-shell select,
   .signal-atlas-shell textarea,
+  .atlas-lobby button,
   .atlas-place,
   .atlas-agent-card,
   .atlas-signal-card {

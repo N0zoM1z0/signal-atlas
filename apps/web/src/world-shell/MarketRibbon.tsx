@@ -24,6 +24,7 @@ export interface MarketRibbonProps {
   secondaryOutcomeLabel: string;
   teamProbability: number;
   onModeChange: () => void;
+  onOpenLobby?: () => void;
   onOpenForecast: () => void;
   onPauseChange: () => void;
   onSpeedChange: () => void;
@@ -35,6 +36,7 @@ export function MarketRibbon({
   marketKindLabel,
   mode,
   onModeChange,
+  onOpenLobby,
   onOpenForecast,
   onPauseChange,
   onSpeedChange,
@@ -85,15 +87,32 @@ export function MarketRibbon({
 
   return (
     <header className="atlas-market-ribbon" aria-label="Market overview">
-      <div className="atlas-brand">
-        <span className="atlas-brand__mark" aria-hidden="true">
-          <i />
-        </span>
-        <span className="atlas-brand__copy">
-          <strong>Signal Atlas</strong>
-          <small>{expeditionName}</small>
-        </span>
-      </div>
+      {onOpenLobby ? (
+        <button
+          aria-label="Open Expedition Lobby"
+          className="atlas-brand atlas-brand--button"
+          onClick={onOpenLobby}
+          type="button"
+        >
+          <span className="atlas-brand__mark" aria-hidden="true">
+            <i />
+          </span>
+          <span className="atlas-brand__copy">
+            <strong>Signal Atlas</strong>
+            <small>{expeditionName}</small>
+          </span>
+        </button>
+      ) : (
+        <div className="atlas-brand">
+          <span className="atlas-brand__mark" aria-hidden="true">
+            <i />
+          </span>
+          <span className="atlas-brand__copy">
+            <strong>Signal Atlas</strong>
+            <small>{expeditionName}</small>
+          </span>
+        </div>
+      )}
 
       <div className="atlas-market-question">
         <span className="atlas-kicker">

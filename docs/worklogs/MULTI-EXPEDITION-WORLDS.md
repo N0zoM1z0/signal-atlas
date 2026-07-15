@@ -21,14 +21,18 @@ In progress.
 - `8021bcb` committed the durable registry boundary. The immediate follow-up adds the shared,
   cancelable, queue-bounded external-call gate so Pref, local Codex, and Professor capacity cannot
   multiply as expeditions are opened.
+- `1dfc3df` committed the process-wide external-call boundary. The current Lobby milestone adds a
+  1440 x 900 world shelf, stable expedition deep links, explicit shell teardown on return, scoped
+  runtime diagnostics, and expedition-namespaced evidence and travel preferences.
 - Focused validation after the first two commits: contracts 18/18, simulation 34/34, codex-runtime
   25/25, game-scene 13/13, archive 4/4, web 19/19, orchestrator 95/95, and repository lint with zero
   warnings. Persistence milestone validation currently passes contracts 19/19, world-content 2/2,
   and orchestrator 98/98. Registry validation currently passes contracts 19/19 and orchestrator
   102/102, plus full-workspace typecheck, schema artifact verification, and repository lint with
   zero warnings. Shared-gate focused validation passes three admission, cancellation, and overload
-  tests; the complete orchestrator suite currently passes 105/105 before the browser Lobby
-  milestone.
+  tests; the complete orchestrator suite currently passes 105/105. Lobby validation currently
+  passes web 25/25 and two focused Playwright flows including WCAG serious/critical scanning and a
+  new 1440 x 900 baseline.
 
 ## Goal
 

@@ -1,6 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { fetchExpeditionSnapshot } from './runtime-client.js';
+import {
+  createExpedition,
+  fetchExpeditionSnapshot,
+  fetchRuntimeDiagnostics,
+} from './runtime-client.js';
 
 afterEach(() => {
   vi.useRealTimers();
@@ -64,5 +68,47 @@ describe('browser runtime boundary', () => {
     );
     await vi.advanceTimersByTimeAsync(10_000);
     await request;
+  });
+
+  it('sends a strict idempotent scenario creation request', async () => {
+    const fetchMock = vi.fn(
+      async (_url: string | URL | Request, _init?: RequestInit) =>
+        new Response(
+          JSON.stringify({
+            created: true,
+            duplicate: false,
+            expedition: { id: 'exp-northlight-demo' },
+          }),
+          { status: 201 },
+        ),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(
+      createExpedition('northlight-harbor', 1, 'create:northlight:test:1'),
+    ).resolves.toMatchObject({ created: true, expedition: { id: 'exp-northlight-demo' } });
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/expeditions',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({
+          scenarioId: 'northlight-harbor',
+          scenarioVersion: 1,
+          idempotencyKey: 'create:northlight:test:1',
+        }),
+      }),
+    );
+  });
+
+  it('requests diagnostics for the selected expedition', async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ workspace: {} })));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await fetchRuntimeDiagnostics('exp-one:with-safe-id');
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/runtime/diagnostics?expeditionId=exp-one%3Awith-safe-id',
+      expect.any(Object),
+    );
   });
 });

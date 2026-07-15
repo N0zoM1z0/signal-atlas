@@ -150,9 +150,10 @@ function defaultMissionPrompt(projection: WorldProjection): string {
 
 export interface WorldShellProps {
   initialProjection: WorldProjection;
+  onOpenLobby?: () => void;
 }
 
-export function WorldShell({ initialProjection }: WorldShellProps) {
+export function WorldShell({ initialProjection, onOpenLobby }: WorldShellProps) {
   const [projection, setProjection] = useState(initialProjection);
   const model = useMemo(() => createShellModel(projection), [projection]);
   const [agentDockCollapsed, setAgentDockCollapsed] = useState(false);
@@ -184,7 +185,9 @@ export function WorldShell({ initialProjection }: WorldShellProps) {
   const [missionDraft, setMissionDraft] = useState<MissionDraft>();
   const [commandBusy, setCommandBusy] = useState(false);
   const [commandError, setCommandError] = useState<string>();
-  const [skipTravel, setSkipTravel] = useState(readSkipTravelPreference);
+  const [skipTravel, setSkipTravel] = useState(() =>
+    readSkipTravelPreference(initialProjection.expedition.id),
+  );
   const [fixtureScenario, setFixtureScenario] = useState<FixtureMissionScenario>('success');
   const [workspace, setWorkspace] = useState<Workspace>('world');
   const [replayInitialSequence, setReplayInitialSequence] = useState<number>();
@@ -195,8 +198,9 @@ export function WorldShell({ initialProjection }: WorldShellProps) {
   const [activeMeetingId, setActiveMeetingId] = useState<string>();
   const [meetingEvents, setMeetingEvents] = useState<WorldEvent[]>([]);
   const [meetingBusy, setMeetingBusy] = useState(false);
-  const [evidencePreferences, setEvidencePreferences] =
-    useState<EvidencePreferences>(readEvidencePreferences);
+  const [evidencePreferences, setEvidencePreferences] = useState<EvidencePreferences>(() =>
+    readEvidencePreferences(initialProjection.expedition.id),
+  );
   const [inspectedSignalId, setInspectedSignalId] = useState<string>();
   const [followRequest, setFollowRequest] = useState<
     { agentId: string; requestId: number } | undefined
@@ -267,7 +271,7 @@ export function WorldShell({ initialProjection }: WorldShellProps) {
   ) => {
     setEvidencePreferences((current) => {
       const next = update(current);
-      writeEvidencePreferences(next);
+      writeEvidencePreferences(projection.expedition.id, next);
       return next;
     });
   };
@@ -760,7 +764,7 @@ export function WorldShell({ initialProjection }: WorldShellProps) {
     let timer: number | undefined;
     const checkWorkspace = async () => {
       try {
-        const diagnostics = await fetchRuntimeDiagnostics();
+        const diagnostics = await fetchRuntimeDiagnostics(projection.expedition.id);
         if (!active) return;
         setWorkspacePersistenceIssue(
           diagnostics.workspace.state === 'degraded'
@@ -780,7 +784,7 @@ export function WorldShell({ initialProjection }: WorldShellProps) {
       active = false;
       if (timer !== undefined) window.clearTimeout(timer);
     };
-  }, []);
+  }, [projection.expedition.id]);
 
   useEffect(() => {
     if (forcedRuntimeStateFromLocation()) return;
@@ -1292,6 +1296,7 @@ export function WorldShell({ initialProjection }: WorldShellProps) {
         onModeChange={() =>
           setMode((current) => (current === 'director' ? 'observatory' : 'director'))
         }
+        {...(onOpenLobby ? { onOpenLobby } : {})}
         onPauseChange={() => void changePauseState()}
         onOpenForecast={() => void openForecastWorkspace()}
         onSpeedChange={() => void changeSpeed()}
@@ -1512,7 +1517,7 @@ export function WorldShell({ initialProjection }: WorldShellProps) {
           }}
           onSkipTravelChange={(enabled) => {
             setSkipTravel(enabled);
-            writeSkipTravelPreference(enabled);
+            writeSkipTravelPreference(projection.expedition.id, enabled);
             setAnnouncement(`Skip-travel preference ${enabled ? 'enabled' : 'disabled'}.`);
           }}
           places={model.places}
@@ -1585,6 +1590,7 @@ export function WorldShell({ initialProjection }: WorldShellProps) {
       )}
 
       <RuntimeDiagnosticsDialog
+        expeditionId={projection.expedition.id}
         onClose={() => {
           setRuntimeDiagnosticsOpen(false);
           setAnnouncement('Runtime diagnostics closed.');

@@ -134,6 +134,13 @@ Key elements:
 - source-connection status;
 - "Enter Atlas" primary action.
 
+The implemented local Lobby is available at `/lobby` and from the ribbon's Signal Atlas mark. It
+lists safe installed-scenario metadata and any matching durable expedition cursor/status, then
+creates through an idempotent command or opens a stable `?expedition=<id>` deep link. Only one world
+shell is mounted at a time; returning to the Lobby tears down its WebSocket and canvas. Evidence and
+travel preferences use expedition-scoped browser keys. Market filters remain a later catalog-size
+enhancement rather than empty controls in the single-world shelf.
+
 ### B. World View
 
 Purpose: observe, command, inspect signals, and update forecasts.

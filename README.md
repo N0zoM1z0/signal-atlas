@@ -132,6 +132,12 @@ into SQLite with the genesis events. Restart uses that stored definition rather 
 installed catalog entry. Scenario-definition identity is immutable at the database layer; the
 schema-v1 Helios workspace migrates only when its existing fixture fingerprint matches exactly.
 
+Open `/lobby` or activate the Signal Atlas mark in the market ribbon to browse the local world
+shelf. Entering a saved expedition updates the URL to `?expedition=<id>` for a stable deep link and
+fully remounts the five-part world shell; returning to the Lobby closes that world's stream and
+canvas first. Pinned, archived, seen, and case-file evidence selections plus skip-travel settings
+are stored in expedition-specific browser namespaces and never carry into another world.
+
 Verified projection checkpoints are written every 50 events and on clean shutdown. Startup uses
 the newest schema-valid, hash-valid checkpoint and folds only its event tail. A malformed checkpoint
 is ignored in favor of an older checkpoint or the complete append-only log; checkpoints never

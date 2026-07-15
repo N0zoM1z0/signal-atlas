@@ -5,7 +5,9 @@ export interface EvidencePreferences {
   seenSignalIds: string[];
 }
 
-const storageKey = 'signal-atlas:evidence-preferences:v1';
+function storageKey(expeditionId: string): string {
+  return `signal-atlas:evidence-preferences:v2:${encodeURIComponent(expeditionId)}`;
+}
 
 export const emptyEvidencePreferences: EvidencePreferences = {
   pinnedSignalIds: [],
@@ -20,10 +22,10 @@ function stringArray(value: unknown): string[] {
     : [];
 }
 
-export function readEvidencePreferences(): EvidencePreferences {
+export function readEvidencePreferences(expeditionId: string): EvidencePreferences {
   if (typeof window === 'undefined') return structuredClone(emptyEvidencePreferences);
   try {
-    const stored = window.localStorage.getItem(storageKey);
+    const stored = window.localStorage.getItem(storageKey(expeditionId));
     if (!stored) return structuredClone(emptyEvidencePreferences);
     const parsed = JSON.parse(stored) as Partial<Record<keyof EvidencePreferences, unknown>>;
     return {
@@ -37,10 +39,13 @@ export function readEvidencePreferences(): EvidencePreferences {
   }
 }
 
-export function writeEvidencePreferences(preferences: EvidencePreferences): void {
+export function writeEvidencePreferences(
+  expeditionId: string,
+  preferences: EvidencePreferences,
+): void {
   if (typeof window === 'undefined') return;
   try {
-    window.localStorage.setItem(storageKey, JSON.stringify(preferences));
+    window.localStorage.setItem(storageKey(expeditionId), JSON.stringify(preferences));
   } catch {
     // Preferences are non-authoritative; an unavailable storage area must not block evidence use.
   }

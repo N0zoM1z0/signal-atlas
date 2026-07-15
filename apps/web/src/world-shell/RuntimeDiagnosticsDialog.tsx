@@ -12,6 +12,7 @@ import {
 } from './runtime-client.js';
 
 export interface RuntimeDiagnosticsDialogProps {
+  expeditionId: string;
   open: boolean;
   onClose: () => void;
   onPrefConnectionChange?: (connected: boolean) => void;
@@ -44,6 +45,7 @@ function primitiveNames(diagnostics: PrefMcpConnectionDiagnostics): string[] {
 }
 
 export function RuntimeDiagnosticsDialog({
+  expeditionId,
   open,
   onClose,
   onPrefConnectionChange,
@@ -60,7 +62,7 @@ export function RuntimeDiagnosticsDialog({
     setError(undefined);
     setPrefError(undefined);
     const [runtimeResult, prefResult] = await Promise.allSettled([
-      fetchRuntimeDiagnostics(),
+      fetchRuntimeDiagnostics(expeditionId),
       fetchPrefDiagnostics(),
     ]);
     if (runtimeResult.status === 'fulfilled') {
@@ -83,7 +85,7 @@ export function RuntimeDiagnosticsDialog({
       );
     }
     setLoading(false);
-  }, [onPrefConnectionChange]);
+  }, [expeditionId, onPrefConnectionChange]);
 
   const changePrefConnection = useCallback(
     async (action: 'test' | 'disconnect') => {
@@ -435,7 +437,7 @@ export function RuntimeDiagnosticsDialog({
               <header>
                 <div>
                   <span className="atlas-kicker">Queue and concurrency</span>
-                  <h3 id="runtime-scheduler-title">Agent scheduler</h3>
+                  <h3 id="runtime-scheduler-title">Agent and workspace scheduler</h3>
                 </div>
                 <button disabled={loading} onClick={() => void refresh()} type="button">
                   {loading ? 'Refreshing…' : 'Refresh'}
@@ -443,24 +445,47 @@ export function RuntimeDiagnosticsDialog({
               </header>
               <div className="atlas-runtime-meters">
                 <article>
-                  <small>Concurrency</small>
+                  <small>Expedition slots</small>
                   <strong>{diagnostics.scheduler.maxConcurrency}</strong>
-                  <span>configured turn slots</span>
+                  <span>selected world</span>
                 </article>
                 <article>
-                  <small>Active</small>
+                  <small>Expedition active</small>
                   <strong>{diagnostics.scheduler.activeCount}</strong>
-                  <span>running now</span>
+                  <span>selected world</span>
                 </article>
                 <article>
-                  <small>Queued</small>
-                  <strong>{diagnostics.scheduler.queuedCount}</strong>
-                  <span>waiting safely</span>
+                  <small>Global slots</small>
+                  <strong>{diagnostics.globalExternalCalls.maxConcurrency}</strong>
+                  <span>Pref / Codex / Professor</span>
+                </article>
+                <article>
+                  <small>Global active</small>
+                  <strong>{diagnostics.globalExternalCalls.activeCount}</strong>
+                  <span>across every world</span>
+                </article>
+                <article>
+                  <small>Global queue</small>
+                  <strong>
+                    {diagnostics.globalExternalCalls.queuedCount}/
+                    {diagnostics.globalExternalCalls.maxQueued}
+                  </strong>
+                  <span>cancelable / bounded</span>
+                </article>
+                <article>
+                  <small>Open worlds</small>
+                  <strong>{diagnostics.registry.runtimeCount}</strong>
+                  <span>local registry</span>
                 </article>
                 <article>
                   <small>Timeout</small>
                   <strong>{Math.round(diagnostics.scheduler.defaultTimeoutMs / 1_000)}s</strong>
                   <span>default ceiling</span>
+                </article>
+                <article>
+                  <small>Overload rejects</small>
+                  <strong>{diagnostics.globalExternalCalls.rejectedCount}</strong>
+                  <span>recoverable failures</span>
                 </article>
               </div>
             </section>

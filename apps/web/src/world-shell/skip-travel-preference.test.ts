@@ -16,7 +16,7 @@ describe('skip-travel preference storage', () => {
       },
     });
 
-    expect(readSkipTravelPreference()).toBe(false);
+    expect(readSkipTravelPreference('exp-storage-denied')).toBe(false);
   });
 
   it('does not throw when an in-memory change cannot be persisted', () => {
@@ -28,6 +28,20 @@ describe('skip-travel preference storage', () => {
       },
     });
 
-    expect(() => writeSkipTravelPreference(true)).not.toThrow();
+    expect(() => writeSkipTravelPreference('exp-storage-denied', true)).not.toThrow();
+  });
+
+  it('keeps the same preference independent across expeditions', () => {
+    const values = new Map<string, string>();
+    vi.stubGlobal('window', {
+      localStorage: {
+        getItem: (key: string) => values.get(key) ?? null,
+        setItem: (key: string, value: string) => values.set(key, value),
+      },
+    });
+
+    writeSkipTravelPreference('exp-alpha', true);
+    expect(readSkipTravelPreference('exp-alpha')).toBe(true);
+    expect(readSkipTravelPreference('exp-beta')).toBe(false);
   });
 });

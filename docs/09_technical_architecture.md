@@ -208,9 +208,6 @@ WS   /api/expeditions/:id/stream?after=N
 GET  /api/expeditions/:id/replay?sequence=N
 GET  /api/expeditions/:id/case-file
 POST /api/expeditions/:id/resolve-fixture
-GET  /api/scenarios
-GET  /api/expeditions
-POST /api/expeditions
 GET  /api/archive/search
 GET  /api/sources/:id
 POST /api/professor/query
@@ -240,21 +237,24 @@ Commands return an accepted command ID. Resulting changes arrive as events.
 
 ## 9.10 Persistence schema
 
-The implemented vertical slice keeps the append-only event stream as authority and stores four
+The implemented vertical slice keeps the append-only event stream as authority and stores five
 focused relations:
 
 - `expeditions`: fixture seed/fingerprint, immutable scenario ID/version/full definition/hash, and
-  the latest committed sequence;
+  the latest committed sequence/status;
 - `world_events`: immutable event envelopes keyed by expedition and sequence, with globally unique
   event IDs;
 - `command_receipts`: immutable idempotency keys, command hashes, and accepted result envelopes;
+- `expedition_creation_receipts`: immutable process-restart-safe idempotency keys, request hashes,
+  scenario identity, and created-expedition result envelopes;
 - `world_checkpoints`: rebuildable projection snapshots with schema version and canonical hash.
 
 `schema_migrations` records deterministic migrations. SQLite foreign keys, a busy
 timeout, full synchronous durability, and WAL mode are enabled for file databases. Triggers reject
-updates and deletes against authoritative events and command receipts, and reject changes to a
+updates and deletes against authoritative events, command receipts, and creation receipts, and
+reject changes to a
 stored scenario definition after its first write. A new expedition's complete validated definition
-and genesis events share one transaction. A command's event batch and receipt share one
+and genesis events plus its optional creation receipt share one transaction. A command's event batch and receipt share one
 transaction; scheduler-generated batches also commit atomically before becoming visible in memory
 or over WebSocket.
 

@@ -17,7 +17,7 @@ test('runtime diagnostics expose the scripted driver, scheduler, and persisted t
   let dialog = page.getByRole('dialog', { name: 'Codex Runtime Diagnostics' });
   await expect(dialog).toBeVisible();
   await expect(dialog).toContainText('fixture-scripted-codex');
-  await expect(dialog).toContainText('Deterministic Helios-3 scripted mission driver.');
+  await expect(dialog).toContainText('Deterministic authored-scenario mission driver.');
   const professorRuntime = dialog.getByRole('region', { name: /Professor · scripted-professor/ });
   await expect(professorRuntime).toContainText('Evidence-bound consultation agent');
   await expect(professorRuntime).toContainText('scripted');
@@ -41,9 +41,10 @@ test('runtime diagnostics expose the scripted driver, scheduler, and persisted t
   await expect(prefConnection).toContainText('disconnected');
   await prefConnection.getByRole('button', { name: 'Test / reconnect' }).click();
   await expect(prefConnection).toContainText('connected');
-  await expect(dialog.getByRole('region', { name: 'Agent scheduler' })).toContainText(
-    'Concurrency2',
-  );
+  const scheduler = dialog.getByRole('region', { name: 'Agent and workspace scheduler' });
+  await expect(scheduler).toContainText('Expedition slots2');
+  await expect(scheduler).toContainText('Global slots2');
+  await expect(scheduler).toContainText('Open worlds1');
   await expect(dialog).toContainText('No runtime turn has started');
   await dialog.getByRole('button', { name: 'Done' }).click();
 
@@ -77,7 +78,7 @@ test('runtime diagnostics expose the scripted driver, scheduler, and persisted t
 test('a degraded persistence boundary remains visible and closes command controls', async ({
   page,
 }) => {
-  await page.route('**/api/runtime/diagnostics', async (route) => {
+  await page.route('**/api/runtime/diagnostics*', async (route) => {
     await route.fulfill({
       body: JSON.stringify({
         workspace: {
