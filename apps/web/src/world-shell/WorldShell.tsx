@@ -17,6 +17,7 @@ import {
   writeEvidencePreferences,
   type EvidencePreferences,
 } from './evidence-preferences.js';
+import { ExpeditionEventStream, type EventStreamStatus } from './event-stream-client.js';
 import { MarketRibbon } from './MarketRibbon.js';
 import { MeetingWorkspace } from './MeetingWorkspace.js';
 import { ForecastWorkspace, type ForecastCommitInput } from './ForecastWorkspace.js';
@@ -99,6 +100,13 @@ export function WorldShell() {
   const [reducedMotion, setReducedMotion] = useState(false);
   const [runtimeState, setRuntimeState] = useState<RuntimeState>(runtimeStateFromLocation);
   const [prefConnected, setPrefConnected] = useState(true);
+  const [eventStreamStatus, setEventStreamStatus] = useState<EventStreamStatus>({
+    attempt: 0,
+    cursor: shellModel.projection.sequence,
+    message: `Connecting from sequence ${shellModel.projection.sequence}.`,
+    phase: runtimeStateFromLocation() === 'ready' ? 'connecting' : 'stopped',
+  });
+  const [streamBoundaryError, setStreamBoundaryError] = useState<string>();
   const [missionDraft, setMissionDraft] = useState<MissionDraft>();
   const [commandBusy, setCommandBusy] = useState(false);
   const [commandError, setCommandError] = useState<string>();
@@ -124,9 +132,6 @@ export function WorldShell() {
   const paused = projection.expedition.status === 'paused';
   const projectionSpeed = projection.expedition.simulationSpeed;
   const speed: 1 | 2 | 4 = projectionSpeed === 2 || projectionSpeed === 4 ? projectionSpeed : 1;
-  const runtimeActive = Object.values(projection.agentsById).some((agent) =>
-    ['traveling', 'working', 'meeting'].includes(agent.publicState),
-  );
   const meetingDisabled = Object.values(projection.agentsById).some(
     (agent) =>
       Boolean(agent.activeMissionId || agent.movement) || agent.queuedMissionIds.length > 0,
@@ -589,22 +594,41 @@ export function WorldShell() {
   }, []);
 
   useEffect(() => {
-    if (!runtimeActive || runtimeStateFromLocation() !== 'ready') return;
-    let requestRunning = false;
-    const timer = setInterval(() => {
-      if (requestRunning) return;
-      requestRunning = true;
-      void refreshProjection()
-        .catch(() => {
-          setRuntimeState('disconnected');
-          setAnnouncement('Orchestrator disconnected. The last valid projection remains visible.');
-        })
-        .finally(() => {
-          requestRunning = false;
-        });
-    }, 250);
-    return () => clearInterval(timer);
-  }, [refreshProjection, runtimeActive]);
+    if (runtimeStateFromLocation() !== 'ready') return;
+    let active = true;
+    const stream = new ExpeditionEventStream({
+      expeditionId: shellModel.projection.expedition.id,
+      initialSequence: shellModel.projection.sequence,
+      onEvents: async (envelope) => {
+        const nextProjection = await fetchExpeditionSnapshot();
+        if (
+          nextProjection.expedition.id !== envelope.expeditionId ||
+          nextProjection.sequence < envelope.sequence
+        ) {
+          throw new Error('The authoritative projection does not cover the event batch.');
+        }
+        if (!active) return;
+        setProjection(nextProjection);
+        setRuntimeState('ready');
+      },
+      onStatus: (status) => {
+        if (!active) return;
+        setEventStreamStatus(status);
+        if (status.phase === 'live') setRuntimeState('ready');
+        if (status.phase === 'reconnecting') setAnnouncement(status.message);
+      },
+      onBoundaryError: (message) => {
+        if (!active) return;
+        setStreamBoundaryError(message);
+        setAnnouncement(`Event stream boundary failed. ${message}`);
+      },
+    });
+    stream.start();
+    return () => {
+      active = false;
+      stream.stop();
+    };
+  }, []);
 
   useEffect(() => {
     if (workspace !== 'meeting' || !activeMeetingId) return;
@@ -959,6 +983,8 @@ export function WorldShell() {
     <div
       className="signal-atlas-shell"
       data-agent-collapsed={agentDockCollapsed}
+      data-event-stream-sequence={eventStreamStatus.cursor}
+      data-event-stream-state={eventStreamStatus.phase}
       data-signal-collapsed={signalRailCollapsed}
       data-tray-expanded={trayExpanded}
     >
@@ -976,16 +1002,39 @@ export function WorldShell() {
         onSpeedChange={() => void changeSpeed()}
         paused={paused}
         publicProbability={model.market.publicProbability}
+        prefConnected={prefConnected}
         {...(resolvedOutcomeLabel ? { resolvedOutcomeLabel } : {})}
         runtimeState={runtimeState}
         speed={speed}
+        streamStatus={eventStreamStatus}
         teamProbability={model.market.teamProbability}
       />
+
+      {streamBoundaryError && (
+        <div className="atlas-stream-boundary-alert" role="alert">
+          <span aria-hidden="true">△</span>
+          <p>
+            <strong>Event stream boundary</strong>
+            {streamBoundaryError}
+          </p>
+          <button
+            aria-label="Dismiss event stream error"
+            onClick={() => setStreamBoundaryError(undefined)}
+            type="button"
+          >
+            ×
+          </button>
+        </div>
+      )}
 
       <AgentDock
         agents={model.agents}
         collapsed={agentDockCollapsed}
-        disconnected={runtimeState === 'disconnected' || !prefConnected}
+        disconnected={
+          runtimeState === 'disconnected' ||
+          !prefConnected ||
+          ['reconnecting', 'schema_error', 'boundary_error'].includes(eventStreamStatus.phase)
+        }
         mobileOpen={mobilePanel === 'agents'}
         onFollowAgent={(agentId) => {
           setFollowRequest((current) => ({

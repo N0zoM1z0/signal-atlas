@@ -1,12 +1,16 @@
 import { Badge } from '@signal-atlas/ui';
 import type { CSSProperties } from 'react';
 
+import type { EventStreamStatus } from './event-stream-client.js';
+
 type RuntimeState = 'ready' | 'loading' | 'disconnected';
 
 export interface MarketRibbonProps {
   mode: 'director' | 'observatory';
   paused: boolean;
+  prefConnected: boolean;
   runtimeState: RuntimeState;
+  streamStatus: EventStreamStatus;
   speed: 1 | 2 | 4;
   publicProbability: number;
   resolvedOutcomeLabel?: string;
@@ -24,10 +28,12 @@ export function MarketRibbon({
   onPauseChange,
   onSpeedChange,
   paused,
+  prefConnected,
   publicProbability,
   resolvedOutcomeLabel,
   runtimeState,
   speed,
+  streamStatus,
   teamProbability,
 }: MarketRibbonProps) {
   const resolved = resolvedOutcomeLabel !== undefined;
@@ -35,6 +41,25 @@ export function MarketRibbon({
     '--atlas-public-probability': `${publicProbability}%`,
     '--atlas-team-probability': `${teamProbability}%`,
   } as CSSProperties;
+  const streamUnavailable = ['reconnecting', 'schema_error', 'boundary_error'].includes(
+    streamStatus.phase,
+  );
+  const runtimeLabel =
+    runtimeState === 'loading'
+      ? '◌ Loading fixture'
+      : runtimeState === 'disconnected'
+        ? '△ Orchestrator offline'
+        : streamStatus.phase === 'schema_error'
+          ? `△ Stream schema error · seq ${streamStatus.cursor}`
+          : streamStatus.phase === 'boundary_error'
+            ? `△ Stream boundary error · seq ${streamStatus.cursor}`
+            : streamStatus.phase === 'reconnecting'
+              ? `◌ Reconnecting · seq ${streamStatus.cursor}`
+              : streamStatus.phase === 'connecting'
+                ? `◌ Connecting · seq ${streamStatus.cursor}`
+                : !prefConnected
+                  ? '△ Pref disconnected'
+                  : '● Fixture ready';
 
   return (
     <header className="atlas-market-ribbon" aria-label="Market overview">
@@ -91,13 +116,14 @@ export function MarketRibbon({
         </button>
         <Badge
           className="atlas-runtime-badge"
-          tone={runtimeState === 'disconnected' ? 'disputed' : 'context'}
+          title={streamStatus.message}
+          tone={
+            runtimeState === 'disconnected' || streamUnavailable || !prefConnected
+              ? 'disputed'
+              : 'context'
+          }
         >
-          {runtimeState === 'loading'
-            ? '◌ Loading fixture'
-            : runtimeState === 'disconnected'
-              ? '△ Pref disconnected'
-              : '● Fixture ready'}
+          {runtimeLabel}
         </Badge>
         <span className="atlas-deadline">
           <small>{resolved ? 'Resolved' : 'Resolves'}</small>

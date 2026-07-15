@@ -385,6 +385,52 @@ textarea {
   white-space: nowrap;
 }
 
+.atlas-stream-boundary-alert {
+  position: fixed;
+  z-index: var(--sa-z-index-toast);
+  top: calc(var(--sa-size-top-ribbon) + var(--sa-spacing-3));
+  left: 50%;
+  display: grid;
+  width: min(42rem, calc(100vw - var(--sa-spacing-6)));
+  align-items: center;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: var(--sa-spacing-3);
+  padding: var(--sa-spacing-3);
+  border: var(--sa-border-pixel) solid var(--sa-color-disputed);
+  border-radius: var(--sa-radius-medium);
+  color: var(--sa-color-paper-light);
+  background: color-mix(in srgb, var(--sa-color-disputed) 14%, var(--sa-color-deep-ink));
+  box-shadow: var(--sa-shadow-panel);
+  transform: translateX(-50%);
+}
+
+.atlas-stream-boundary-alert > span {
+  color: var(--sa-color-disputed);
+  font-size: var(--sa-typography-size-xl);
+}
+
+.atlas-stream-boundary-alert p {
+  display: grid;
+  gap: var(--sa-spacing-1);
+  margin: 0;
+  font-size: var(--sa-typography-size-xs);
+}
+
+.atlas-stream-boundary-alert strong {
+  color: var(--sa-color-disputed);
+  font-family: var(--sa-typography-mono-family);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.atlas-stream-boundary-alert button {
+  width: var(--sa-spacing-8);
+  height: var(--sa-spacing-8);
+  border: var(--sa-border-hairline) solid var(--sa-color-disputed);
+  background: transparent;
+}
+
 .atlas-deadline {
   display: grid;
   justify-items: end;

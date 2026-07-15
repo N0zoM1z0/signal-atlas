@@ -113,8 +113,8 @@ test('fixture, loading, and disconnected runtime states are explicit', async ({ 
   );
 
   await page.goto('/?state=disconnected');
-  await expect(page.getByText('△ Pref disconnected')).toBeVisible();
-  await expect(page.getByText('Offline')).toBeVisible();
+  await expect(page.getByText('△ Orchestrator offline')).toBeVisible();
+  await expect(page.getByText('Offline', { exact: true })).toBeVisible();
 });
 
 test('Phaser owns a crisp 48 × 30 world while the DOM mirror and camera stay synchronized', async ({
