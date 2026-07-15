@@ -1,7 +1,11 @@
 import { writeFileSync } from 'node:fs';
 
 import type { AgentTurnOutput } from '@signal-atlas/contracts';
-import type { CodexProcessRequest, CodexProcessResult } from '@signal-atlas/codex-runtime';
+import {
+  CodexDriverError,
+  type CodexProcessRequest,
+  type CodexProcessResult,
+} from '@signal-atlas/codex-runtime';
 import { createHelios3ExpeditionFixture } from '@signal-atlas/test-fixtures';
 import { describe, expect, it } from 'vitest';
 
@@ -253,13 +257,9 @@ describe('local Codex world integration', () => {
           mode: 'local',
           executable: '/test/bin/codex',
           isAvailable: () => true,
-          processRunner: async () => ({
-            exitCode: 1,
-            signal: null,
-            stdout: JSON.stringify({ type: 'error', message: sentinel }),
-            stderr: sentinel,
-            aborted: false,
-          }),
+          processRunner: async () => {
+            throw new CodexDriverError('proxy-pass-sentinel', sentinel);
+          },
         }),
     });
 
@@ -271,9 +271,11 @@ describe('local Codex world integration', () => {
       events: runtime.eventsAfter(0),
       caseFile: runtime.caseFile(),
     });
-    expect(serialized).not.toMatch(/PROMPT-SENTINEL|SOURCE-SENTINEL|proxy-user|proxy-pass/u);
+    expect(serialized).not.toMatch(
+      /PROMPT-SENTINEL|SOURCE-SENTINEL|proxy-user|proxy-pass|proxy-pass-sentinel/u,
+    );
     expect(serialized).toContain(
-      'The local Codex process failed before producing a validated result.',
+      'The Codex runtime failed before a validated result was accepted.',
     );
   });
 });

@@ -1,5 +1,34 @@
 import { CodexDriverError, CodexTurnCanceledError, CodexTurnTimeoutError } from './types.js';
 
+const publicCodes = new Set([
+  'codex_invalid_event_stream',
+  'codex_output_limit',
+  'codex_process_failed',
+  'codex_unavailable',
+  'pref_auth_required',
+  'pref_call_budget_exceeded',
+  'pref_canceled',
+  'pref_capability_denied',
+  'pref_connection_failed',
+  'pref_deadline_exceeded',
+  'pref_disconnected',
+  'pref_discovery_failed',
+  'pref_fixture_miss',
+  'pref_invalid_request',
+  'pref_invalid_response',
+  'pref_mapping_invalid',
+  'pref_proxy_failed',
+  'pref_response_too_large',
+  'pref_server_denied',
+  'pref_timeout',
+  'pref_tool_denied',
+  'pref_upstream_error',
+  'runtime_canceled',
+  'runtime_driver_failed',
+  'runtime_identity_mismatch',
+  'runtime_timeout',
+]);
+
 function fixedMessage(code: string): string {
   switch (code) {
     case 'codex_unavailable':
@@ -22,7 +51,8 @@ export function publicCodexError(error: unknown): CodexDriverError {
   if (error instanceof CodexTurnTimeoutError) return error;
   if (error instanceof CodexTurnCanceledError) return new CodexTurnCanceledError();
   if (error instanceof CodexDriverError) {
-    return new CodexDriverError(error.code, fixedMessage(error.code), error.recoverable);
+    const code = publicCodes.has(error.code) ? error.code : 'runtime_driver_failed';
+    return new CodexDriverError(code, fixedMessage(code), error.recoverable);
   }
   return new CodexDriverError('runtime_driver_failed', fixedMessage('runtime_driver_failed'), true);
 }

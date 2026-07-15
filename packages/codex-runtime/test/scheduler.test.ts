@@ -6,6 +6,7 @@ import type { AgentTurnInput, AgentTurnOutput } from '@signal-atlas/contracts';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import {
+  CodexDriverError,
   CodexTurnCanceledError,
   CodexTurnScheduler,
   CodexTurnTimeoutError,
@@ -174,7 +175,8 @@ describe('CodexTurnScheduler', () => {
   it('replaces arbitrary driver errors before persistence and event publication', async () => {
     const driver = new ScriptedCodexDriver({
       run: () => {
-        throw new Error(
+        throw new CodexDriverError(
+          'proxy-pass-sentinel',
           'PROMPT-SENTINEL SOURCE-SENTINEL HTTPS_PROXY=https://proxy-user:proxy-pass@localhost:7890',
         );
       },
@@ -187,7 +189,9 @@ describe('CodexTurnScheduler', () => {
       message: 'The Codex runtime failed before a validated result was accepted.',
     });
     const serialized = JSON.stringify(scheduler.diagnostics());
-    expect(serialized).not.toMatch(/PROMPT-SENTINEL|SOURCE-SENTINEL|proxy-user|proxy-pass/u);
+    expect(serialized).not.toMatch(
+      /PROMPT-SENTINEL|SOURCE-SENTINEL|proxy-user|proxy-pass|proxy-pass-sentinel/u,
+    );
   });
 
   it('reloads the latest terminal turn state from append-only JSONL persistence', async () => {
