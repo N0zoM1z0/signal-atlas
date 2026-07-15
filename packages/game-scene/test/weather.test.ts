@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   createWorldSceneDefinition,
+  landmarkKindForScene,
   weatherFromAmbientLayers,
   worldPresentationCueKinds,
   worldWeatherStates,
@@ -42,6 +43,23 @@ describe('world presentation vocabulary', () => {
       state: 'breezy',
     });
     expect(createWorldSceneDefinition(manifest, []).weather.state).toBe('breezy');
+    const scene = createWorldSceneDefinition(manifest, []);
+    expect(scene.assetPack).toBe('test-programmatic-v1');
+    expect(scene.template).toBe('test');
+    expect(scene.cameraZones).toEqual([]);
+    expect(landmarkKindForScene(scene)).toBe('wayfinder');
+  });
+
+  it('selects visual landmarks from asset packs and templates, never market IDs', () => {
+    expect(
+      landmarkKindForScene({ assetPack: 'helios3-programmatic-pilot-v1', template: 'other' }),
+    ).toBe('launch_vehicle');
+    expect(
+      landmarkKindForScene({ assetPack: 'northlight-harbor-programmatic-v1', template: 'other' }),
+    ).toBe('harbor_beacon');
+    expect(landmarkKindForScene({ assetPack: 'other', template: 'ledger-civic-industrial' })).toBe(
+      'civic_tower',
+    );
   });
 
   it('keeps weather and event choreography inside finite renderer vocabularies', () => {

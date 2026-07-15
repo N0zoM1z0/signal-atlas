@@ -6,25 +6,27 @@ export interface OnboardingGuideProps {
   onOpenArchive: () => void;
   onOpenForecast: () => void;
   onOpenSignals: () => void;
-  onSelectMira: () => void;
+  onSelectGuideAgent: (agentId: string) => void;
   projection: WorldProjection;
   selectedAgentId: string;
 }
 
-const storageKey = 'signal-atlas:onboarding-dismissed';
+function storageKey(expeditionId: string): string {
+  return `signal-atlas:onboarding-dismissed:${expeditionId}`;
+}
 
-function initiallyOpen(): boolean {
+function initiallyOpen(expeditionId: string): boolean {
   if (typeof window === 'undefined') return true;
   try {
-    return window.localStorage.getItem(storageKey) !== 'true';
+    return window.localStorage.getItem(storageKey(expeditionId)) !== 'true';
   } catch {
     return true;
   }
 }
 
-function persistDismissal(): void {
+function persistDismissal(expeditionId: string): void {
   try {
-    window.localStorage.setItem(storageKey, 'true');
+    window.localStorage.setItem(storageKey(expeditionId), 'true');
   } catch {
     // Storage may be unavailable in privacy-restricted contexts; dismissal still works in memory.
   }
@@ -35,33 +37,73 @@ export function OnboardingGuide({
   onOpenArchive,
   onOpenForecast,
   onOpenSignals,
-  onSelectMira,
+  onSelectGuideAgent,
   projection,
   selectedAgentId,
 }: OnboardingGuideProps) {
-  const [open, setOpen] = useState(initiallyOpen);
-  const weatherSignal = Object.values(projection.signalsById).find((signal) =>
+  const [open, setOpen] = useState(() => initiallyOpen(projection.expedition.id));
+  const agents = Object.values(projection.agentsById);
+  const guideAgent = agents.find((agent) => agent.role === 'scout') ?? agents[0];
+  const historyAgent =
+    agents.find((agent) => agent.role === 'archivist') ?? agents[1] ?? guideAgent;
+  const evidencePlace =
+    projection.worldManifest.places.find((place) =>
+      place.capabilityBindings.some(
+        (binding) => binding.canonicalCapability === 'local_conditions',
+      ),
+    ) ??
+    projection.worldManifest.places.find((place) => place.archetype === 'newsroom') ??
+    projection.worldManifest.places.find(
+      (place) => place.id !== projection.worldManifest.defaultSpawnPlaceId,
+    );
+  const archivePlace =
+    projection.worldManifest.places.find((place) => place.archetype === 'archive') ??
+    projection.worldManifest.places.find((place) =>
+      place.tags.some((tag) => ['archive', 'historical', 'history'].includes(tag)),
+    );
+  const evidenceSignal = Object.values(projection.signalsById).find((signal) =>
     signal.sourceIds.some(
-      (sourceId) => projection.sourcesById[sourceId]?.location?.placeId === 'weather-tower',
+      (sourceId) => projection.sourcesById[sourceId]?.location?.placeId === evidencePlace?.id,
     ),
   );
   const archiveSignal = Object.values(projection.signalsById).find((signal) =>
     signal.sourceIds.some((sourceId) => {
       const source = projection.sourcesById[sourceId];
-      return source?.location?.placeId === 'archive' || source?.tags.includes('historical');
+      return (
+        source?.location?.placeId === archivePlace?.id ||
+        source?.sourceClass === 'archive' ||
+        source?.tags.some((tag) => ['base-rate', 'historical', 'history'].includes(tag))
+      );
     }),
   );
   const revisedForecast = [...projection.forecasts]
     .reverse()
     .find((forecast) => forecast.actor.kind === 'player' && forecast.evidenceSignalIds.length >= 2);
   const steps = [
-    { done: selectedAgentId === 'mira', label: 'Select Mira, the field scout.' },
-    { done: Boolean(weatherSignal), label: 'Send Mira to the Weather Tower.' },
     {
-      done: Boolean(weatherSignal && inspectedSignalId === weatherSignal.id),
-      label: 'Inspect Mira’s source-linked signal.',
+      done: Boolean(guideAgent && selectedAgentId === guideAgent.id),
+      label: guideAgent
+        ? `Select ${guideAgent.displayName} for field research.`
+        : 'Select an agent.',
     },
-    { done: Boolean(archiveSignal), label: 'Send Orin to search Archive Quarter.' },
+    {
+      done: Boolean(evidenceSignal),
+      label:
+        guideAgent && evidencePlace
+          ? `Send ${guideAgent.displayName} to investigate ${evidencePlace.name}.`
+          : 'Collect the first source-linked signal.',
+    },
+    {
+      done: Boolean(evidenceSignal && inspectedSignalId === evidenceSignal.id),
+      label: `Inspect ${guideAgent?.displayName ?? 'the agent'}’s source-linked signal.`,
+    },
+    {
+      done: Boolean(archiveSignal),
+      label:
+        historyAgent && archivePlace
+          ? `Send ${historyAgent.displayName} to search ${archivePlace.name}.`
+          : 'Find a historical comparison.',
+    },
     {
       done: Boolean(revisedForecast),
       label: 'Commit a revised forecast with both signals.',
@@ -87,7 +129,7 @@ export function OnboardingGuide({
         <button
           aria-label="Skip first expedition guide"
           onClick={() => {
-            persistDismissal();
+            persistDismissal(projection.expedition.id);
             setOpen(false);
           }}
           type="button"
@@ -104,8 +146,12 @@ export function OnboardingGuide({
         ))}
       </ol>
       <div>
-        <button onClick={onSelectMira} type="button">
-          Select Mira
+        <button
+          disabled={!guideAgent}
+          onClick={() => guideAgent && onSelectGuideAgent(guideAgent.id)}
+          type="button"
+        >
+          Select {guideAgent?.displayName ?? 'agent'}
         </button>
         <button onClick={onOpenSignals} type="button">
           Signals

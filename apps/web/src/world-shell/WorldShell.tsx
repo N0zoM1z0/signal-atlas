@@ -1,10 +1,12 @@
 import {
   SCHEMA_VERSION,
+  binaryMarketOutcomes,
   type MissionVerb,
   type ProfessorResponse,
   type WorldCommand,
   type WorldEvent,
 } from '@signal-atlas/contracts';
+import type { WorldProjection } from '@signal-atlas/simulation';
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 
 import { AgentDock } from './AgentDock.js';
@@ -21,7 +23,7 @@ import { ExpeditionEventStream, type EventStreamStatus } from './event-stream-cl
 import { MarketRibbon } from './MarketRibbon.js';
 import { MeetingWorkspace } from './MeetingWorkspace.js';
 import { ForecastWorkspace, type ForecastCommitInput } from './ForecastWorkspace.js';
-import { createShellModel, shellModel } from './model.js';
+import { createShellModel } from './model.js';
 import { OnboardingGuide } from './OnboardingGuide.js';
 import { enablePresentationAudio, playPresentationTone } from './presentation-audio.js';
 import { presentationCuesForEvents, type ShellPresentationCue } from './presentation-cues.js';
@@ -97,11 +99,16 @@ function isEditableTarget(target: EventTarget | null): boolean {
   );
 }
 
-function commandEnvelope(id: string, idempotencyKey: string, issuedAt: string) {
+function commandEnvelope(
+  expeditionId: string,
+  id: string,
+  idempotencyKey: string,
+  issuedAt: string,
+) {
   return {
     id,
     idempotencyKey,
-    expeditionId: shellModel.projection.expedition.id,
+    expeditionId,
     issuedAt,
     actor: { kind: 'player' as const },
     schemaVersion: SCHEMA_VERSION,
@@ -118,17 +125,46 @@ function nextRecordedTimestamp(events: readonly { occurredAt: string }[]): strin
   ).toISOString();
 }
 
-export function WorldShell() {
-  const [projection, setProjection] = useState(shellModel.projection);
+function shortDateLabel(value: string | undefined): string {
+  if (!value) return 'Open';
+  return new Intl.DateTimeFormat('en-US', {
+    day: 'numeric',
+    month: 'short',
+    timeZone: 'UTC',
+  }).format(new Date(value));
+}
+
+function defaultMissionPrompt(projection: WorldProjection): string {
+  const place =
+    projection.worldManifest.places.find((candidate) =>
+      candidate.capabilityBindings.some(
+        (binding) => binding.canonicalCapability === 'local_conditions',
+      ),
+    ) ??
+    projection.worldManifest.places.find((candidate) => candidate.archetype === 'newsroom') ??
+    projection.worldManifest.places.find(
+      (candidate) => candidate.id !== projection.worldManifest.defaultSpawnPlaceId,
+    );
+  return place ? `Check the latest evidence at ${place.name}` : 'Check the latest market evidence';
+}
+
+export interface WorldShellProps {
+  initialProjection: WorldProjection;
+}
+
+export function WorldShell({ initialProjection }: WorldShellProps) {
+  const [projection, setProjection] = useState(initialProjection);
   const model = useMemo(() => createShellModel(projection), [projection]);
   const [agentDockCollapsed, setAgentDockCollapsed] = useState(false);
   const [signalRailCollapsed, setSignalRailCollapsed] = useState(false);
   const [trayExpanded, setTrayExpanded] = useState(false);
   const [mobilePanel, setMobilePanel] = useState<MobilePanel>(null);
-  const [selectedAgentId, setSelectedAgentId] = useState(model.agents[0]?.id ?? 'mira');
-  const [selectedPlaceId, setSelectedPlaceId] = useState<string | undefined>('observatory');
+  const [selectedAgentId, setSelectedAgentId] = useState(model.agents[0]?.id ?? 'agent');
+  const [selectedPlaceId, setSelectedPlaceId] = useState<string | undefined>(
+    initialProjection.worldManifest.defaultSpawnPlaceId,
+  );
   const [mode, setMode] = useState<'director' | 'observatory'>('director');
-  const [command, setCommand] = useState('Check latest weather at Galehaven Weather Tower');
+  const [command, setCommand] = useState(() => defaultMissionPrompt(initialProjection));
   const [announcement, setAnnouncement] = useState('Fixture projection ready.');
   const [reducedMotion, setReducedMotion] = useState(false);
   const forcedRuntimeState = forcedRuntimeStateFromLocation();
@@ -139,8 +175,8 @@ export function WorldShell() {
   const [prefConnectionState, setPrefConnectionState] = useState('checking');
   const [eventStreamStatus, setEventStreamStatus] = useState<EventStreamStatus>({
     attempt: 0,
-    cursor: shellModel.projection.sequence,
-    message: `Connecting from sequence ${shellModel.projection.sequence}.`,
+    cursor: initialProjection.sequence,
+    message: `Connecting from sequence ${initialProjection.sequence}.`,
     phase: forcedRuntimeState ? 'stopped' : 'connecting',
   });
   const [streamBoundaryError, setStreamBoundaryError] = useState<string>();
@@ -177,12 +213,20 @@ export function WorldShell() {
   const workspaceFocusCycleRef = useRef(false);
   const workspaceReturnTargetRef = useRef<Exclude<Workspace, 'world'>>('archive');
   const paused = projection.expedition.status === 'paused';
+  const { primary: primaryOutcome, secondary: secondaryOutcome } = binaryMarketOutcomes(
+    projection.market,
+  );
   const projectionSpeed = projection.expedition.simulationSpeed;
   const speed: 1 | 2 | 4 = projectionSpeed === 2 || projectionSpeed === 4 ? projectionSpeed : 1;
-  const meetingDisabled = Object.values(projection.agentsById).some(
-    (agent) =>
-      Boolean(agent.activeMissionId || agent.movement) || agent.queuedMissionIds.length > 0,
-  );
+  const meetingPlace =
+    projection.worldManifest.places.find((place) => place.archetype === 'town_square') ??
+    projection.worldManifest.places.find((place) => place.tags.includes('meeting'));
+  const meetingDisabled =
+    !meetingPlace ||
+    Object.values(projection.agentsById).some(
+      (agent) =>
+        Boolean(agent.activeMissionId || agent.movement) || agent.queuedMissionIds.length > 0,
+    );
   const installAuthoritativeProjection = useCallback((candidate: typeof projection) => {
     setProjection((current) => chooseLatestProjection(current, candidate));
   }, []);
@@ -194,7 +238,9 @@ export function WorldShell() {
   const inspectedSignal = model.signals.find((signal) => signal.id === inspectedSignalId);
 
   const useProfessorMission = (mission: NonNullable<ProfessorResponse['suggestedMission']>) => {
-    const assignedAgentId = projection.agentsById['kestrel'] ? 'kestrel' : selectedAgentId;
+    const assignedAgentId =
+      Object.values(projection.agentsById).find((agent) => agent.role === 'skeptic')?.id ??
+      selectedAgentId;
     const missing: MissionDraft['missing'] = mission.destinationPlaceId ? [] : ['destination'];
     setSelectedAgentId(assignedAgentId);
     setCommand(mission.objective);
@@ -296,11 +342,11 @@ export function WorldShell() {
   };
 
   const refreshProjection = useCallback(async () => {
-    const nextProjection = await fetchExpeditionSnapshot();
+    const nextProjection = await fetchExpeditionSnapshot(projection.expedition.id);
     installAuthoritativeProjection(nextProjection);
     setRuntimeState('ready');
     return nextProjection;
-  }, [installAuthoritativeProjection]);
+  }, [installAuthoritativeProjection, projection.expedition.id]);
 
   const openArchiveWorkspace = useCallback(async () => {
     workspaceFocusCycleRef.current = true;
@@ -311,8 +357,8 @@ export function WorldShell() {
     setArchiveLoading(true);
     try {
       const [nextProjection, eventLog] = await Promise.all([
-        fetchExpeditionSnapshot(),
-        fetchExpeditionEvents(),
+        fetchExpeditionSnapshot(projection.expedition.id),
+        fetchExpeditionEvents(projection.expedition.id),
       ]);
       installAuthoritativeProjection(nextProjection);
       setArchiveEvents(eventLog.events);
@@ -325,19 +371,23 @@ export function WorldShell() {
     } finally {
       setArchiveLoading(false);
     }
-  }, [installAuthoritativeProjection]);
+  }, [installAuthoritativeProjection, projection.expedition.id]);
 
   const conveneMeeting = useCallback(async () => {
+    if (!meetingPlace) {
+      setAnnouncement('This world does not define a meeting place.');
+      return;
+    }
     const participantAgentIds = Object.keys(projection.agentsById);
     const issuedAt = new Date().toISOString();
     const meetingId = createClientId('meeting');
     const commandId = createClientId('cmd-meeting');
     const worldCommand = {
-      ...commandEnvelope(commandId, `meeting:${meetingId}`, issuedAt),
+      ...commandEnvelope(projection.expedition.id, commandId, `meeting:${meetingId}`, issuedAt),
       type: 'meeting.request',
       payload: {
         meetingId,
-        placeId: 'square',
+        placeId: meetingPlace.id,
         participantAgentIds,
       },
     } satisfies WorldCommand;
@@ -346,8 +396,8 @@ export function WorldShell() {
     try {
       await submitWorldCommand(worldCommand);
       const [nextProjection, eventLog] = await Promise.all([
-        fetchExpeditionSnapshot(),
-        fetchExpeditionEvents(),
+        fetchExpeditionSnapshot(projection.expedition.id),
+        fetchExpeditionEvents(projection.expedition.id),
       ]);
       installAuthoritativeProjection(nextProjection);
       setMeetingEvents(eventLog.events);
@@ -358,7 +408,7 @@ export function WorldShell() {
       setTrayExpanded(false);
       setMobilePanel(null);
       setRuntimeState('ready');
-      setAnnouncement('The team is gathering at Lantern Square.');
+      setAnnouncement(`The team is gathering at ${meetingPlace.name}.`);
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Meeting request failed.';
       setCommandError(message);
@@ -366,14 +416,19 @@ export function WorldShell() {
     } finally {
       setMeetingBusy(false);
     }
-  }, [installAuthoritativeProjection, projection.agentsById]);
+  }, [
+    installAuthoritativeProjection,
+    meetingPlace,
+    projection.agentsById,
+    projection.expedition.id,
+  ]);
 
   const skipMeetingArrivals = useCallback(async () => {
     if (!activeMeetingId) return;
     setMeetingBusy(true);
     setCommandError(undefined);
     try {
-      let nextProjection = await fetchExpeditionSnapshot();
+      let nextProjection = await fetchExpeditionSnapshot(projection.expedition.id);
       for (const agent of Object.values(nextProjection.agentsById)) {
         const missionId = agent.activeMissionId;
         if (!agent.movement || !missionId?.startsWith(`meeting-mission-${activeMeetingId}-`)) {
@@ -383,6 +438,7 @@ export function WorldShell() {
         const commandId = createClientId('cmd-skip-meeting');
         await submitWorldCommand({
           ...commandEnvelope(
+            projection.expedition.id,
             commandId,
             `skip-meeting:${activeMeetingId}:${agent.id}:${commandId}`,
             issuedAt,
@@ -390,9 +446,9 @@ export function WorldShell() {
           type: 'agent.skip_travel',
           payload: { agentId: agent.id, missionId },
         });
-        nextProjection = await fetchExpeditionSnapshot();
+        nextProjection = await fetchExpeditionSnapshot(projection.expedition.id);
       }
-      const eventLog = await fetchExpeditionEvents();
+      const eventLog = await fetchExpeditionEvents(projection.expedition.id);
       installAuthoritativeProjection(nextProjection);
       setMeetingEvents(eventLog.events);
       setAnnouncement('Arrivals skipped with every route and arrival event preserved.');
@@ -403,7 +459,7 @@ export function WorldShell() {
     } finally {
       setMeetingBusy(false);
     }
-  }, [activeMeetingId, installAuthoritativeProjection]);
+  }, [activeMeetingId, installAuthoritativeProjection, projection.expedition.id]);
 
   const openProfessorWorkspace = useCallback(async () => {
     workspaceFocusCycleRef.current = true;
@@ -428,13 +484,16 @@ export function WorldShell() {
     setMobilePanel(null);
     try {
       await refreshProjection();
-      setAnnouncement('Meridian Observatory forecast desk opened.');
+      const homePlace = projection.worldManifest.places.find(
+        (place) => place.id === projection.worldManifest.defaultSpawnPlaceId,
+      );
+      setAnnouncement(`${homePlace?.name ?? 'Expedition'} forecast desk opened.`);
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Forecast desk failed to load.';
       setCommandError(message);
       setAnnouncement(`Forecast desk failed to load: ${message}`);
     }
-  }, [refreshProjection]);
+  }, [projection.worldManifest, refreshProjection]);
 
   const openReplayWorkspace = useCallback((sequence?: number) => {
     workspaceFocusCycleRef.current = true;
@@ -457,18 +516,20 @@ export function WorldShell() {
       const commitId = createClientId('forecast');
       const commandId = createClientId('cmd-forecast');
       const previousProbabilities = projection.forecasts.at(-1)?.newProbabilities ?? {
-        yes: 0.5,
-        no: 0.5,
+        [primaryOutcome.id]:
+          projection.market.currentPublicProbabilities?.[primaryOutcome.id] ?? 0.5,
+        [secondaryOutcome.id]:
+          projection.market.currentPublicProbabilities?.[secondaryOutcome.id] ?? 0.5,
       };
       const newProbabilities = {
-        yes: input.yesProbability,
-        no: 1 - input.yesProbability,
+        [primaryOutcome.id]: input.primaryProbability,
+        [secondaryOutcome.id]: 1 - input.primaryProbability,
       };
       const unchanged =
-        previousProbabilities['yes'] === newProbabilities.yes &&
-        previousProbabilities['no'] === newProbabilities.no;
+        previousProbabilities[primaryOutcome.id] === newProbabilities[primaryOutcome.id] &&
+        previousProbabilities[secondaryOutcome.id] === newProbabilities[secondaryOutcome.id];
       const worldCommand = {
-        ...commandEnvelope(commandId, `forecast:${commitId}`, createdAt),
+        ...commandEnvelope(projection.expedition.id, commandId, `forecast:${commitId}`, createdAt),
         type: 'forecast.commit',
         payload: {
           commit: {
@@ -492,10 +553,19 @@ export function WorldShell() {
       await submitWorldCommand(worldCommand);
       await refreshProjection();
       setAnnouncement(
-        `${unchanged ? 'Forecast hold' : 'Forecast revision'} committed at ${Math.round(input.yesProbability * 100)} percent.`,
+        `${unchanged ? 'Forecast hold' : 'Forecast revision'} committed at ${Math.round(input.primaryProbability * 100)} percent ${primaryOutcome.shortLabel}.`,
       );
     },
-    [projection.appliedEvents, projection.expedition.id, projection.forecasts, refreshProjection],
+    [
+      primaryOutcome.id,
+      primaryOutcome.shortLabel,
+      projection.appliedEvents,
+      projection.expedition.id,
+      projection.forecasts,
+      projection.market.currentPublicProbabilities,
+      refreshProjection,
+      secondaryOutcome.id,
+    ],
   );
 
   const askProfessor = useCallback(
@@ -504,12 +574,12 @@ export function WorldShell() {
       const queryId = createClientId('professor-query');
       const commandId = createClientId('cmd-professor');
       const worldCommand = {
-        ...commandEnvelope(commandId, `professor:${queryId}`, createdAt),
+        ...commandEnvelope(projection.expedition.id, commandId, `professor:${queryId}`, createdAt),
         type: 'professor.query',
         payload: {
           query: {
             id: queryId,
-            expeditionId: shellModel.projection.expedition.id,
+            expeditionId: projection.expedition.id,
             mode: input.mode,
             question: input.question,
             selectedSourceIds: input.selectedSourceIds,
@@ -537,7 +607,7 @@ export function WorldShell() {
       }
       throw new Error('Professor agent did not finish within its bounded runtime window.');
     },
-    [refreshProjection],
+    [projection.expedition.id, refreshProjection],
   );
 
   const openPanel = useCallback(
@@ -570,12 +640,12 @@ export function WorldShell() {
     const id = createClientId(paused ? 'cmd-resume' : 'cmd-pause');
     const worldCommand: WorldCommand = paused
       ? {
-          ...commandEnvelope(id, `resume:${id}`, issuedAt),
+          ...commandEnvelope(projection.expedition.id, id, `resume:${id}`, issuedAt),
           type: 'expedition.start',
           payload: {},
         }
       : {
-          ...commandEnvelope(id, `pause:${id}`, issuedAt),
+          ...commandEnvelope(projection.expedition.id, id, `pause:${id}`, issuedAt),
           type: 'expedition.pause',
           payload: { reason: 'Paused by player.' },
         };
@@ -588,7 +658,7 @@ export function WorldShell() {
       setCommandError(message);
       setAnnouncement(`Simulation control failed: ${message}`);
     }
-  }, [paused, refreshProjection]);
+  }, [paused, projection.expedition.id, refreshProjection]);
 
   const changeSpeed = useCallback(
     async (direction: -1 | 1 = 1) => {
@@ -598,7 +668,7 @@ export function WorldShell() {
       const issuedAt = new Date().toISOString();
       const id = createClientId('cmd-speed');
       const worldCommand = {
-        ...commandEnvelope(id, `speed:${id}`, issuedAt),
+        ...commandEnvelope(projection.expedition.id, id, `speed:${id}`, issuedAt),
         type: 'expedition.change_speed',
         payload: { speed: nextSpeed },
       } satisfies WorldCommand;
@@ -612,7 +682,7 @@ export function WorldShell() {
         setAnnouncement(`Simulation control failed: ${message}`);
       }
     },
-    [refreshProjection, speed],
+    [projection.expedition.id, refreshProjection, speed],
   );
 
   const skipTravelForAgent = useCallback(
@@ -620,7 +690,12 @@ export function WorldShell() {
       const issuedAt = new Date().toISOString();
       const id = createClientId('cmd-skip');
       const worldCommand = {
-        ...commandEnvelope(id, `skip:${agentId}:${missionId}:${id}`, issuedAt),
+        ...commandEnvelope(
+          projection.expedition.id,
+          id,
+          `skip:${agentId}:${missionId}:${id}`,
+          issuedAt,
+        ),
         type: 'agent.skip_travel',
         payload: { agentId, missionId },
       } satisfies WorldCommand;
@@ -640,7 +715,7 @@ export function WorldShell() {
         }
       }
     },
-    [refreshProjection],
+    [projection.expedition.id, refreshProjection],
   );
 
   useEffect(() => {
@@ -648,8 +723,8 @@ export function WorldShell() {
 
     let active = true;
     void Promise.allSettled([
-      fetchExpeditionSnapshot(),
-      fetchFixtureConfiguration(),
+      fetchExpeditionSnapshot(projection.expedition.id),
+      fetchFixtureConfiguration(projection.expedition.id),
       fetchPrefDiagnostics(),
     ]).then(([snapshotResult, configurationResult, prefResult]) => {
       if (!active) return;
@@ -676,7 +751,7 @@ export function WorldShell() {
     return () => {
       active = false;
     };
-  }, [installAuthoritativeProjection]);
+  }, [installAuthoritativeProjection, projection.expedition.id]);
 
   useEffect(() => {
     if (forcedRuntimeStateFromLocation()) return;
@@ -711,10 +786,10 @@ export function WorldShell() {
     if (forcedRuntimeStateFromLocation()) return;
     let active = true;
     const stream = new ExpeditionEventStream({
-      expeditionId: shellModel.projection.expedition.id,
-      initialSequence: shellModel.projection.sequence,
+      expeditionId: projection.expedition.id,
+      initialSequence: initialProjection.sequence,
       onEvents: async (envelope) => {
-        const nextProjection = await fetchExpeditionSnapshot();
+        const nextProjection = await fetchExpeditionSnapshot(projection.expedition.id);
         if (
           nextProjection.expedition.id !== envelope.expeditionId ||
           nextProjection.sequence < envelope.sequence
@@ -744,7 +819,7 @@ export function WorldShell() {
       active = false;
       stream.stop();
     };
-  }, [installAuthoritativeProjection]);
+  }, [initialProjection.sequence, installAuthoritativeProjection, projection.expedition.id]);
 
   useEffect(() => {
     if (!activeCue) return;
@@ -806,7 +881,7 @@ export function WorldShell() {
   useEffect(() => {
     if (workspace !== 'meeting' || !activeMeetingId) return;
     let active = true;
-    void fetchExpeditionEvents()
+    void fetchExpeditionEvents(projection.expedition.id)
       .then((eventLog) => {
         if (active) setMeetingEvents(eventLog.events);
       })
@@ -816,7 +891,7 @@ export function WorldShell() {
     return () => {
       active = false;
     };
-  }, [activeMeetingId, projection.sequence, workspace]);
+  }, [activeMeetingId, projection.expedition.id, projection.sequence, workspace]);
 
   useEffect(() => {
     if (!skipTravel) return;
@@ -956,7 +1031,11 @@ export function WorldShell() {
     setCommandBusy(true);
     setCommandError(undefined);
     try {
-      const draft = await interpretMissionDraft(objective, selectedAgent.id);
+      const draft = await interpretMissionDraft(
+        projection.expedition.id,
+        objective,
+        selectedAgent.id,
+      );
       setMissionDraft(draft);
       setAnnouncement(
         draft.status === 'ready'
@@ -1003,7 +1082,12 @@ export function WorldShell() {
     const missionId = `mission-${missionDraft.submissionId}`;
     const commandId = `cmd-${missionDraft.submissionId}`;
     const worldCommand = {
-      ...commandEnvelope(commandId, missionDraft.submissionId, missionDraft.createdAt),
+      ...commandEnvelope(
+        projection.expedition.id,
+        commandId,
+        missionDraft.submissionId,
+        missionDraft.createdAt,
+      ),
       type: 'agent.assign_mission',
       payload: {
         mission: {
@@ -1043,7 +1127,7 @@ export function WorldShell() {
     const issuedAt = new Date().toISOString();
     const id = createClientId('cmd-cancel');
     const worldCommand = {
-      ...commandEnvelope(id, `cancel:${id}`, issuedAt),
+      ...commandEnvelope(projection.expedition.id, id, `cancel:${id}`, issuedAt),
       type: 'agent.cancel_mission',
       payload: { missionId, reason: 'Canceled by player from the mission queue.' },
     } satisfies WorldCommand;
@@ -1077,7 +1161,7 @@ export function WorldShell() {
     const issuedAt = new Date().toISOString();
     const id = createClientId('cmd-reorder');
     const worldCommand = {
-      ...commandEnvelope(id, `reorder:${id}`, issuedAt),
+      ...commandEnvelope(projection.expedition.id, id, `reorder:${id}`, issuedAt),
       type: 'agent.reorder_missions',
       payload: { agentId: agent.id, orderedMissionIds },
     } satisfies WorldCommand;
@@ -1100,7 +1184,7 @@ export function WorldShell() {
     setCommandBusy(true);
     setCommandError(undefined);
     try {
-      const configuration = await updateFixtureMissionScenario(scenario);
+      const configuration = await updateFixtureMissionScenario(projection.expedition.id, scenario);
       setFixtureScenario(configuration.missionScenario);
       setAnnouncement(`Offline mission result set to ${scenario.replace('_', ' ')}.`);
     } catch (error: unknown) {
@@ -1117,7 +1201,12 @@ export function WorldShell() {
     const issuedAt = new Date().toISOString();
     const id = createClientId('cmd-retry');
     const worldCommand = {
-      ...commandEnvelope(id, `retry:${mission.id}:${mission.failedTurnId}:${id}`, issuedAt),
+      ...commandEnvelope(
+        projection.expedition.id,
+        id,
+        `retry:${mission.id}:${mission.failedTurnId}:${id}`,
+        issuedAt,
+      ),
       type: 'runtime.retry_turn',
       payload: {
         agentId: mission.agentId,
@@ -1170,6 +1259,11 @@ export function WorldShell() {
   const resolvedOutcomeLabel = projection.market.outcomes.find(
     (outcome) => outcome.id === projection.market.resolvedOutcomeId,
   )?.shortLabel;
+  const marketKindLabel = projection.market.tags.includes('fictional')
+    ? 'Fictional sandbox market'
+    : projection.expedition.settings.fixtureMode
+      ? 'Offline research scenario'
+      : 'Read-only market research';
   const commandDisabledReason = workspacePersistenceIssue
     ? 'Workspace persistence paused; commands are closed.'
     : ['resolved', 'archived'].includes(projection.expedition.status)
@@ -1191,6 +1285,9 @@ export function WorldShell() {
       </a>
 
       <MarketRibbon
+        deadlineLabel={shortDateLabel(model.market.closesAt)}
+        expeditionName={model.market.expeditionName}
+        marketKindLabel={marketKindLabel}
         mode={mode}
         onModeChange={() =>
           setMode((current) => (current === 'director' ? 'observatory' : 'director'))
@@ -1200,11 +1297,14 @@ export function WorldShell() {
         onSpeedChange={() => void changeSpeed()}
         paused={paused}
         publicProbability={model.market.publicProbability}
+        primaryOutcomeLabel={model.market.primaryOutcome.shortLabel}
+        question={model.market.question}
         prefConnected={prefConnected}
         prefConnectionState={prefConnectionState}
         prefMode={prefMode}
         {...(resolvedOutcomeLabel ? { resolvedOutcomeLabel } : {})}
         runtimeState={runtimeState}
+        secondaryOutcomeLabel={model.market.secondaryOutcome.shortLabel}
         speed={speed}
         streamStatus={eventStreamStatus}
         teamProbability={model.market.teamProbability}
@@ -1285,6 +1385,7 @@ export function WorldShell() {
               : 'Checking'
         }
         prefWarning={!prefConnected && prefConnectionState !== 'checking'}
+        places={model.places}
         selectedAgentId={selectedAgentId}
       />
 
@@ -1327,6 +1428,7 @@ export function WorldShell() {
         />
       ) : workspace === 'replay' ? (
         <ReplayWorkspace
+          expeditionId={projection.expedition.id}
           {...(replayInitialSequence === undefined
             ? {}
             : { initialSequence: replayInitialSequence })}
@@ -1368,9 +1470,12 @@ export function WorldShell() {
                       : undefined;
                   setMobilePanel('signals');
                 }}
-                onSelectMira={() => {
-                  setSelectedAgentId('mira');
-                  setAnnouncement('Mira selected for the first expedition step.');
+                onSelectGuideAgent={(agentId) => {
+                  const agent = projection.agentsById[agentId];
+                  setSelectedAgentId(agentId);
+                  setAnnouncement(
+                    `${agent?.displayName ?? 'Agent'} selected for the first expedition step.`,
+                  );
                 }}
                 projection={projection}
                 selectedAgentId={selectedAgentId}
@@ -1380,6 +1485,7 @@ export function WorldShell() {
           loading={runtimeState === 'loading'}
           meetingBusy={meetingBusy}
           meetingDisabled={meetingDisabled}
+          meetingPlaceName={meetingPlace?.name}
           onConveneMeeting={() => void conveneMeeting()}
           onOpenPanel={openPanel}
           onSelectAgent={(agentId) => {
@@ -1420,6 +1526,7 @@ export function WorldShell() {
           skipTravel={skipTravel}
           soundEnabled={soundEnabled}
           weather={model.weather}
+          worldName={projection.expedition.title}
         />
       )}
 

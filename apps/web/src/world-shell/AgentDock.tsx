@@ -1,9 +1,11 @@
-import type { ShellAgent } from './model.js';
+import type { ShellAgent, ShellPlace } from './model.js';
+import { missionSuggestionsForPlaces } from './mission-suggestions.js';
 
 export interface AgentDockProps {
   agents: readonly ShellAgent[];
   collapsed: boolean;
   mobileOpen: boolean;
+  places: readonly ShellPlace[];
   prefConnectionLabel: string;
   prefWarning: boolean;
   selectedAgentId: string;
@@ -25,10 +27,12 @@ export function AgentDock({
   onSkipTravel,
   onSelectAgent,
   onToggleCollapsed,
+  places,
   prefConnectionLabel,
   prefWarning,
   selectedAgentId,
 }: AgentDockProps) {
+  const quickMissions = missionSuggestionsForPlaces(places).slice(0, 2);
   return (
     <aside
       aria-label="Agents"
@@ -66,7 +70,12 @@ export function AgentDock({
                   title={`${agent.name}, ${agent.role}`}
                   type="button"
                 >
-                  <span className="atlas-portrait" data-agent={agent.id} aria-hidden="true">
+                  <span
+                    className="atlas-portrait"
+                    data-agent={agent.id}
+                    data-role={agent.roleKey}
+                    aria-hidden="true"
+                  >
                     <i />
                   </span>
                   <span className="atlas-agent-card__copy">
@@ -136,26 +145,19 @@ export function AgentDock({
               +
             </button>
           </header>
-          <button
-            onClick={() => onPrepareMission('Check latest weather at Galehaven Weather Tower')}
-            type="button"
-          >
-            <span aria-hidden="true">↗</span>
-            <span>
-              <strong>Check latest weather</strong>
-              <small>Galehaven Weather Tower</small>
-            </span>
-          </button>
-          <button
-            onClick={() => onPrepareMission('Search historical delays in Archive Quarter')}
-            type="button"
-          >
-            <span aria-hidden="true">▤</span>
-            <span>
-              <strong>Search historical delays</strong>
-              <small>Archive Quarter</small>
-            </span>
-          </button>
+          {quickMissions.map((mission, index) => (
+            <button
+              key={mission.objective}
+              onClick={() => onPrepareMission(mission.objective)}
+              type="button"
+            >
+              <span aria-hidden="true">{index === 0 ? '↗' : '▤'}</span>
+              <span>
+                <strong>{mission.title}</strong>
+                <small>{mission.placeName}</small>
+              </span>
+            </button>
+          ))}
         </section>
       </div>
 

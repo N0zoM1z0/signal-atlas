@@ -9,8 +9,6 @@ import type { SignalAtlasCaseFile } from '@signal-atlas/archive';
 import type { PrefMcpConnectionDiagnostics } from '@signal-atlas/pref-gateway';
 import { parseWorldProjection, type WorldProjection } from '@signal-atlas/simulation';
 
-import { shellModel } from './model.js';
-
 export interface MissionDraft {
   status: 'ready' | 'ambiguous';
   objective: string;
@@ -37,6 +35,14 @@ export type FixtureMissionScenario = (typeof fixtureMissionScenarios)[number];
 export interface FixtureConfiguration {
   seed: string;
   missionScenario: FixtureMissionScenario;
+}
+
+export interface ExpeditionListItem {
+  id: string;
+  latestSequence: number;
+  marketQuestion: string;
+  status: string;
+  title: string;
 }
 
 interface CommandResponse {
@@ -112,7 +118,6 @@ export interface SignalAtlasRuntimeDiagnostics extends CodexRuntimeDiagnostics {
   workspace: WorkspaceRuntimeDiagnostics;
 }
 
-const expeditionId = shellModel.projection.expedition.id;
 const requestTimeoutMs = 10_000;
 
 async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
@@ -154,7 +159,15 @@ export function createClientId(prefix: string): string {
   return `${prefix}-${random}`;
 }
 
-export async function fetchExpeditionSnapshot(): Promise<WorldProjection> {
+export async function fetchExpeditions(): Promise<ExpeditionListItem[]> {
+  const response = await requestJson<{ expeditions: ExpeditionListItem[] }>('/api/expeditions');
+  if (!Array.isArray(response.expeditions)) {
+    throw new Error('The orchestrator returned an invalid expedition list.');
+  }
+  return response.expeditions;
+}
+
+export async function fetchExpeditionSnapshot(expeditionId: string): Promise<WorldProjection> {
   const response = await requestJson<{ projection: unknown }>(
     `/api/expeditions/${expeditionId}/snapshot`,
   );
@@ -192,7 +205,10 @@ export async function disconnectPrefConnection(): Promise<PrefMcpConnectionDiagn
   });
 }
 
-export async function fetchExpeditionEvents(after = 0): Promise<{
+export async function fetchExpeditionEvents(
+  expeditionId: string,
+  after = 0,
+): Promise<{
   events: WorldEvent[];
   sequence: number;
 }> {
@@ -205,29 +221,35 @@ export async function fetchExpeditionEvents(after = 0): Promise<{
   return { events: response.events.map(parseWorldEvent), sequence: response.sequence };
 }
 
-export async function fetchReplayProjection(sequence?: number): Promise<ReplayProjectionResponse> {
+export async function fetchReplayProjection(
+  expeditionId: string,
+  sequence?: number,
+): Promise<ReplayProjectionResponse> {
   const query = sequence === undefined ? '' : `?sequence=${sequence}`;
   return requestJson<ReplayProjectionResponse>(`/api/expeditions/${expeditionId}/replay${query}`);
 }
 
-export async function resolveFixtureCase(): Promise<FixtureResolutionResponse> {
+export async function resolveFixtureCase(expeditionId: string): Promise<FixtureResolutionResponse> {
   return requestJson<FixtureResolutionResponse>(
     `/api/expeditions/${expeditionId}/resolve-fixture`,
     { method: 'POST', body: JSON.stringify({}) },
   );
 }
 
-export async function fetchCaseFile(): Promise<SignalAtlasCaseFile> {
+export async function fetchCaseFile(expeditionId: string): Promise<SignalAtlasCaseFile> {
   return requestJson<SignalAtlasCaseFile>(`/api/expeditions/${expeditionId}/case-file`);
 }
 
-export async function fetchFixtureConfiguration(): Promise<FixtureConfiguration> {
+export async function fetchFixtureConfiguration(
+  expeditionId: string,
+): Promise<FixtureConfiguration> {
   return requestJson<FixtureConfiguration>(
     `/api/expeditions/${expeditionId}/fixture-configuration`,
   );
 }
 
 export async function updateFixtureMissionScenario(
+  expeditionId: string,
   missionScenario: FixtureMissionScenario,
 ): Promise<FixtureConfiguration> {
   return requestJson<FixtureConfiguration>(
@@ -240,6 +262,7 @@ export async function updateFixtureMissionScenario(
 }
 
 export async function interpretMissionDraft(
+  expeditionId: string,
   text: string,
   selectedAgentId: string,
 ): Promise<MissionDraft> {
@@ -258,7 +281,7 @@ export async function interpretMissionDraft(
 }
 
 export async function submitWorldCommand(command: WorldCommand): Promise<CommandResponse> {
-  return requestJson<CommandResponse>(`/api/expeditions/${expeditionId}/commands`, {
+  return requestJson<CommandResponse>(`/api/expeditions/${command.expeditionId}/commands`, {
     method: 'POST',
     body: JSON.stringify(command),
   });

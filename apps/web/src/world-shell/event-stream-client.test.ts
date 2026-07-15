@@ -6,7 +6,7 @@ import {
   type EventStreamSocket,
   type EventStreamStatus,
 } from './event-stream-client.js';
-import { shellModel } from './model.js';
+const expeditionId = 'exp-helios3-demo';
 
 class FakeSocket {
   readonly listeners = new Map<string, Array<(event: unknown) => void>>();
@@ -38,7 +38,7 @@ const flushMessages = async () => {
 function pauseEvent(sequence: number) {
   return parseWorldEvent({
     id: `evt-stream-pause-${sequence}`,
-    expeditionId: shellModel.projection.expedition.id,
+    expeditionId,
     sequence,
     type: 'expedition.paused',
     occurredAt: '2027-09-26T18:40:00Z',
@@ -61,7 +61,7 @@ describe('ExpeditionEventStream', () => {
     const statuses: EventStreamStatus[] = [];
     const appliedSequences: number[] = [];
     const stream = new ExpeditionEventStream({
-      expeditionId: shellModel.projection.expedition.id,
+      expeditionId,
       initialSequence: 2,
       onEvents: async (envelope) => {
         appliedSequences.push(envelope.sequence);
@@ -81,14 +81,14 @@ describe('ExpeditionEventStream', () => {
     sockets[0]?.message({
       schemaVersion: SCHEMA_VERSION,
       type: 'world.ready',
-      expeditionId: shellModel.projection.expedition.id,
+      expeditionId,
       sequence: 2,
     });
     await flushMessages();
     sockets[0]?.message({
       schemaVersion: SCHEMA_VERSION,
       type: 'world.events',
-      expeditionId: shellModel.projection.expedition.id,
+      expeditionId,
       afterSequence: 2,
       sequence: 3,
       events: [pauseEvent(3)],
@@ -112,7 +112,7 @@ describe('ExpeditionEventStream', () => {
     const statuses: EventStreamStatus[] = [];
     const boundaryErrors: string[] = [];
     const stream = new ExpeditionEventStream({
-      expeditionId: shellModel.projection.expedition.id,
+      expeditionId,
       initialSequence: 2,
       onEvents: () => undefined,
       onStatus: (status) => statuses.push(status),
@@ -146,7 +146,7 @@ describe('ExpeditionEventStream', () => {
     const sockets: FakeSocket[] = [];
     const statuses: EventStreamStatus[] = [];
     const stream = new ExpeditionEventStream({
-      expeditionId: shellModel.projection.expedition.id,
+      expeditionId,
       initialSequence: 2,
       onEvents: async () => {
         throw new Error('Injected snapshot outage.');
@@ -165,7 +165,7 @@ describe('ExpeditionEventStream', () => {
     sockets[0]?.message({
       schemaVersion: SCHEMA_VERSION,
       type: 'world.events',
-      expeditionId: shellModel.projection.expedition.id,
+      expeditionId,
       afterSequence: 2,
       sequence: 3,
       events: [pauseEvent(3)],

@@ -43,6 +43,26 @@ describe('orchestrator health endpoint', () => {
     });
   });
 
+  it('lists the local expedition before the browser requests its snapshot', async () => {
+    const app = buildApp();
+    openApps.push(app);
+
+    const response = await app.inject({ method: 'GET', url: '/api/expeditions' });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({
+      expeditions: [
+        {
+          id: 'exp-helios3-demo',
+          latestSequence: 2,
+          marketQuestion: 'Will the Helios-3 mission launch before September 30?',
+          status: 'active',
+          title: 'Helios-3 Launch Window',
+        },
+      ],
+    });
+  });
+
   it('reports the configured driver and scheduler without exposing private input', async () => {
     const app = buildApp();
     openApps.push(app);

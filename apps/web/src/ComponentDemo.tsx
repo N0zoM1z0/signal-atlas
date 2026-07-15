@@ -76,7 +76,7 @@ export function ComponentDemo() {
             <Badge tone="context">◇ Context</Badge>
             <Badge tone="disputed">△ Disputed</Badge>
           </div>
-          <Progress label="Mira · weather investigation" value={68} />
+          <Progress label="Field scout · evidence investigation" value={68} />
           <Button onClick={() => setDialogOpen(true)} variant="primary">
             Open evidence dialog
           </Button>
@@ -104,7 +104,7 @@ export function ComponentDemo() {
         open={dialogOpen}
         title="Inspect provenance"
       >
-        <Card eyebrow="Pref fixture" title="Galehaven Crosswind Advisory 18:10Z">
+        <Card eyebrow="Pref fixture" title="Coastal Conditions Advisory 18:10Z">
           Source facts remain visually separate from agent interpretation.
         </Card>
         <div className="demo-dialog-actions">

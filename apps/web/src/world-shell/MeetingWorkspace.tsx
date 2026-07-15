@@ -1,4 +1,4 @@
-import type { WorldEvent } from '@signal-atlas/contracts';
+import { binaryMarketOutcomes, type WorldEvent } from '@signal-atlas/contracts';
 import type { WorldProjection } from '@signal-atlas/simulation';
 import { useMemo, useState } from 'react';
 
@@ -16,20 +16,22 @@ type MeetingStartedEvent = Extract<WorldEvent, { type: 'meeting.started' }>;
 type MeetingShareEvent = Extract<WorldEvent, { type: 'meeting.signal_shared' }>;
 type BeliefEvent = Extract<WorldEvent, { type: 'belief.updated' }>;
 
-const disagreementCopy = {
-  evidence: {
-    label: 'Evidence disagreement',
-    description: 'They arrived holding different signal sets and source vantage points.',
-  },
-  model: {
-    label: 'Model disagreement',
-    description: 'They weight fresh conditions and historical cases differently.',
-  },
-  prior: {
-    label: 'Prior disagreement',
-    description: 'Their starting YES estimates differed before any exchange.',
-  },
-} as const;
+function disagreementCopy(primaryOutcomeLabel: string) {
+  return {
+    evidence: {
+      label: 'Evidence disagreement',
+      description: 'They arrived holding different signal sets and source vantage points.',
+    },
+    model: {
+      label: 'Model disagreement',
+      description: 'They weight fresh conditions and historical cases differently.',
+    },
+    prior: {
+      label: 'Prior disagreement',
+      description: `Their starting ${primaryOutcomeLabel} estimates differed before any exchange.`,
+    },
+  } as const;
+}
 
 function percent(value: number | undefined): string {
   return value === undefined ? '—' : `${Math.round(value * 100)}%`;
@@ -60,6 +62,7 @@ export function MeetingWorkspace({
   onSkipArrivals,
   projection,
 }: MeetingWorkspaceProps) {
+  const { primary: primaryOutcome } = binaryMarketOutcomes(projection.market);
   const [showMemo, setShowMemo] = useState(false);
   const request = projection.meetingRequestsById[meetingId];
   const meeting = projection.meetingsById[meetingId];
@@ -106,8 +109,16 @@ export function MeetingWorkspace({
   const sharedSignalIds = meeting?.sharedSignalIds ?? [
     ...new Set(Object.values(beforeSignalsByAgentId).flat()),
   ];
+  const meetingPlaceId =
+    request?.placeId ??
+    meeting?.placeId ??
+    projection.worldManifest.places.find((place) => place.archetype === 'town_square')?.id ??
+    projection.worldManifest.defaultSpawnPlaceId;
+  const meetingPlace = projection.worldManifest.places.find((place) => place.id === meetingPlaceId);
+  const meetingPlaceName = meetingPlace?.name ?? 'Meeting place';
+  const disagreementLabels = disagreementCopy(primaryOutcome.shortLabel);
   const arrivedCount = participantAgentIds.filter(
-    (agentId) => projection.agentsById[agentId]?.placeId === (request?.placeId ?? 'square'),
+    (agentId) => projection.agentsById[agentId]?.placeId === meetingPlaceId,
   ).length;
   const totalEventCount = meetingEvents.length;
 
@@ -115,13 +126,13 @@ export function MeetingWorkspace({
     <main
       className="atlas-meeting-workspace"
       aria-busy={loading}
-      aria-label="Lantern Square meeting"
+      aria-label={`${meetingPlaceName} meeting`}
       tabIndex={-1}
     >
       <header className="atlas-meeting-header">
         <div>
-          <span className="atlas-kicker">The Atlas / Lantern Square</span>
-          <h2>Lantern Square Meeting</h2>
+          <span className="atlas-kicker">The Atlas / {meetingPlaceName}</span>
+          <h2>{meetingPlaceName} Meeting</h2>
           <p>Knowledge moves only through explicit shares. Different priors remain visible.</p>
         </div>
         <div className="atlas-meeting-header__actions">
@@ -155,7 +166,7 @@ export function MeetingWorkspace({
           )}
         </header>
         <div
-          aria-label={`${arrivedCount} of ${participantAgentIds.length} participants at Lantern Square`}
+          aria-label={`${arrivedCount} of ${participantAgentIds.length} participants at ${meetingPlaceName}`}
           aria-valuemax={participantAgentIds.length}
           aria-valuemin={0}
           aria-valuenow={arrivedCount}
@@ -188,9 +199,9 @@ export function MeetingWorkspace({
               const beforeSignalIds = beforeSignalsByAgentId[agentId] ?? [];
               const belief = beliefEvents.find((event) => event.payload.update.actor.id === agentId)
                 ?.payload.update;
-              const arrived = agent.placeId === (request?.placeId ?? meeting?.placeId);
+              const arrived = agent.placeId === meetingPlaceId;
               return (
-                <li data-agent={agentId} key={agentId}>
+                <li data-agent={agentId} data-role={agent.role} key={agentId}>
                   <header>
                     <span className="atlas-meeting-portrait" aria-hidden="true">
                       {initials(agent.displayName)}
@@ -232,16 +243,18 @@ export function MeetingWorkspace({
                     </section>
                   </div>
                   <footer>
-                    <span>YES belief</span>
+                    <span>{primaryOutcome.shortLabel} belief</span>
                     <b>
                       {percent(
-                        belief?.previousProbabilities['yes'] ?? agent.belief.probabilities['yes'],
+                        belief?.previousProbabilities[primaryOutcome.id] ??
+                          agent.belief.probabilities[primaryOutcome.id],
                       )}
                     </b>
                     <i aria-hidden="true">→</i>
                     <strong>
                       {percent(
-                        belief?.newProbabilities['yes'] ?? agent.belief.probabilities['yes'],
+                        belief?.newProbabilities[primaryOutcome.id] ??
+                          agent.belief.probabilities[primaryOutcome.id],
                       )}
                     </strong>
                   </footer>
@@ -305,14 +318,14 @@ export function MeetingWorkspace({
                 <li key={type}>
                   <span>{type.slice(0, 1).toLocaleUpperCase('en-US')}</span>
                   <div>
-                    <strong>{disagreementCopy[type].label}</strong>
-                    <p>{disagreementCopy[type].description}</p>
+                    <strong>{disagreementLabels[type].label}</strong>
+                    <p>{disagreementLabels[type].description}</p>
                   </div>
                 </li>
               ))}
             </ul>
           ) : (
-            <p>Labels appear after everyone reaches the square.</p>
+            <p>Labels appear after everyone reaches {meetingPlaceName}.</p>
           )}
           {meeting?.memo && !showMemo && (
             <div className="atlas-meeting-reveal">

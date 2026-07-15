@@ -1,19 +1,16 @@
 import {
   knowledgeKey,
-  replayFixture,
+  signalDirectionRelativeToOutcome,
   selectLatestForecast,
   type WorldProjection,
 } from '@signal-atlas/simulation';
+import { binaryMarketOutcomes } from '@signal-atlas/contracts';
 import {
   createWorldSceneDefinition,
   weatherFromAmbientLayers,
   type WorldWeatherPresentation,
   type WorldWeatherState,
 } from '@signal-atlas/game-scene';
-import { helios3ExpeditionFixture } from '@signal-atlas/test-fixtures';
-
-const fixture = helios3ExpeditionFixture;
-const replay = replayFixture(fixture);
 
 const roleLabels = {
   scout: 'Field scout',
@@ -26,7 +23,7 @@ const roleLabels = {
 const archetypeLabels = {
   observatory: 'Home base',
   newsroom: 'Fresh reports',
-  weather_tower: 'Wind advisory',
+  weather_tower: 'Conditions feed',
   exchange: 'Market data',
   archive: 'Case files',
   professor: 'Professor available',
@@ -65,11 +62,22 @@ function weatherStateFromText(value: string): WorldWeatherState {
 export function weatherPresentationForProjection(
   projection: WorldProjection,
 ): WorldWeatherPresentation {
+  const weatherPlaceIds = new Set(
+    projection.worldManifest.places
+      .filter(
+        (place) =>
+          place.archetype === 'weather_tower' ||
+          place.capabilityBindings.some(
+            (binding) => binding.canonicalCapability === 'local_conditions',
+          ),
+      )
+      .map((place) => place.id),
+  );
   const latestWeatherSource = Object.values(projection.sourcesById)
     .filter(
       (source) =>
         source.tags.some((tag) => tag.toLowerCase().includes('weather')) &&
-        source.location?.placeId === 'weather-tower' &&
+        Boolean(source.location?.placeId && weatherPlaceIds.has(source.location.placeId)) &&
         source.sourceClass === 'official_primary' &&
         !source.tags.some((tag) =>
           ['context-only', 'real-world-proxy'].includes(tag.toLowerCase()),
@@ -101,8 +109,8 @@ export function weatherPresentationForProjection(
     clear: 'Clear conditions',
     breezy: 'Breezy conditions',
     crosswind: 'Crosswind advisory',
-    rain: 'Rain over Meridian Coast',
-    fog: 'Fog over Meridian Coast',
+    rain: 'Rain near the research sites',
+    fog: 'Fog near the research sites',
   };
   return {
     intensity: intensityByState[state],
@@ -117,6 +125,8 @@ export function weatherPresentationForProjection(
 }
 
 export function createShellModel(projection: WorldProjection) {
+  const outcomes = binaryMarketOutcomes(projection.market);
+  const primaryOutcomeId = outcomes.primary.id;
   const latestForecast = selectLatestForecast(projection);
   const latestTeamForecast = [...projection.forecasts]
     .reverse()
@@ -130,9 +140,8 @@ export function createShellModel(projection: WorldProjection) {
   const agentById = projection.agentsById;
   const missionRankById = new Map<string, number>();
   let missionRank = 0;
-  for (const fixtureAgent of fixture.agents) {
-    const agent = agentById[fixtureAgent.id];
-    if (!agent) continue;
+  const agents = Object.values(agentById);
+  for (const agent of agents) {
     if (agent.activeMissionId) missionRankById.set(agent.activeMissionId, missionRank++);
     for (const missionId of agent.queuedMissionIds) {
       missionRankById.set(missionId, missionRank++);
@@ -147,23 +156,25 @@ export function createShellModel(projection: WorldProjection) {
   const weather = weatherPresentationForProjection(projection);
 
   return {
-    fixture,
     projection,
-    replayHash: replay.hash,
     market: {
-      expeditionName: fixture.expedition.title,
+      expeditionName: projection.expedition.title,
       question: projection.market.question,
-      publicProbability: percentage(projection.market.currentPublicProbabilities?.['yes']),
+      primaryOutcome: outcomes.primary,
+      secondaryOutcome: outcomes.secondary,
+      publicProbability: percentage(
+        projection.market.currentPublicProbabilities?.[primaryOutcomeId],
+      ),
       teamProbability: percentage(
-        latestTeamForecast?.newProbabilities['yes'] ?? latestForecast?.newProbabilities['yes'],
+        latestTeamForecast?.newProbabilities[primaryOutcomeId] ??
+          latestForecast?.newProbabilities[primaryOutcomeId],
       ),
       playerProbability: latestPlayerForecast
-        ? percentage(latestPlayerForecast.newProbabilities['yes'])
+        ? percentage(latestPlayerForecast.newProbabilities[primaryOutcomeId])
         : undefined,
       closesAt: projection.market.resolvesAt ?? projection.market.closesAt,
     },
-    agents: fixture.agents.map((fixtureAgent) => {
-      const agent = agentById[fixtureAgent.id] ?? fixtureAgent;
+    agents: agents.map((agent) => {
       const place = placeById[agent.placeId];
       const activeMission = agent.activeMissionId
         ? projection.missionsById[agent.activeMissionId]
@@ -183,8 +194,10 @@ export function createShellModel(projection: WorldProjection) {
           (agent.queuedMissionIds.length > 0
             ? `${agent.queuedMissionIds.length} queued mission${agent.queuedMissionIds.length === 1 ? '' : 's'}`
             : 'Awaiting mission'),
-        forecast: percentage(agent.belief.probabilities['yes']),
+        forecast: percentage(agent.belief.probabilities[primaryOutcomeId]),
         knowledgeCount: agent.knownSignalIds.length,
+        x: place ? (place.position.x / projection.worldManifest.logicalWidth) * 100 : 50,
+        y: place ? (place.position.y / projection.worldManifest.logicalHeight) * 100 : 50,
         movement: agent.movement
           ? {
               missionId: agent.activeMissionId,
@@ -239,11 +252,7 @@ export function createShellModel(projection: WorldProjection) {
       missionVerbs: place.missionVerbs,
     })),
     routes: projection.worldManifest.routes,
-    sceneDefinition: createWorldSceneDefinition(
-      projection.worldManifest,
-      fixture.agents.map((agent) => agentById[agent.id] ?? agent),
-      weather,
-    ),
+    sceneDefinition: createWorldSceneDefinition(projection.worldManifest, agents, weather),
     weather,
     signals: Object.values(projection.signalsById).map((signal) => {
       const sources = signal.sourceIds.flatMap((id) => {
@@ -274,12 +283,20 @@ export function createShellModel(projection: WorldProjection) {
       const correlations = Object.values(projection.correlationsById).filter((correlation) =>
         correlation.signalIds.includes(signal.id),
       );
+      const targetOutcome = projection.market.outcomes.find(
+        (outcome) => outcome.id === signal.targetOutcomeId,
+      );
+      const relativeDirection = signalDirectionRelativeToOutcome(
+        signal,
+        primaryOutcomeId,
+        projection.market,
+      );
       const direction =
         signal.direction === 'context'
           ? 'Context'
-          : signal.direction === 'supports_outcome'
-            ? 'YES support'
-            : 'NO support';
+          : `${signal.direction === 'supports_outcome' ? 'Supports' : 'Opposes'} ${
+              targetOutcome?.shortLabel ?? targetOutcome?.label ?? 'outcome'
+            }`;
       return {
         id: signal.id,
         headline: signal.headline,
@@ -288,9 +305,9 @@ export function createShellModel(projection: WorldProjection) {
         tone:
           signal.direction === 'context'
             ? ('context' as const)
-            : signal.direction === 'supports_outcome'
-              ? ('yes' as const)
-              : ('no' as const),
+            : relativeDirection === 'supports'
+              ? ('support' as const)
+              : ('oppose' as const),
         impact: sentenceCase(signal.impact.label),
         impactRange: signal.impact.probabilityPointRange
           ? `${signedPercentagePoints(signal.impact.probabilityPointRange.low)} to ${signedPercentagePoints(signal.impact.probabilityPointRange.high)} pp`
@@ -322,9 +339,8 @@ export function createShellModel(projection: WorldProjection) {
   };
 }
 
-export const shellModel = createShellModel(replay.projection);
-
-export type ShellAgent = (typeof shellModel.agents)[number];
-export type ShellPlace = (typeof shellModel.places)[number];
-export type ShellSignal = (typeof shellModel.signals)[number];
-export type ShellMission = (typeof shellModel.missions)[number];
+export type ShellModel = ReturnType<typeof createShellModel>;
+export type ShellAgent = ShellModel['agents'][number];
+export type ShellPlace = ShellModel['places'][number];
+export type ShellSignal = ShellModel['signals'][number];
+export type ShellMission = ShellModel['missions'][number];

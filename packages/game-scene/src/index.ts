@@ -17,6 +17,11 @@ export {
 export { mountWorldScene } from './mount.js';
 export { pointAlongWaypoints, type ScenePoint } from './movement.js';
 export {
+  landmarkKindForScene,
+  type WorldSceneLandmarkKind,
+  worldSceneLandmarkKinds,
+} from './scene-kit.js';
+export {
   createWorldSceneDefinition,
   type MountedWorldScene,
   type MountWorldSceneOptions,

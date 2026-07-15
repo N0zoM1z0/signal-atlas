@@ -14,7 +14,7 @@ describe('browser runtime boundary', () => {
       vi.fn(async () => new Response(JSON.stringify({ projection: { sequence: 2 } }))),
     );
 
-    await expect(fetchExpeditionSnapshot()).rejects.toThrow(
+    await expect(fetchExpeditionSnapshot('exp-helios3-demo')).rejects.toThrow(
       'The orchestrator returned an invalid world projection.',
     );
   });
@@ -38,7 +38,7 @@ describe('browser runtime boundary', () => {
       ),
     );
 
-    await expect(fetchExpeditionSnapshot()).rejects.toThrow(
+    await expect(fetchExpeditionSnapshot('exp-helios3-demo')).rejects.toThrow(
       'The orchestrator returned an invalid world projection.',
     );
   });
@@ -59,7 +59,7 @@ describe('browser runtime boundary', () => {
       ),
     );
 
-    const request = expect(fetchExpeditionSnapshot()).rejects.toThrow(
+    const request = expect(fetchExpeditionSnapshot('exp-helios3-demo')).rejects.toThrow(
       'Orchestrator request timed out after 10000 ms.',
     );
     await vi.advanceTimersByTimeAsync(10_000);

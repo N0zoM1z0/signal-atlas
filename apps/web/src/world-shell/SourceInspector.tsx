@@ -60,7 +60,7 @@ export function SourceInspector({
             <div>
               <span className="atlas-direction-label" data-tone={signal.tone}>
                 <b aria-hidden="true">
-                  {signal.tone === 'yes' ? '↗' : signal.tone === 'no' ? '↘' : '◆'}
+                  {signal.tone === 'support' ? '↗' : signal.tone === 'oppose' ? '↘' : '◆'}
                 </b>{' '}
                 {signal.direction}
               </span>
@@ -172,7 +172,7 @@ export function SourceInspector({
                       {source.tags.includes('real-world-proxy') && (
                         <p className="atlas-proxy-source-notice">
                           <strong>Real-world proxy · context only.</strong> This source does not
-                          observe the fictional Galehaven or Helios-3 market.
+                          directly observe the scenario market or establish an outcome.
                         </p>
                       )}
                       {source.excerpt && <blockquote>{source.excerpt}</blockquote>}

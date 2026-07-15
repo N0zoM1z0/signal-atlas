@@ -1,16 +1,14 @@
 import { Dialog } from '@signal-atlas/ui';
+import { binaryMarketOutcomes, type ProbabilityRange } from '@signal-atlas/contracts';
 import type { ForecastProjection, WorldProjection } from '@signal-atlas/simulation';
 import { useMemo, useState, type CSSProperties, type FormEvent } from 'react';
 
 export interface ForecastCommitInput {
-  yesProbability: number;
+  primaryProbability: number;
   evidenceSignalIds: string[];
   publicNote: string;
   privateMemo?: string;
-  uncertainty?: {
-    yes: { low: number; high: number };
-    no: { low: number; high: number };
-  };
+  uncertainty?: Record<string, ProbabilityRange>;
 }
 
 export interface ForecastWorkspaceProps {
@@ -70,9 +68,9 @@ function actorLabel(forecast: ForecastProjection): string {
   return forecast.actor.kind;
 }
 
-function probabilityDelta(forecast: ForecastProjection): string {
-  const previous = percent(forecast.previousProbabilities['yes']);
-  const next = percent(forecast.newProbabilities['yes']);
+function probabilityDelta(forecast: ForecastProjection, primaryOutcomeId: string): string {
+  const previous = percent(forecast.previousProbabilities[primaryOutcomeId]);
+  const next = percent(forecast.newProbabilities[primaryOutcomeId]);
   const delta = next - previous;
   if (delta > 0) return `+${delta} points`;
   if (delta < 0) return `−${Math.abs(delta)} points`;
@@ -86,15 +84,18 @@ export function ForecastWorkspace({
   preferredSignalIds,
   projection,
 }: ForecastWorkspaceProps) {
+  const { primary: primaryOutcome, secondary: secondaryOutcome } = binaryMarketOutcomes(
+    projection.market,
+  );
   const currentForecast = projection.forecasts.at(-1);
   const teamForecast = latestForActor(projection.forecasts, 'team');
   const playerForecast = latestForActor(projection.forecasts, 'player');
   const baseline = percent(
-    currentForecast?.newProbabilities['yes'] ??
-      projection.market.currentPublicProbabilities?.['yes'] ??
+    currentForecast?.newProbabilities[primaryOutcome.id] ??
+      projection.market.currentPublicProbabilities?.[primaryOutcome.id] ??
       0.5,
   );
-  const [yesProbability, setYesProbability] = useState(baseline);
+  const [primaryProbability, setPrimaryProbability] = useState(baseline);
   const [selectedSignalIds, setSelectedSignalIds] = useState(() =>
     initialEvidence(projection, preferredSignalIds),
   );
@@ -119,9 +120,9 @@ export function ForecastWorkspace({
     .map((id) => projection.signalsById[id])
     .filter((signal) => signal !== undefined);
   const remainingSignals = signals.filter((signal) => !selectedSignalIds.includes(signal.id));
-  const isHold = yesProbability === baseline;
+  const isHold = primaryProbability === baseline;
   const validationErrors = [
-    ...(yesProbability < 0 || yesProbability > 100
+    ...(primaryProbability < 0 || primaryProbability > 100
       ? ['Probability must be between 0 and 100.']
       : []),
     ...(!isHold && selectedSignalIds.length === 0
@@ -132,15 +133,15 @@ export function ForecastWorkspace({
     ...(showUncertainty &&
     (uncertaintyLow < 0 ||
       uncertaintyHigh > 100 ||
-      uncertaintyLow > yesProbability ||
-      uncertaintyHigh < yesProbability)
+      uncertaintyLow > primaryProbability ||
+      uncertaintyHigh < primaryProbability)
       ? ['The uncertainty band must contain the committed probability.']
       : []),
   ];
 
   const setProbability = (value: number) => {
     const bounded = Math.min(100, Math.max(0, Math.round(value)));
-    setYesProbability(bounded);
+    setPrimaryProbability(bounded);
     setSuccess(undefined);
   };
 
@@ -164,15 +165,18 @@ export function ForecastWorkspace({
     try {
       const trimmedMemo = privateMemo.trim();
       await onCommit({
-        yesProbability: yesProbability / 100,
+        primaryProbability: primaryProbability / 100,
         evidenceSignalIds: selectedSignalIds,
         publicNote: publicNote.trim(),
         ...(trimmedMemo ? { privateMemo: trimmedMemo } : {}),
         ...(showUncertainty
           ? {
               uncertainty: {
-                yes: { low: uncertaintyLow / 100, high: uncertaintyHigh / 100 },
-                no: {
+                [primaryOutcome.id]: {
+                  low: uncertaintyLow / 100,
+                  high: uncertaintyHigh / 100,
+                },
+                [secondaryOutcome.id]: {
                   low: (100 - uncertaintyHigh) / 100,
                   high: (100 - uncertaintyLow) / 100,
                 },
@@ -181,7 +185,7 @@ export function ForecastWorkspace({
           : {}),
       });
       setSuccess(
-        `${isHold ? 'Hold' : 'Revision'} committed at ${yesProbability}%. The event is now in forecast history.`,
+        `${isHold ? 'Hold' : 'Revision'} committed at ${primaryProbability}%. The event is now in forecast history.`,
       );
       setPrivateMemo('');
     } catch (commitError: unknown) {
@@ -191,13 +195,15 @@ export function ForecastWorkspace({
     }
   };
 
-  const publicProbability = percent(projection.market.currentPublicProbabilities?.['yes']);
-  const teamProbability = percent(teamForecast?.newProbabilities['yes']);
+  const publicProbability = percent(
+    projection.market.currentPublicProbabilities?.[primaryOutcome.id],
+  );
+  const teamProbability = percent(teamForecast?.newProbabilities[primaryOutcome.id]);
   const playerProbability = playerForecast
-    ? percent(playerForecast.newProbabilities['yes'])
+    ? percent(playerForecast.newProbabilities[primaryOutcome.id])
     : undefined;
   const dialStyle = {
-    '--atlas-forecast-value': `${yesProbability}%`,
+    '--atlas-forecast-value': `${primaryProbability}%`,
   } as CSSProperties;
 
   return (
@@ -210,7 +216,7 @@ export function ForecastWorkspace({
       <div className="atlas-forecast-dialog">
         <div className="atlas-forecast-heading">
           <div>
-            <span className="atlas-kicker">Meridian Observatory / Forecast desk</span>
+            <span className="atlas-kicker">{projection.expedition.title} / Forecast desk</span>
             <p>{projection.market.question}</p>
           </div>
           <span className="atlas-forecast-safety">
@@ -224,17 +230,19 @@ export function ForecastWorkspace({
             <div className="atlas-forecast-section-heading">
               <div>
                 <span className="atlas-kicker">Probability</span>
-                <h3 id="forecast-probability-title">Set the YES forecast</h3>
+                <h3 id="forecast-probability-title">
+                  Set the {primaryOutcome.shortLabel} forecast
+                </h3>
               </div>
               <span className="atlas-forecast-commit-kind" data-kind={isHold ? 'hold' : 'revision'}>
-                {isHold ? 'Hold' : 'Revision'} · {yesProbability - baseline >= 0 ? '+' : '−'}
-                {Math.abs(yesProbability - baseline)} pts
+                {isHold ? 'Hold' : 'Revision'} · {primaryProbability - baseline >= 0 ? '+' : '−'}
+                {Math.abs(primaryProbability - baseline)} pts
               </span>
             </div>
 
             <div className="atlas-forecast-dial" style={dialStyle}>
               <div className="atlas-forecast-dial__number">
-                <label htmlFor="forecast-number">YES probability</label>
+                <label htmlFor="forecast-number">{primaryOutcome.shortLabel} probability</label>
                 <span>
                   <input
                     aria-describedby="forecast-sum"
@@ -245,20 +253,20 @@ export function ForecastWorkspace({
                     onChange={(event) => setProbability(Number(event.currentTarget.value))}
                     step={1}
                     type="number"
-                    value={yesProbability}
+                    value={primaryProbability}
                   />
                   <b>%</b>
                 </span>
               </div>
               <input
-                aria-label={`YES probability ${yesProbability} percent`}
+                aria-label={`${primaryOutcome.shortLabel} probability ${primaryProbability} percent`}
                 className="atlas-forecast-range"
                 max={100}
                 min={0}
                 onChange={(event) => setProbability(Number(event.currentTarget.value))}
                 step={1}
                 type="range"
-                value={yesProbability}
+                value={primaryProbability}
               />
               <div className="atlas-forecast-axis" aria-hidden="true">
                 <span>0 · impossible</span>
@@ -266,9 +274,13 @@ export function ForecastWorkspace({
                 <span>100 · certain</span>
               </div>
               <p id="forecast-sum">
-                <strong>YES {yesProbability}%</strong>
+                <strong>
+                  {primaryOutcome.shortLabel} {primaryProbability}%
+                </strong>
                 <span>+</span>
-                <strong>NO {100 - yesProbability}%</strong>
+                <strong>
+                  {secondaryOutcome.shortLabel} {100 - primaryProbability}%
+                </strong>
                 <span>= 100%</span>
               </p>
             </div>
@@ -314,7 +326,7 @@ export function ForecastWorkspace({
                     Lower bound
                     <span>
                       <input
-                        max={yesProbability}
+                        max={primaryProbability}
                         min={0}
                         onChange={(event) => setUncertaintyLow(Number(event.currentTarget.value))}
                         type="number"
@@ -329,7 +341,7 @@ export function ForecastWorkspace({
                     <span>
                       <input
                         max={100}
-                        min={yesProbability}
+                        min={primaryProbability}
                         onChange={(event) => setUncertaintyHigh(Number(event.currentTarget.value))}
                         type="number"
                         value={uncertaintyHigh}
@@ -489,7 +501,7 @@ export function ForecastWorkspace({
                 Cancel
               </button>
               <button disabled={busy || validationErrors.length > 0} type="submit">
-                {busy ? 'Recording forecast…' : `Commit Forecast · ${yesProbability}%`}
+                {busy ? 'Recording forecast…' : `Commit Forecast · ${primaryProbability}%`}
               </button>
             </div>
           </section>
@@ -513,8 +525,11 @@ export function ForecastWorkspace({
                   <i aria-hidden="true" />
                   <div className="atlas-forecast-history__summary">
                     <span>
-                      <strong>{percent(forecast.newProbabilities['yes'])}% YES</strong>
-                      <small>{probabilityDelta(forecast)}</small>
+                      <strong>
+                        {percent(forecast.newProbabilities[primaryOutcome.id])}%{' '}
+                        {primaryOutcome.shortLabel}
+                      </strong>
+                      <small>{probabilityDelta(forecast, primaryOutcome.id)}</small>
                     </span>
                     <span>
                       <b>{actorLabel(forecast)}</b>

@@ -13,6 +13,7 @@ import {
   pixelScaleForZoom,
 } from './geometry.js';
 import { pointAlongWaypoints } from './movement.js';
+import { landmarkKindForScene } from './scene-kit.js';
 import type {
   MountedWorldScene,
   MountWorldSceneOptions,
@@ -133,7 +134,7 @@ export async function mountWorldScene(options: MountWorldSceneOptions): Promise<
       this.drawSky();
       this.drawTerrain();
       this.drawRoutes();
-      this.drawLaunchLandmark();
+      this.drawSceneLandmark();
       model.places.forEach((place) => this.drawPlace(place));
       this.drawAgents();
       this.drawWeather();
@@ -334,7 +335,24 @@ export async function mountWorldScene(options: MountWorldSceneOptions): Promise<
       });
     }
 
-    private drawLaunchLandmark() {
+    private drawSceneLandmark() {
+      switch (landmarkKindForScene(model)) {
+        case 'launch_vehicle':
+          this.drawLaunchVehicleLandmark();
+          return;
+        case 'harbor_beacon':
+          this.drawHarborBeaconLandmark();
+          return;
+        case 'civic_tower':
+          this.drawCivicTowerLandmark();
+          return;
+        case 'wayfinder':
+          this.drawWayfinderLandmark();
+          return;
+      }
+    }
+
+    private drawLaunchVehicleLandmark() {
       const landmark = this.add.container(44, 10).setDepth(-6);
       const rocket = this.add.graphics();
       rocket.fillStyle(palette.mutedSteel, 0.65).fillRect(-0.4, -3.5, 0.8, 3.5);
@@ -344,6 +362,43 @@ export async function mountWorldScene(options: MountWorldSceneOptions): Promise<
       rocket.lineStyle(2 / this.basePixelScale, palette.windowGold, 0.58);
       rocket.lineBetween(-1.4, 0.9, 1.4, 0.9);
       landmark.add(rocket);
+    }
+
+    private drawHarborBeaconLandmark() {
+      const landmark = this.add.container(43.5, 13).setDepth(-6);
+      const beacon = this.add.graphics();
+      beacon.fillStyle(palette.mutedSteel, 0.78).fillRect(-0.85, -4.2, 1.7, 4.2);
+      beacon.fillStyle(palette.paperLight, 0.82).fillRect(-1.15, -4.8, 2.3, 0.8);
+      beacon.fillStyle(palette.alertCoral, 0.78).fillTriangle(-1.3, -4.8, 0, -5.8, 1.3, -4.8);
+      beacon.fillStyle(palette.windowGold, 0.88).fillCircle(0, -4.42, 0.42);
+      beacon.lineStyle(2 / this.basePixelScale, palette.weatherCyan, 0.5);
+      beacon.lineBetween(-3.4, -4.42, -0.55, -4.42);
+      beacon.lineBetween(0.55, -4.42, 3.4, -4.42);
+      landmark.add(beacon);
+    }
+
+    private drawCivicTowerLandmark() {
+      const landmark = this.add.container(43, 13.5).setDepth(-6);
+      const tower = this.add.graphics();
+      tower.fillStyle(palette.slateCloud, 0.8).fillRect(-1.5, -5, 3, 5);
+      tower.fillStyle(palette.parchment, 0.78).fillTriangle(-2, -5, 0, -6.2, 2, -5);
+      tower.fillStyle(palette.deepInk, 0.9).fillRect(-0.45, -1.5, 0.9, 1.5);
+      tower.fillStyle(palette.windowGold, 0.72);
+      for (let y = -4.35; y < -1.8; y += 1.05) {
+        tower.fillRect(-0.92, y, 0.55, 0.42);
+        tower.fillRect(0.37, y, 0.55, 0.42);
+      }
+      landmark.add(tower);
+    }
+
+    private drawWayfinderLandmark() {
+      const landmark = this.add.container(43, 13).setDepth(-6);
+      const wayfinder = this.add.graphics();
+      wayfinder.lineStyle(2 / this.basePixelScale, palette.mutedSteel, 0.78);
+      wayfinder.lineBetween(0, -5.4, 0, 0);
+      wayfinder.fillStyle(palette.weatherCyan, 0.72).fillTriangle(0, -5.2, 2.2, -4.5, 0, -3.8);
+      wayfinder.fillStyle(palette.windowGold, 0.68).fillTriangle(0, -3.5, -1.8, -2.85, 0, -2.2);
+      landmark.add(wayfinder);
     }
 
     private drawPlace(place: ScenePlace) {

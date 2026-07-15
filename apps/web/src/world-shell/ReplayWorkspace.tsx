@@ -1,5 +1,5 @@
 import type { CaseFileForecastRationale, SignalAtlasCaseFile } from '@signal-atlas/archive';
-import type { ProbabilityDistribution } from '@signal-atlas/contracts';
+import { binaryMarketOutcomes, type ProbabilityDistribution } from '@signal-atlas/contracts';
 import type { WorldProjection } from '@signal-atlas/simulation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
@@ -11,6 +11,7 @@ import {
 } from './runtime-client.js';
 
 export interface ReplayWorkspaceProps {
+  expeditionId: string;
   initialSequence?: number;
   onAuthoritativeProjectionChange: (projection: WorldProjection) => void;
   onClose: () => void;
@@ -35,17 +36,17 @@ function primaryProbability(
   probabilities: ProbabilityDistribution,
   caseFile: SignalAtlasCaseFile,
 ): number {
-  const primaryOutcomeId =
-    caseFile.market.outcomes.find((outcome) => outcome.id === 'yes')?.id ??
-    caseFile.market.outcomes[0]?.id;
-  return primaryOutcomeId ? (probabilities[primaryOutcomeId] ?? 0) : 0;
+  const { primary } = binaryMarketOutcomes(caseFile.market);
+  return probabilities[primary.id] ?? 0;
 }
 
 function forecastLabel(forecast: CaseFileForecastRationale, caseFile: SignalAtlasCaseFile): string {
-  return `${Math.round(primaryProbability(forecast.newProbabilities, caseFile) * 100)}% yes`;
+  const { primary } = binaryMarketOutcomes(caseFile.market);
+  return `${Math.round(primaryProbability(forecast.newProbabilities, caseFile) * 100)}% ${primary.shortLabel}`;
 }
 
 export function ReplayWorkspace({
+  expeditionId,
   initialSequence,
   onAuthoritativeProjectionChange,
   onClose,
@@ -59,29 +60,35 @@ export function ReplayWorkspace({
   const [status, setStatus] = useState('Loading the authoritative event stream.');
   const requestIdRef = useRef(0);
 
-  const selectSequence = useCallback(async (sequence: number) => {
-    const requestId = ++requestIdRef.current;
-    setLoading(true);
-    setError(undefined);
-    try {
-      const nextReplay = await fetchReplayProjection(sequence);
-      if (requestId !== requestIdRef.current) return;
-      setReplay(nextReplay);
-      setStatus(`World projection moved to sequence ${sequence}.`);
-    } catch (caught: unknown) {
-      if (requestId !== requestIdRef.current) return;
-      const message = caught instanceof Error ? caught.message : 'Sequence replay failed.';
-      setError(message);
-      setStatus(`Sequence replay failed: ${message}`);
-    } finally {
-      if (requestId === requestIdRef.current) setLoading(false);
-    }
-  }, []);
+  const selectSequence = useCallback(
+    async (sequence: number) => {
+      const requestId = ++requestIdRef.current;
+      setLoading(true);
+      setError(undefined);
+      try {
+        const nextReplay = await fetchReplayProjection(expeditionId, sequence);
+        if (requestId !== requestIdRef.current) return;
+        setReplay(nextReplay);
+        setStatus(`World projection moved to sequence ${sequence}.`);
+      } catch (caught: unknown) {
+        if (requestId !== requestIdRef.current) return;
+        const message = caught instanceof Error ? caught.message : 'Sequence replay failed.';
+        setError(message);
+        setStatus(`Sequence replay failed: ${message}`);
+      } finally {
+        if (requestId === requestIdRef.current) setLoading(false);
+      }
+    },
+    [expeditionId],
+  );
 
   useEffect(() => {
     const requestId = ++requestIdRef.current;
     let active = true;
-    void Promise.all([fetchReplayProjection(initialSequence), fetchCaseFile()])
+    void Promise.all([
+      fetchReplayProjection(expeditionId, initialSequence),
+      fetchCaseFile(expeditionId),
+    ])
       .then(([nextReplay, nextCaseFile]) => {
         if (!active || requestId !== requestIdRef.current) return;
         setReplay(nextReplay);
@@ -103,16 +110,16 @@ export function ReplayWorkspace({
     return () => {
       active = false;
     };
-  }, [initialSequence]);
+  }, [expeditionId, initialSequence]);
 
   const resolveCase = async () => {
     setResolving(true);
     setError(undefined);
     try {
-      const resolution = await resolveFixtureCase();
+      const resolution = await resolveFixtureCase(expeditionId);
       const [nextReplay, nextCaseFile] = await Promise.all([
-        fetchReplayProjection(),
-        fetchCaseFile(),
+        fetchReplayProjection(expeditionId),
+        fetchCaseFile(expeditionId),
       ]);
       setReplay(nextReplay);
       setCaseFile(nextCaseFile);
@@ -135,7 +142,7 @@ export function ReplayWorkspace({
     setExporting(true);
     setError(undefined);
     try {
-      const exported = await fetchCaseFile();
+      const exported = await fetchCaseFile(expeditionId);
       setCaseFile(exported);
       const blob = new Blob([`${JSON.stringify(exported, null, 2)}\n`], {
         type: 'application/json',
@@ -178,7 +185,7 @@ export function ReplayWorkspace({
       <header className="atlas-replay-header">
         <div>
           <span className="atlas-kicker">The Atlas / Case-file replay</span>
-          <h2>Helios-3 expedition record</h2>
+          <h2>{caseFile ? `${caseFile.expedition.title} record` : 'Expedition record'}</h2>
           <p>Scrub the immutable event stream and inspect exactly what the world knew.</p>
         </div>
         <div>

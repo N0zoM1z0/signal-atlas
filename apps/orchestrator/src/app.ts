@@ -229,6 +229,21 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
 
   app.get('/api/runtime/diagnostics', async () => runtime.runtimeDiagnostics());
 
+  app.get('/api/expeditions', async () => {
+    const projection = runtime.snapshot();
+    return {
+      expeditions: [
+        {
+          id: projection.expedition.id,
+          latestSequence: projection.sequence,
+          marketQuestion: projection.market.question,
+          status: projection.expedition.status,
+          title: projection.expedition.title,
+        },
+      ],
+    };
+  });
+
   app.get('/api/runtime/pref', async () => prefRuntime.diagnostics());
 
   app.post('/api/runtime/pref/test', async () => prefRuntime.testConnection());

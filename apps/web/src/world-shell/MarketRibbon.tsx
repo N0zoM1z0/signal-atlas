@@ -6,6 +6,9 @@ import type { EventStreamStatus } from './event-stream-client.js';
 type RuntimeState = 'ready' | 'loading' | 'disconnected';
 
 export interface MarketRibbonProps {
+  deadlineLabel: string;
+  expeditionName: string;
+  marketKindLabel: string;
   mode: 'director' | 'observatory';
   paused: boolean;
   prefConnected: boolean;
@@ -15,7 +18,10 @@ export interface MarketRibbonProps {
   streamStatus: EventStreamStatus;
   speed: 1 | 2 | 4;
   publicProbability: number;
+  primaryOutcomeLabel: string;
+  question: string;
   resolvedOutcomeLabel?: string;
+  secondaryOutcomeLabel: string;
   teamProbability: number;
   onModeChange: () => void;
   onOpenForecast: () => void;
@@ -24,6 +30,9 @@ export interface MarketRibbonProps {
 }
 
 export function MarketRibbon({
+  deadlineLabel,
+  expeditionName,
+  marketKindLabel,
   mode,
   onModeChange,
   onOpenForecast,
@@ -34,8 +43,11 @@ export function MarketRibbon({
   prefConnectionState,
   prefMode,
   publicProbability,
+  primaryOutcomeLabel,
+  question,
   resolvedOutcomeLabel,
   runtimeState,
+  secondaryOutcomeLabel,
   speed,
   streamStatus,
   teamProbability,
@@ -50,7 +62,7 @@ export function MarketRibbon({
   );
   const runtimeLabel =
     runtimeState === 'loading'
-      ? '◌ Loading fixture'
+      ? '◌ Loading expedition'
       : runtimeState === 'disconnected'
         ? '△ Orchestrator offline'
         : streamStatus.phase === 'schema_error'
@@ -79,15 +91,15 @@ export function MarketRibbon({
         </span>
         <span className="atlas-brand__copy">
           <strong>Signal Atlas</strong>
-          <small>Helios-3 Expedition</small>
+          <small>{expeditionName}</small>
         </span>
       </div>
 
       <div className="atlas-market-question">
         <span className="atlas-kicker">
-          <i className="atlas-live-dot" aria-hidden="true" /> Fictional sandbox market
+          <i className="atlas-live-dot" aria-hidden="true" /> {marketKindLabel}
         </span>
-        <h1>Will the Helios-3 mission launch before September 30?</h1>
+        <h1>{question}</h1>
       </div>
 
       <div
@@ -105,8 +117,8 @@ export function MarketRibbon({
             <b className="atlas-worldline__team" />
           </i>
           <span>
-            <b>No</b>
-            <b>Yes</b>
+            <b>{secondaryOutcomeLabel}</b>
+            <b>{primaryOutcomeLabel}</b>
           </span>
         </span>
         <span className="atlas-probability__value atlas-probability__value--team">
@@ -137,7 +149,7 @@ export function MarketRibbon({
         </Badge>
         <span className="atlas-deadline">
           <small>{resolved ? 'Resolved' : 'Resolves'}</small>
-          <strong>{resolvedOutcomeLabel ?? 'Sep 30'}</strong>
+          <strong>{resolvedOutcomeLabel ?? deadlineLabel}</strong>
         </span>
         <button
           aria-label={paused ? 'Resume simulation' : 'Pause simulation'}

@@ -2,6 +2,7 @@ import type { MissionVerb } from '@signal-atlas/contracts';
 import type { RefObject } from 'react';
 
 import type { ShellAgent, ShellMission, ShellPlace } from './model.js';
+import { missionSuggestionsForPlaces } from './mission-suggestions.js';
 import {
   fixtureMissionScenarios,
   type FixtureMissionScenario,
@@ -34,13 +35,6 @@ export interface CommandTrayProps {
   onRetryMission: (mission: ShellMission) => void;
   onScenarioChange: (scenario: FixtureMissionScenario) => void;
 }
-
-const suggestions = [
-  'Check latest weather at Galehaven Weather Tower',
-  'Search historical delays in Archive Quarter',
-  'Ask Professor Vale to check correlation',
-  'Call a meeting at Lantern Square',
-] as const;
 
 const scenarioLabels: Record<FixtureMissionScenario, string> = {
   success: 'Success',
@@ -82,6 +76,7 @@ export function CommandTray({
   sequence,
   selectedAgent,
 }: CommandTrayProps) {
+  const suggestions = missionSuggestionsForPlaces(places).slice(0, 4);
   const selectedPlace = draft?.destinationPlaceId
     ? places.find((place) => place.id === draft.destinationPlaceId)
     : undefined;
@@ -100,6 +95,7 @@ export function CommandTray({
         <span
           className="atlas-portrait atlas-portrait--small"
           data-agent={selectedAgent.id}
+          data-role={selectedAgent.roleKey}
           aria-hidden="true"
         >
           <i />
@@ -143,11 +139,11 @@ export function CommandTray({
         {suggestions.map((suggestion) => (
           <button
             disabled={Boolean(disabledReason)}
-            key={suggestion}
-            onClick={() => onCommandChange(suggestion)}
+            key={suggestion.objective}
+            onClick={() => onCommandChange(suggestion.objective)}
             type="button"
           >
-            {suggestion}
+            {suggestion.objective}
           </button>
         ))}
       </div>

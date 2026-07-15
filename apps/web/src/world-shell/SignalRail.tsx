@@ -131,7 +131,7 @@ export function SignalRail({
                 <header>
                   <span>
                     <b aria-hidden="true">
-                      {signal.tone === 'yes' ? '↗' : signal.tone === 'no' ? '↘' : '◆'}
+                      {signal.tone === 'support' ? '↗' : signal.tone === 'oppose' ? '↘' : '◆'}
                     </b>{' '}
                     {signal.direction}
                   </span>

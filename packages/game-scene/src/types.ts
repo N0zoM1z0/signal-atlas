@@ -42,11 +42,14 @@ export interface WorldPresentationCue {
 export interface WorldSceneDefinition {
   agents: SceneAgent[];
   ambientLayers: WorldManifest['ambientLayers'];
+  assetPack: string;
+  cameraZones: WorldManifest['cameraZones'];
   defaultSpawnPlaceId: string;
   logicalHeight: number;
   logicalWidth: number;
   places: ScenePlace[];
   routes: SceneRoute[];
+  template: string;
   tileSize: number;
   weather: WorldWeatherPresentation;
 }
@@ -142,6 +145,8 @@ export function createWorldSceneDefinition(
       ...(movement ? { movement: structuredClone(movement) } : {}),
     })),
     ambientLayers: structuredClone(manifest.ambientLayers),
+    assetPack: manifest.assetPack,
+    cameraZones: structuredClone(manifest.cameraZones),
     defaultSpawnPlaceId: manifest.defaultSpawnPlaceId,
     logicalHeight: manifest.logicalHeight,
     logicalWidth: manifest.logicalWidth,
@@ -158,6 +163,7 @@ export function createWorldSceneDefinition(
       toPlaceId,
       waypoints: waypoints.map((point) => ({ ...point })),
     })),
+    template: manifest.template,
     tileSize: manifest.tileSize,
     weather: structuredClone(weather),
   };

@@ -25,6 +25,7 @@ export interface WorldStageHostProps {
   followRequest: CameraFollowRequest | undefined;
   guide: ReactNode;
   loading: boolean;
+  meetingPlaceName: string | undefined;
   places: readonly ShellPlace[];
   reducedMotion: boolean;
   routes: readonly RouteModel[];
@@ -46,6 +47,7 @@ export interface WorldStageHostProps {
   onSoundToggle: () => void;
   soundEnabled: boolean;
   weather: WorldWeatherPresentation;
+  worldName: string;
 }
 
 function placeStyle(place: ShellPlace): CSSProperties {
@@ -64,6 +66,7 @@ export function WorldStageHost({
   followRequest,
   guide,
   loading,
+  meetingPlaceName,
   meetingBusy,
   meetingDisabled,
   onConveneMeeting,
@@ -83,6 +86,7 @@ export function WorldStageHost({
   signalsDrawerOpen,
   soundEnabled,
   weather,
+  worldName,
 }: WorldStageHostProps) {
   const canvasRef = useRef<WorldCanvasHandle>(null);
 
@@ -142,7 +146,7 @@ export function WorldStageHost({
         <span className="atlas-world-crumb">
           <small>The Atlas</small>
           <i aria-hidden="true">/</i>
-          <strong>Meridian Coast</strong>
+          <strong>{worldName}</strong>
         </span>
         <span className="atlas-mobile-drawers">
           <button
@@ -250,18 +254,17 @@ export function WorldStageHost({
             ))}
           </svg>
 
-          <span className="atlas-world-agent atlas-world-agent--mira">
-            <i />
-            <b>Mira</b>
-          </span>
-          <span className="atlas-world-agent atlas-world-agent--orin">
-            <i />
-            <b>Orin</b>
-          </span>
-          <span className="atlas-world-agent atlas-world-agent--kestrel">
-            <i />
-            <b>Kestrel</b>
-          </span>
+          {agents.map((agent, index) => (
+            <span
+              className="atlas-world-agent"
+              data-agent-index={index}
+              key={agent.id}
+              style={{ left: `${agent.x}%`, top: `${agent.y}%` }}
+            >
+              <i />
+              <b>{agent.name}</b>
+            </span>
+          ))}
         </div>
 
         <WorldCanvas
@@ -310,8 +313,8 @@ export function WorldStageHost({
         {loading && (
           <div className="atlas-world-loading" role="status">
             <span aria-hidden="true">✦</span>
-            <strong>Charting Meridian Coast</strong>
-            <p>Loading the fixture projection and authored world manifest.</p>
+            <strong>Charting {worldName}</strong>
+            <p>Loading the authoritative expedition projection and authored world manifest.</p>
           </div>
         )}
       </section>
@@ -355,7 +358,11 @@ export function WorldStageHost({
             type="button"
           >
             <i aria-hidden="true" />{' '}
-            {meetingBusy ? 'Calling the team…' : 'Convene at Lantern Square'}
+            {meetingBusy
+              ? 'Calling the team…'
+              : meetingPlaceName
+                ? `Convene at ${meetingPlaceName}`
+                : 'Convene the team'}
           </button>
         </span>
       </footer>
