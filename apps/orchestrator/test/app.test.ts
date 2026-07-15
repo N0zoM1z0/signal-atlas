@@ -148,6 +148,46 @@ describe('orchestrator health endpoint', () => {
     expect(nativeClient.statusCode).toBe(200);
   });
 
+  it('rejects foreign authorities on read and mutation routes before exposing local state', async () => {
+    const app = buildApp();
+    openApps.push(app);
+    const hostileHeaders = { host: 'attacker.example:4317' };
+
+    const responses = await Promise.all([
+      app.inject({ method: 'GET', url: '/api/runtime/diagnostics', headers: hostileHeaders }),
+      app.inject({ method: 'GET', url: '/api/runtime/pref', headers: hostileHeaders }),
+      app.inject({
+        method: 'GET',
+        url: '/api/expeditions/exp-helios3-demo/snapshot',
+        headers: hostileHeaders,
+      }),
+      app.inject({
+        method: 'GET',
+        url: '/api/expeditions/exp-helios3-demo/events',
+        headers: hostileHeaders,
+      }),
+      app.inject({
+        method: 'POST',
+        url: '/api/runtime/pref/disconnect',
+        headers: hostileHeaders,
+      }),
+    ]);
+
+    for (const response of responses) {
+      expect(response.statusCode).toBe(403);
+      expect(response.json()).toEqual({ error: 'request_authority_not_allowed' });
+    }
+
+    for (const host of ['127.0.0.1:4317', '127.0.0.1:4173', 'localhost:4317']) {
+      const response = await app.inject({
+        method: 'GET',
+        url: '/api/expeditions/exp-helios3-demo/snapshot',
+        headers: { host },
+      });
+      expect(response.statusCode).toBe(200);
+    }
+  });
+
   it('selects the visible scripted fallback when local Codex is absent', async () => {
     const previousMode = process.env['SIGNAL_ATLAS_CODEX_MODE'];
     const previousExecutable = process.env['SIGNAL_ATLAS_CODEX_EXECUTABLE'];

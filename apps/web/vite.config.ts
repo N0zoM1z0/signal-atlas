@@ -3,6 +3,11 @@ import { fileURLToPath } from 'node:url';
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
 
+export const browserSecurityHeaders = {
+  'Content-Security-Policy': "frame-ancestors 'none'",
+  'X-Frame-Options': 'DENY',
+} as const;
+
 export default defineConfig({
   plugins: [react()],
   resolve: {
@@ -28,6 +33,7 @@ export default defineConfig({
     host: '127.0.0.1',
     port: 4173,
     strictPort: true,
+    headers: browserSecurityHeaders,
     proxy: {
       '/api': { target: 'http://127.0.0.1:4317', ws: true },
     },
@@ -36,5 +42,6 @@ export default defineConfig({
     host: '127.0.0.1',
     port: 4173,
     strictPort: true,
+    headers: browserSecurityHeaders,
   },
 });

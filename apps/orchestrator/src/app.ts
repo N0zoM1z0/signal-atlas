@@ -68,8 +68,29 @@ const allowedBrowserOrigins = new Set([
   'http://[::1]:4173',
 ]);
 
+const configuredOrchestratorPort = (() => {
+  const parsed = Number(process.env['PORT'] ?? 4317);
+  return Number.isInteger(parsed) && parsed > 0 && parsed <= 65_535 ? parsed : 4317;
+})();
+
+const allowedRequestAuthorities = new Set([
+  `127.0.0.1:${configuredOrchestratorPort}`,
+  `localhost:${configuredOrchestratorPort}`,
+  `[::1]:${configuredOrchestratorPort}`,
+  // Vite preserves the browser-facing Host while proxying HTTP and WebSocket requests.
+  '127.0.0.1:4173',
+  'localhost:4173',
+  '[::1]:4173',
+  // light-my-request's fixed authority for in-process native tests.
+  'localhost:80',
+]);
+
 function hasRejectedBrowserOrigin(origin: string | undefined): boolean {
   return origin !== undefined && !allowedBrowserOrigins.has(origin);
+}
+
+function hasRejectedAuthority(authority: string | undefined): boolean {
+  return authority === undefined || !allowedRequestAuthorities.has(authority.toLowerCase());
 }
 
 function publicStreamEvent(event: WorldEvent): WorldEvent {
@@ -90,6 +111,9 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   const prefRuntime = options.prefRuntime ?? createConfiguredPrefRuntime();
   app.register(websocket, { options: { maxPayload: 1_024 } });
   app.addHook('onRequest', async (request, reply) => {
+    if (hasRejectedAuthority(request.headers.host)) {
+      return reply.code(403).send({ error: 'request_authority_not_allowed' });
+    }
     if (!['DELETE', 'PATCH', 'POST', 'PUT'].includes(request.method)) return;
     const origin = request.headers.origin;
     const crossSite = request.headers['sec-fetch-site'] === 'cross-site';

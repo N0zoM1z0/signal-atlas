@@ -74,7 +74,7 @@ describe('expedition event stream', () => {
     const initialMessages: EventStreamEnvelope[] = [];
     const initialSocket = await app.injectWS(
       '/api/expeditions/exp-helios3-demo/stream?after=0',
-      {},
+      { headers: { host: '127.0.0.1:4317' } },
       collectMessages(initialMessages),
     );
     await vi.waitFor(() => {
@@ -106,7 +106,7 @@ describe('expedition event stream', () => {
     const resumedMessages: EventStreamEnvelope[] = [];
     const resumedSocket = await app.injectWS(
       '/api/expeditions/exp-helios3-demo/stream?after=3',
-      {},
+      { headers: { host: '127.0.0.1:4317' } },
       collectMessages(resumedMessages),
     );
     await vi.waitFor(() => {
@@ -124,7 +124,7 @@ describe('expedition event stream', () => {
     const invalidCursorMessages: EventStreamEnvelope[] = [];
     const invalidCursorSocket = await app.injectWS(
       '/api/expeditions/exp-helios3-demo/stream?after=999',
-      {},
+      { headers: { host: '127.0.0.1:4317' } },
       collectMessages(invalidCursorMessages),
     );
     await vi.waitFor(() => {
@@ -141,7 +141,7 @@ describe('expedition event stream', () => {
     const clientMessageErrors: EventStreamEnvelope[] = [];
     const clientMessageSocket = await app.injectWS(
       '/api/expeditions/exp-helios3-demo/stream?after=2',
-      {},
+      { headers: { host: '127.0.0.1:4317' } },
       collectMessages(clientMessageErrors),
     );
     await vi.waitFor(() => {
@@ -167,10 +167,27 @@ describe('expedition event stream', () => {
 
     const socket = await app.injectWS(
       '/api/expeditions/exp-helios3-demo/stream?after=0',
-      { headers: { origin: 'https://attacker.example' } },
+      { headers: { host: '127.0.0.1:4317', origin: 'https://attacker.example' } },
       collectMessages(messages),
     );
     await vi.waitFor(() => expect(socket.readyState).toBeGreaterThanOrEqual(2));
+
+    expect(messages).toEqual([]);
+  });
+
+  it('rejects foreign WebSocket authorities before streaming any local event', async () => {
+    const app = buildApp();
+    openApps.push(app);
+    await app.ready();
+    const messages: EventStreamEnvelope[] = [];
+
+    await expect(
+      app.injectWS(
+        '/api/expeditions/exp-helios3-demo/stream?after=0',
+        { headers: { host: 'attacker.example:4317' } },
+        collectMessages(messages),
+      ),
+    ).rejects.toThrow('Unexpected server response: 403');
 
     expect(messages).toEqual([]);
   });
@@ -186,7 +203,7 @@ describe('expedition event stream', () => {
 
     const socket = await app.injectWS(
       '/api/expeditions/exp-helios3-demo/stream?after=2',
-      { headers: { origin: 'http://127.0.0.1:4173' } },
+      { headers: { host: '127.0.0.1:4173', origin: 'http://127.0.0.1:4173' } },
       collectMessages(messages),
     );
     await vi.waitFor(() => expect(messages).toHaveLength(2));
