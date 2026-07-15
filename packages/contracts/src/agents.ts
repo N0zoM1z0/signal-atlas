@@ -10,6 +10,10 @@ import {
   SimulationSpeedSchema,
 } from './common.js';
 
+export const MAX_MISSION_OBJECTIVE_LENGTH = 1_000;
+export const MAX_MISSION_TOOL_CALLS = 8;
+export const MAX_MISSION_TIMEOUT_MS = 120_000;
+
 export const AgentBeliefSchema = z
   .strictObject({
     probabilities: ProbabilityDistributionSchema,
@@ -68,14 +72,14 @@ export const MissionSchema = z
     expeditionId: EntityIdSchema,
     assignedAgentId: EntityIdSchema,
     verb: MissionVerbSchema,
-    objective: z.string().min(1),
+    objective: z.string().min(1).max(MAX_MISSION_OBJECTIVE_LENGTH),
     destinationPlaceId: EntityIdSchema.optional(),
-    targetAgentIds: z.array(EntityIdSchema).optional(),
-    sourceIds: z.array(EntityIdSchema).optional(),
-    signalIds: z.array(EntityIdSchema).optional(),
+    targetAgentIds: z.array(EntityIdSchema).max(32).optional(),
+    sourceIds: z.array(EntityIdSchema).max(256).optional(),
+    signalIds: z.array(EntityIdSchema).max(256).optional(),
     budget: z.strictObject({
-      maxToolCalls: z.number().int().nonnegative(),
-      timeoutMs: z.number().int().positive(),
+      maxToolCalls: z.number().int().nonnegative().max(MAX_MISSION_TOOL_CALLS),
+      timeoutMs: z.number().int().positive().max(MAX_MISSION_TIMEOUT_MS),
     }),
     status: z.enum(['draft', 'queued', 'traveling', 'running', 'completed', 'failed', 'canceled']),
     createdBy: z.strictObject({

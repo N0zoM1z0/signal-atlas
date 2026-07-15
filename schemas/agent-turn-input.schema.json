@@ -51,24 +51,31 @@
       "items": {
         "$ref": "#/$defs/__schema1"
       },
+      "maxItems": 256,
       "type": "array"
     },
     "__schema16": {
       "items": {
         "$ref": "#/$defs/__schema1"
       },
+      "maxItems": 256,
       "type": "array"
     },
     "__schema17": {
       "items": {
-        "minLength": 1,
-        "type": "string"
+        "$ref": "#/$defs/__schema18"
       },
+      "maxItems": 32,
       "type": "array"
     },
     "__schema18": {
+      "maxLength": 120,
+      "minLength": 1,
+      "type": "string"
+    },
+    "__schema19": {
       "exclusiveMinimum": 0,
-      "maximum": 9007199254740991,
+      "maximum": 120000,
       "type": "integer"
     },
     "__schema2": {
@@ -87,6 +94,7 @@
       "type": "string"
     },
     "__schema3": {
+      "maxLength": 1000,
       "minLength": 1,
       "type": "string"
     },
@@ -97,31 +105,34 @@
       "items": {
         "$ref": "#/$defs/__schema1"
       },
+      "maxItems": 32,
       "type": "array"
     },
     "__schema6": {
       "items": {
         "$ref": "#/$defs/__schema1"
       },
+      "maxItems": 256,
       "type": "array"
     },
     "__schema7": {
       "items": {
         "$ref": "#/$defs/__schema1"
       },
+      "maxItems": 256,
       "type": "array"
     },
     "__schema8": {
       "additionalProperties": false,
       "properties": {
         "maxToolCalls": {
-          "maximum": 9007199254740991,
+          "maximum": 8,
           "minimum": 0,
           "type": "integer"
         },
         "timeoutMs": {
           "exclusiveMinimum": 0,
-          "maximum": 9007199254740991,
+          "maximum": 120000,
           "type": "integer"
         }
       },
@@ -242,7 +253,7 @@
       "$ref": "#/$defs/__schema0"
     },
     "timeoutMs": {
-      "$ref": "#/$defs/__schema18"
+      "$ref": "#/$defs/__schema19"
     },
     "turnId": {
       "$ref": "#/$defs/__schema1"

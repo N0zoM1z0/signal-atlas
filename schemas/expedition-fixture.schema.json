@@ -571,6 +571,7 @@
       "type": "object"
     },
     "__schema115": {
+      "maxLength": 1000,
       "minLength": 1,
       "type": "string"
     },
@@ -581,18 +582,21 @@
       "items": {
         "$ref": "#/$defs/__schema2"
       },
+      "maxItems": 32,
       "type": "array"
     },
     "__schema118": {
       "items": {
         "$ref": "#/$defs/__schema2"
       },
+      "maxItems": 256,
       "type": "array"
     },
     "__schema119": {
       "items": {
         "$ref": "#/$defs/__schema2"
       },
+      "maxItems": 256,
       "type": "array"
     },
     "__schema12": {
@@ -604,13 +608,13 @@
       "additionalProperties": false,
       "properties": {
         "maxToolCalls": {
-          "maximum": 9007199254740991,
+          "maximum": 8,
           "minimum": 0,
           "type": "integer"
         },
         "timeoutMs": {
           "exclusiveMinimum": 0,
-          "maximum": 9007199254740991,
+          "maximum": 120000,
           "type": "integer"
         }
       },

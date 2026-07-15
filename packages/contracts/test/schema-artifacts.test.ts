@@ -44,5 +44,20 @@ describe('published contract artifacts', () => {
       .properties;
     expect(properties['rationale']).toMatchObject({ minLength: 1, maxLength: 320 });
     expect(properties['unknowns']).toMatchObject({ minItems: 1, maxItems: 6 });
+    const definitions = (
+      schema as {
+        $defs: Record<string, { properties: Record<string, Record<string, unknown>> }>;
+      }
+    ).$defs;
+    const actionVariants = definitions['action'] as unknown as {
+      anyOf: Array<{ properties: Record<string, Record<string, unknown>> }>;
+    };
+    const requestMission = actionVariants.anyOf.find(
+      (candidate) => candidate.properties['type']?.['const'] === 'request_mission',
+    );
+    expect(requestMission?.properties['objective']).toMatchObject({ maxLength: 1_000 });
+    expect(definitions['suggestedFollowUp']?.properties['objective']).toMatchObject({
+      maxLength: 1_000,
+    });
   });
 });

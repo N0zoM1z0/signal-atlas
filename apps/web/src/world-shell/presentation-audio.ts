@@ -19,7 +19,8 @@ function audioContext(): AudioContext | undefined {
 /** Acquire browser audio permission from the user's explicit sound-toggle gesture. */
 export async function enablePresentationAudio(): Promise<void> {
   const activeContext = audioContext();
-  if (activeContext?.state === 'suspended') await activeContext.resume();
+  if (!activeContext) throw new Error('Web Audio is unavailable.');
+  if (activeContext.state === 'suspended') await activeContext.resume();
 }
 
 /** Play a short synthesized cue after the user has explicitly enabled sound. */

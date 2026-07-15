@@ -42,6 +42,7 @@
           "$ref": "#/$defs/__schema1"
         },
         "objective": {
+          "maxLength": 1000,
           "minLength": 1,
           "type": "string"
         },
@@ -147,6 +148,7 @@
               "$ref": "#/$defs/__schema1"
             },
             "objective": {
+              "maxLength": 1000,
               "minLength": 1,
               "type": "string"
             },

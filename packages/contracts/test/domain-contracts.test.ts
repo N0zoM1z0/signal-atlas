@@ -4,12 +4,14 @@ import { describe, expect, it } from 'vitest';
 
 import {
   AgentTurnOutputSchema,
+  AgentTurnInputSchema,
   EventStreamEnvelopeSchema,
   ExpeditionFixtureSchema,
   WorldCommandSchema,
   WorldEventSchema,
   EntityIdSchema,
   type ExpeditionFixture,
+  MissionSchema,
 } from '../src/index.js';
 
 const fixturePath = new URL('../../../fixtures/helios3_expedition.json', import.meta.url);
@@ -230,6 +232,44 @@ describe('Helios-3 expedition fixture', () => {
 });
 
 describe('event, command, and agent-turn envelopes', () => {
+  it('bounds mission work and turn context before either reaches a driver', () => {
+    const mission = {
+      id: 'mission-bounded',
+      expeditionId: 'exp-helios3-demo',
+      assignedAgentId: 'mira',
+      verb: 'investigate',
+      objective: 'Check the bounded fixture.',
+      budget: { maxToolCalls: 3, timeoutMs: 30_000 },
+      status: 'draft',
+      createdBy: { kind: 'player' },
+      createdAt: '2027-09-26T18:00:00Z',
+    };
+    expect(MissionSchema.safeParse(mission).success).toBe(true);
+    expect(
+      MissionSchema.safeParse({
+        ...mission,
+        objective: 'x'.repeat(1_001),
+        budget: { maxToolCalls: 9, timeoutMs: 120_001 },
+      }).success,
+    ).toBe(false);
+    expect(
+      AgentTurnInputSchema.safeParse({
+        schemaVersion: 1,
+        turnId: 'turn-bounded',
+        expeditionId: mission.expeditionId,
+        agentId: mission.assignedAgentId,
+        mission,
+        effectivePlaceId: 'weather-tower',
+        attempt: 1,
+        knownSourceIds: [],
+        knownSignalIds: [],
+        allowedCapabilities: [],
+        requestedAt: mission.createdAt,
+        timeoutMs: 120_001,
+      }).success,
+    ).toBe(false);
+  });
+
   it('requires event-stream batches to remain contiguous and expedition-scoped', () => {
     const events = canonicalFixture.initialEvents;
     const valid = {

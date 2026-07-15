@@ -18,7 +18,8 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "pnpm --recursive --if-present test",
-    "test:e2e": "playwright test --grep-invert @visual",
+    "test:e2e": "playwright test --grep-invert '@visual|@soak'",
+    "test:soak": "SIGNAL_ATLAS_RUN_SOAK=1 playwright test tests/e2e/long-session.spec.ts",
     "test:visual": "playwright test --grep @visual",
     "clean": "pnpm --recursive --if-present clean"
   },

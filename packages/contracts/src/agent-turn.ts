@@ -8,7 +8,7 @@ import {
   ProbabilityRangeSchema,
   SCHEMA_VERSION,
 } from './common.js';
-import { MissionSchema } from './agents.js';
+import { MAX_MISSION_OBJECTIVE_LENGTH, MAX_MISSION_TIMEOUT_MS, MissionSchema } from './agents.js';
 
 export const AgentTurnInputSchema = z
   .strictObject({
@@ -19,11 +19,11 @@ export const AgentTurnInputSchema = z
     mission: MissionSchema,
     effectivePlaceId: EntityIdSchema,
     attempt: z.number().int().positive(),
-    knownSourceIds: z.array(EntityIdSchema),
-    knownSignalIds: z.array(EntityIdSchema),
-    allowedCapabilities: z.array(z.string().min(1)),
+    knownSourceIds: z.array(EntityIdSchema).max(256),
+    knownSignalIds: z.array(EntityIdSchema).max(256),
+    allowedCapabilities: z.array(z.string().min(1).max(120)).max(32),
     requestedAt: DateTimeSchema,
-    timeoutMs: z.number().int().positive(),
+    timeoutMs: z.number().int().positive().max(MAX_MISSION_TIMEOUT_MS),
   })
   .superRefine((input, context) => {
     if (input.mission.expeditionId !== input.expeditionId) {
@@ -76,7 +76,7 @@ export const AgentTurnActionSchema = z.discriminatedUnion('type', [
   z.strictObject({
     type: z.literal('request_mission'),
     verb: MissionVerbSchema,
-    objective: z.string().min(1),
+    objective: z.string().min(1).max(MAX_MISSION_OBJECTIVE_LENGTH),
     destinationPlaceId: EntityIdSchema.optional(),
   }),
   z.strictObject({
@@ -118,7 +118,7 @@ export const AgentTurnOutputSchema = z
     suggestedFollowUp: z
       .strictObject({
         verb: MissionVerbSchema,
-        objective: z.string().min(1),
+        objective: z.string().min(1).max(MAX_MISSION_OBJECTIVE_LENGTH),
         destinationPlaceId: EntityIdSchema.optional(),
       })
       .optional(),

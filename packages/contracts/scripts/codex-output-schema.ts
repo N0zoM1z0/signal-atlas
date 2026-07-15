@@ -1,3 +1,5 @@
+import { MAX_MISSION_OBJECTIVE_LENGTH } from '../src/agents.js';
+
 const entityId = {
   type: 'string',
   minLength: 1,
@@ -128,7 +130,11 @@ export const codexAgentTurnOutputJsonSchema = {
           properties: {
             type: { type: 'string', const: 'request_mission' },
             verb: { $ref: '#/$defs/missionVerb' },
-            objective: { type: 'string', minLength: 1 },
+            objective: {
+              type: 'string',
+              minLength: 1,
+              maxLength: MAX_MISSION_OBJECTIVE_LENGTH,
+            },
             destinationPlaceId: nullableEntityId,
           },
           required: ['type', 'verb', 'objective', 'destinationPlaceId'],
@@ -200,7 +206,11 @@ export const codexAgentTurnOutputJsonSchema = {
       additionalProperties: false,
       properties: {
         verb: { $ref: '#/$defs/missionVerb' },
-        objective: { type: 'string', minLength: 1 },
+        objective: {
+          type: 'string',
+          minLength: 1,
+          maxLength: MAX_MISSION_OBJECTIVE_LENGTH,
+        },
         destinationPlaceId: nullableEntityId,
       },
       required: ['verb', 'objective', 'destinationPlaceId'],

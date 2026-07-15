@@ -1,6 +1,7 @@
 import {
   AgentTurnInputSchema,
   AgentTurnOutputSchema,
+  MAX_MISSION_TIMEOUT_MS,
   type AgentTurnInput,
 } from '@signal-atlas/contracts';
 
@@ -79,8 +80,14 @@ export class CodexTurnScheduler<
     if (!Number.isInteger(this.#maxConcurrency) || this.#maxConcurrency < 1) {
       throw new Error('Codex scheduler concurrency must be a positive integer.');
     }
-    if (!Number.isInteger(this.#defaultTimeoutMs) || this.#defaultTimeoutMs < 1) {
-      throw new Error('Codex scheduler timeout must be a positive integer.');
+    if (
+      !Number.isInteger(this.#defaultTimeoutMs) ||
+      this.#defaultTimeoutMs < 1 ||
+      this.#defaultTimeoutMs > MAX_MISSION_TIMEOUT_MS
+    ) {
+      throw new Error(
+        `Codex scheduler timeout must be an integer from 1 to ${MAX_MISSION_TIMEOUT_MS} ms.`,
+      );
     }
 
     for (const record of this.#store.list()) {

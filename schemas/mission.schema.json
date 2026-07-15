@@ -34,6 +34,7 @@
       "$ref": "#/$defs/__schema10"
     },
     "__schema2": {
+      "maxLength": 1000,
       "minLength": 1,
       "type": "string"
     },
@@ -44,31 +45,34 @@
       "items": {
         "$ref": "#/$defs/__schema0"
       },
+      "maxItems": 32,
       "type": "array"
     },
     "__schema5": {
       "items": {
         "$ref": "#/$defs/__schema0"
       },
+      "maxItems": 256,
       "type": "array"
     },
     "__schema6": {
       "items": {
         "$ref": "#/$defs/__schema0"
       },
+      "maxItems": 256,
       "type": "array"
     },
     "__schema7": {
       "additionalProperties": false,
       "properties": {
         "maxToolCalls": {
-          "maximum": 9007199254740991,
+          "maximum": 8,
           "minimum": 0,
           "type": "integer"
         },
         "timeoutMs": {
           "exclusiveMinimum": 0,
-          "maximum": 9007199254740991,
+          "maximum": 120000,
           "type": "integer"
         }
       },
