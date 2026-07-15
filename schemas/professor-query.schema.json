@@ -20,6 +20,7 @@
       "type": "string"
     },
     "__schema2": {
+      "maxLength": 1200,
       "minLength": 1,
       "type": "string"
     },
@@ -27,12 +28,14 @@
       "items": {
         "$ref": "#/$defs/__schema0"
       },
+      "maxItems": 256,
       "type": "array"
     },
     "__schema4": {
       "items": {
         "$ref": "#/$defs/__schema0"
       },
+      "maxItems": 256,
       "type": "array"
     },
     "__schema5": {

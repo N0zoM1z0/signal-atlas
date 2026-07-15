@@ -19,64 +19,19 @@
       ],
       "type": "string"
     },
-    "__schema2": {
-      "items": {
-        "$ref": "#/$defs/__schema0"
-      },
-      "type": "array"
-    },
-    "__schema3": {
+    "__schema10": {
+      "maxLength": 1200,
       "minLength": 1,
       "type": "string"
     },
-    "__schema4": {
-      "items": {
-        "additionalProperties": false,
-        "properties": {
-          "id": {
-            "$ref": "#/$defs/__schema0"
-          },
-          "type": {
-            "enum": [
-              "source",
-              "signal"
-            ],
-            "type": "string"
-          }
-        },
-        "required": [
-          "type",
-          "id"
-        ],
-        "type": "object"
-      },
-      "type": "array"
-    },
-    "__schema5": {
-      "items": {
-        "minLength": 1,
-        "type": "string"
-      },
-      "type": "array"
-    },
-    "__schema6": {
-      "items": {
-        "minLength": 1,
-        "type": "string"
-      },
-      "type": "array"
-    },
-    "__schema7": {
-      "minLength": 1,
-      "type": "string"
-    },
-    "__schema8": {
+    "__schema11": {
       "additionalProperties": false,
       "properties": {
         "destinationPlaceId": {
           "$ref": "#/$defs/__schema0"
         },
         "objective": {
+          "maxLength": 1000,
           "minLength": 1,
           "type": "string"
         },
@@ -101,6 +56,107 @@
         "objective"
       ],
       "type": "object"
+    },
+    "__schema12": {
+      "additionalProperties": false,
+      "properties": {
+        "driverId": {
+          "$ref": "#/$defs/__schema0"
+        },
+        "durationMs": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "fallbackReason": {
+          "maxLength": 160,
+          "minLength": 1,
+          "type": "string"
+        },
+        "mode": {
+          "enum": [
+            "scripted",
+            "local_exec",
+            "scripted_fallback"
+          ],
+          "type": "string"
+        },
+        "repairAttempts": {
+          "maximum": 1,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "mode",
+        "driverId",
+        "durationMs",
+        "repairAttempts"
+      ],
+      "type": "object"
+    },
+    "__schema2": {
+      "items": {
+        "$ref": "#/$defs/__schema0"
+      },
+      "maxItems": 256,
+      "type": "array"
+    },
+    "__schema3": {
+      "maxLength": 2000,
+      "minLength": 1,
+      "type": "string"
+    },
+    "__schema4": {
+      "items": {
+        "$ref": "#/$defs/__schema5"
+      },
+      "maxItems": 512,
+      "type": "array"
+    },
+    "__schema5": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/__schema0"
+        },
+        "type": {
+          "enum": [
+            "source",
+            "signal"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "id"
+      ],
+      "type": "object"
+    },
+    "__schema6": {
+      "items": {
+        "$ref": "#/$defs/__schema7"
+      },
+      "maxItems": 8,
+      "type": "array"
+    },
+    "__schema7": {
+      "maxLength": 500,
+      "minLength": 1,
+      "type": "string"
+    },
+    "__schema8": {
+      "items": {
+        "$ref": "#/$defs/__schema9"
+      },
+      "maxItems": 8,
+      "type": "array"
+    },
+    "__schema9": {
+      "maxLength": 500,
+      "minLength": 1,
+      "type": "string"
     }
   },
   "$id": "https://signal-atlas.local/schemas/professor-response.schema.json",
@@ -111,13 +167,13 @@
       "$ref": "#/$defs/__schema3"
     },
     "assumptions": {
-      "$ref": "#/$defs/__schema5"
+      "$ref": "#/$defs/__schema6"
     },
     "evidenceUsed": {
       "$ref": "#/$defs/__schema4"
     },
     "limitations": {
-      "$ref": "#/$defs/__schema6"
+      "$ref": "#/$defs/__schema8"
     },
     "mode": {
       "$ref": "#/$defs/__schema1"
@@ -125,14 +181,17 @@
     "queryId": {
       "$ref": "#/$defs/__schema0"
     },
+    "runtime": {
+      "$ref": "#/$defs/__schema12"
+    },
     "selectedSignalIds": {
       "$ref": "#/$defs/__schema2"
     },
     "suggestedMission": {
-      "$ref": "#/$defs/__schema8"
+      "$ref": "#/$defs/__schema11"
     },
     "suggestedNextQuestion": {
-      "$ref": "#/$defs/__schema7"
+      "$ref": "#/$defs/__schema10"
     }
   },
   "required": [

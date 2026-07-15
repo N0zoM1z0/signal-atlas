@@ -732,6 +732,7 @@
       "type": "object"
     },
     "__schema125": {
+      "maxLength": 1000,
       "minLength": 1,
       "type": "string"
     },
@@ -1075,6 +1076,7 @@
       "type": "string"
     },
     "__schema132": {
+      "maxLength": 1200,
       "minLength": 1,
       "type": "string"
     },
@@ -1082,12 +1084,14 @@
       "items": {
         "$ref": "#/$defs/__schema3"
       },
+      "maxItems": 256,
       "type": "array"
     },
     "__schema134": {
       "items": {
         "$ref": "#/$defs/__schema3"
       },
+      "maxItems": 256,
       "type": "array"
     },
     "__schema135": {
@@ -1157,33 +1161,19 @@
       "items": {
         "$ref": "#/$defs/__schema3"
       },
+      "maxItems": 256,
       "type": "array"
     },
     "__schema138": {
+      "maxLength": 2000,
       "minLength": 1,
       "type": "string"
     },
     "__schema139": {
       "items": {
-        "additionalProperties": false,
-        "properties": {
-          "id": {
-            "$ref": "#/$defs/__schema3"
-          },
-          "type": {
-            "enum": [
-              "source",
-              "signal"
-            ],
-            "type": "string"
-          }
-        },
-        "required": [
-          "type",
-          "id"
-        ],
-        "type": "object"
+        "$ref": "#/$defs/__schema140"
       },
+      "maxItems": 512,
       "type": "array"
     },
     "__schema14": {
@@ -1245,24 +1235,55 @@
       "type": "object"
     },
     "__schema140": {
-      "items": {
-        "minLength": 1,
-        "type": "string"
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/__schema3"
+        },
+        "type": {
+          "enum": [
+            "source",
+            "signal"
+          ],
+          "type": "string"
+        }
       },
-      "type": "array"
+      "required": [
+        "type",
+        "id"
+      ],
+      "type": "object"
     },
     "__schema141": {
       "items": {
-        "minLength": 1,
-        "type": "string"
+        "$ref": "#/$defs/__schema142"
       },
+      "maxItems": 8,
       "type": "array"
     },
     "__schema142": {
+      "maxLength": 500,
       "minLength": 1,
       "type": "string"
     },
     "__schema143": {
+      "items": {
+        "$ref": "#/$defs/__schema144"
+      },
+      "maxItems": 8,
+      "type": "array"
+    },
+    "__schema144": {
+      "maxLength": 500,
+      "minLength": 1,
+      "type": "string"
+    },
+    "__schema145": {
+      "maxLength": 1200,
+      "minLength": 1,
+      "type": "string"
+    },
+    "__schema146": {
       "additionalProperties": false,
       "properties": {
         "destinationPlaceId": {
@@ -1281,7 +1302,45 @@
       ],
       "type": "object"
     },
-    "__schema144": {
+    "__schema147": {
+      "additionalProperties": false,
+      "properties": {
+        "driverId": {
+          "$ref": "#/$defs/__schema3"
+        },
+        "durationMs": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "fallbackReason": {
+          "maxLength": 160,
+          "minLength": 1,
+          "type": "string"
+        },
+        "mode": {
+          "enum": [
+            "scripted",
+            "local_exec",
+            "scripted_fallback"
+          ],
+          "type": "string"
+        },
+        "repairAttempts": {
+          "maximum": 1,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "mode",
+        "driverId",
+        "durationMs",
+        "repairAttempts"
+      ],
+      "type": "object"
+    },
+    "__schema148": {
       "additionalProperties": false,
       "properties": {
         "actor": {
@@ -1341,7 +1400,7 @@
       ],
       "type": "object"
     },
-    "__schema145": {
+    "__schema149": {
       "additionalProperties": false,
       "properties": {
         "id": {
@@ -1360,32 +1419,6 @@
         "kind"
       ],
       "type": "object"
-    },
-    "__schema146": {
-      "additionalProperties": {
-        "$ref": "#/$defs/__schema32"
-      },
-      "propertyNames": {
-        "$ref": "#/$defs/__schema3"
-      },
-      "type": "object"
-    },
-    "__schema147": {
-      "minLength": 1,
-      "type": "string"
-    },
-    "__schema148": {
-      "items": {
-        "$ref": "#/$defs/__schema3"
-      },
-      "type": "array"
-    },
-    "__schema149": {
-      "items": {
-        "minLength": 1,
-        "type": "string"
-      },
-      "type": "array"
     },
     "__schema15": {
       "additionalProperties": false,
@@ -1452,6 +1485,32 @@
       "type": "object"
     },
     "__schema150": {
+      "additionalProperties": {
+        "$ref": "#/$defs/__schema32"
+      },
+      "propertyNames": {
+        "$ref": "#/$defs/__schema3"
+      },
+      "type": "object"
+    },
+    "__schema151": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "__schema152": {
+      "items": {
+        "$ref": "#/$defs/__schema3"
+      },
+      "type": "array"
+    },
+    "__schema153": {
+      "items": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "__schema154": {
       "additionalProperties": false,
       "properties": {
         "actor": {
@@ -1587,7 +1646,7 @@
       ],
       "type": "object"
     },
-    "__schema151": {
+    "__schema155": {
       "additionalProperties": false,
       "properties": {
         "actor": {
@@ -1655,7 +1714,7 @@
       ],
       "type": "object"
     },
-    "__schema152": {
+    "__schema156": {
       "additionalProperties": false,
       "properties": {
         "actor": {
@@ -1723,7 +1782,7 @@
       ],
       "type": "object"
     },
-    "__schema153": {
+    "__schema157": {
       "additionalProperties": false,
       "properties": {
         "actor": {
@@ -1797,7 +1856,7 @@
       ],
       "type": "object"
     },
-    "__schema154": {
+    "__schema158": {
       "additionalProperties": false,
       "properties": {
         "expeditionId": {
@@ -1823,7 +1882,7 @@
       ],
       "type": "object"
     },
-    "__schema155": {
+    "__schema159": {
       "additionalProperties": false,
       "properties": {
         "boundary": {
@@ -4444,16 +4503,16 @@
       "additionalProperties": false,
       "properties": {
         "actor": {
-          "$ref": "#/$defs/__schema145"
+          "$ref": "#/$defs/__schema149"
         },
         "assumptions": {
-          "$ref": "#/$defs/__schema149"
+          "$ref": "#/$defs/__schema153"
         },
         "createdAt": {
           "$ref": "#/$defs/__schema8"
         },
         "evidenceSignalIds": {
-          "$ref": "#/$defs/__schema148"
+          "$ref": "#/$defs/__schema152"
         },
         "expeditionId": {
           "$ref": "#/$defs/__schema3"
@@ -4468,10 +4527,10 @@
           "$ref": "#/$defs/__schema29"
         },
         "rationale": {
-          "$ref": "#/$defs/__schema147"
+          "$ref": "#/$defs/__schema151"
         },
         "uncertainty": {
-          "$ref": "#/$defs/__schema146"
+          "$ref": "#/$defs/__schema150"
         }
       },
       "required": [
@@ -4678,13 +4737,13 @@
           "$ref": "#/$defs/__schema138"
         },
         "assumptions": {
-          "$ref": "#/$defs/__schema140"
+          "$ref": "#/$defs/__schema141"
         },
         "evidenceUsed": {
           "$ref": "#/$defs/__schema139"
         },
         "limitations": {
-          "$ref": "#/$defs/__schema141"
+          "$ref": "#/$defs/__schema143"
         },
         "mode": {
           "$ref": "#/$defs/__schema136"
@@ -4692,14 +4751,17 @@
         "queryId": {
           "$ref": "#/$defs/__schema3"
         },
+        "runtime": {
+          "$ref": "#/$defs/__schema147"
+        },
         "selectedSignalIds": {
           "$ref": "#/$defs/__schema137"
         },
         "suggestedMission": {
-          "$ref": "#/$defs/__schema143"
+          "$ref": "#/$defs/__schema146"
         },
         "suggestedNextQuestion": {
-          "$ref": "#/$defs/__schema142"
+          "$ref": "#/$defs/__schema145"
         }
       },
       "required": [
@@ -4976,19 +5038,19 @@
           "$ref": "#/$defs/__schema135"
         },
         {
-          "$ref": "#/$defs/__schema144"
+          "$ref": "#/$defs/__schema148"
         },
         {
-          "$ref": "#/$defs/__schema150"
+          "$ref": "#/$defs/__schema154"
         },
         {
-          "$ref": "#/$defs/__schema151"
+          "$ref": "#/$defs/__schema155"
         },
         {
-          "$ref": "#/$defs/__schema152"
+          "$ref": "#/$defs/__schema156"
         },
         {
-          "$ref": "#/$defs/__schema153"
+          "$ref": "#/$defs/__schema157"
         }
       ],
       "title": "Signal Atlas World Event"
@@ -5001,10 +5063,10 @@
       "$ref": "#/$defs/__schema0"
     },
     {
-      "$ref": "#/$defs/__schema154"
+      "$ref": "#/$defs/__schema158"
     },
     {
-      "$ref": "#/$defs/__schema155"
+      "$ref": "#/$defs/__schema159"
     }
   ],
   "title": "Signal Atlas Event Stream Envelope"

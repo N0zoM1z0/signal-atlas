@@ -860,6 +860,7 @@
       "type": "object"
     },
     "__schema120": {
+      "maxLength": 1000,
       "minLength": 1,
       "type": "string"
     },
@@ -1143,6 +1144,7 @@
       "type": "string"
     },
     "__schema127": {
+      "maxLength": 1200,
       "minLength": 1,
       "type": "string"
     },
@@ -1150,12 +1152,14 @@
       "items": {
         "$ref": "#/$defs/__schema1"
       },
+      "maxItems": 256,
       "type": "array"
     },
     "__schema129": {
       "items": {
         "$ref": "#/$defs/__schema1"
       },
+      "maxItems": 256,
       "type": "array"
     },
     "__schema13": {
@@ -1285,131 +1289,64 @@
       "items": {
         "$ref": "#/$defs/__schema1"
       },
+      "maxItems": 256,
       "type": "array"
     },
     "__schema133": {
+      "maxLength": 2000,
       "minLength": 1,
       "type": "string"
     },
     "__schema134": {
       "items": {
-        "additionalProperties": false,
-        "properties": {
-          "id": {
-            "$ref": "#/$defs/__schema1"
-          },
-          "type": {
-            "enum": [
-              "source",
-              "signal"
-            ],
-            "type": "string"
-          }
-        },
-        "required": [
-          "type",
-          "id"
-        ],
-        "type": "object"
+        "$ref": "#/$defs/__schema135"
       },
+      "maxItems": 512,
       "type": "array"
     },
     "__schema135": {
-      "items": {
-        "minLength": 1,
-        "type": "string"
-      },
-      "type": "array"
-    },
-    "__schema136": {
-      "items": {
-        "minLength": 1,
-        "type": "string"
-      },
-      "type": "array"
-    },
-    "__schema137": {
-      "minLength": 1,
-      "type": "string"
-    },
-    "__schema138": {
       "additionalProperties": false,
       "properties": {
-        "destinationPlaceId": {
-          "$ref": "#/$defs/__schema121"
-        },
-        "objective": {
-          "$ref": "#/$defs/__schema120"
-        },
-        "verb": {
-          "$ref": "#/$defs/__schema34"
-        }
-      },
-      "required": [
-        "verb",
-        "objective"
-      ],
-      "type": "object"
-    },
-    "__schema139": {
-      "additionalProperties": false,
-      "properties": {
-        "actor": {
-          "$ref": "#/$defs/__schema4"
-        },
-        "causationId": {
-          "$ref": "#/$defs/__schema5"
-        },
-        "correlationId": {
-          "$ref": "#/$defs/__schema6"
-        },
-        "expeditionId": {
-          "$ref": "#/$defs/__schema1"
-        },
         "id": {
           "$ref": "#/$defs/__schema1"
         },
-        "occurredAt": {
-          "$ref": "#/$defs/__schema3"
-        },
-        "payload": {
-          "additionalProperties": false,
-          "properties": {
-            "update": {
-              "$ref": "#/$defs/https://signal-atlas.local/schemas/belief-update.schema.json"
-            }
-          },
-          "required": [
-            "update"
-          ],
-          "type": "object"
-        },
-        "recordedAt": {
-          "$ref": "#/$defs/__schema3"
-        },
-        "schemaVersion": {
-          "$ref": "#/$defs/__schema7"
-        },
-        "sequence": {
-          "$ref": "#/$defs/__schema2"
-        },
         "type": {
-          "const": "belief.updated",
+          "enum": [
+            "source",
+            "signal"
+          ],
           "type": "string"
         }
       },
       "required": [
-        "id",
-        "expeditionId",
-        "sequence",
-        "occurredAt",
-        "recordedAt",
-        "actor",
-        "schemaVersion",
         "type",
-        "payload"
+        "id"
       ],
       "type": "object"
+    },
+    "__schema136": {
+      "items": {
+        "$ref": "#/$defs/__schema137"
+      },
+      "maxItems": 8,
+      "type": "array"
+    },
+    "__schema137": {
+      "maxLength": 500,
+      "minLength": 1,
+      "type": "string"
+    },
+    "__schema138": {
+      "items": {
+        "$ref": "#/$defs/__schema139"
+      },
+      "maxItems": 8,
+      "type": "array"
+    },
+    "__schema139": {
+      "maxLength": 500,
+      "minLength": 1,
+      "type": "string"
     },
     "__schema14": {
       "additionalProperties": false,
@@ -1472,6 +1409,128 @@
       "type": "object"
     },
     "__schema140": {
+      "maxLength": 1200,
+      "minLength": 1,
+      "type": "string"
+    },
+    "__schema141": {
+      "additionalProperties": false,
+      "properties": {
+        "destinationPlaceId": {
+          "$ref": "#/$defs/__schema121"
+        },
+        "objective": {
+          "$ref": "#/$defs/__schema120"
+        },
+        "verb": {
+          "$ref": "#/$defs/__schema34"
+        }
+      },
+      "required": [
+        "verb",
+        "objective"
+      ],
+      "type": "object"
+    },
+    "__schema142": {
+      "additionalProperties": false,
+      "properties": {
+        "driverId": {
+          "$ref": "#/$defs/__schema1"
+        },
+        "durationMs": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "fallbackReason": {
+          "maxLength": 160,
+          "minLength": 1,
+          "type": "string"
+        },
+        "mode": {
+          "enum": [
+            "scripted",
+            "local_exec",
+            "scripted_fallback"
+          ],
+          "type": "string"
+        },
+        "repairAttempts": {
+          "maximum": 1,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "mode",
+        "driverId",
+        "durationMs",
+        "repairAttempts"
+      ],
+      "type": "object"
+    },
+    "__schema143": {
+      "additionalProperties": false,
+      "properties": {
+        "actor": {
+          "$ref": "#/$defs/__schema4"
+        },
+        "causationId": {
+          "$ref": "#/$defs/__schema5"
+        },
+        "correlationId": {
+          "$ref": "#/$defs/__schema6"
+        },
+        "expeditionId": {
+          "$ref": "#/$defs/__schema1"
+        },
+        "id": {
+          "$ref": "#/$defs/__schema1"
+        },
+        "occurredAt": {
+          "$ref": "#/$defs/__schema3"
+        },
+        "payload": {
+          "additionalProperties": false,
+          "properties": {
+            "update": {
+              "$ref": "#/$defs/https://signal-atlas.local/schemas/belief-update.schema.json"
+            }
+          },
+          "required": [
+            "update"
+          ],
+          "type": "object"
+        },
+        "recordedAt": {
+          "$ref": "#/$defs/__schema3"
+        },
+        "schemaVersion": {
+          "$ref": "#/$defs/__schema7"
+        },
+        "sequence": {
+          "$ref": "#/$defs/__schema2"
+        },
+        "type": {
+          "const": "belief.updated",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "expeditionId",
+        "sequence",
+        "occurredAt",
+        "recordedAt",
+        "actor",
+        "schemaVersion",
+        "type",
+        "payload"
+      ],
+      "type": "object"
+    },
+    "__schema144": {
       "additionalProperties": false,
       "properties": {
         "id": {
@@ -1491,7 +1550,7 @@
       ],
       "type": "object"
     },
-    "__schema141": {
+    "__schema145": {
       "additionalProperties": {
         "$ref": "#/$defs/__schema27"
       },
@@ -1500,24 +1559,24 @@
       },
       "type": "object"
     },
-    "__schema142": {
+    "__schema146": {
       "minLength": 1,
       "type": "string"
     },
-    "__schema143": {
+    "__schema147": {
       "items": {
         "$ref": "#/$defs/__schema1"
       },
       "type": "array"
     },
-    "__schema144": {
+    "__schema148": {
       "items": {
         "minLength": 1,
         "type": "string"
       },
       "type": "array"
     },
-    "__schema145": {
+    "__schema149": {
       "additionalProperties": false,
       "properties": {
         "actor": {
@@ -1653,7 +1712,11 @@
       ],
       "type": "object"
     },
-    "__schema146": {
+    "__schema15": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "__schema150": {
       "additionalProperties": false,
       "properties": {
         "actor": {
@@ -1721,7 +1784,7 @@
       ],
       "type": "object"
     },
-    "__schema147": {
+    "__schema151": {
       "additionalProperties": false,
       "properties": {
         "actor": {
@@ -1789,7 +1852,7 @@
       ],
       "type": "object"
     },
-    "__schema148": {
+    "__schema152": {
       "additionalProperties": false,
       "properties": {
         "actor": {
@@ -1862,10 +1925,6 @@
         "payload"
       ],
       "type": "object"
-    },
-    "__schema15": {
-      "minLength": 1,
-      "type": "string"
     },
     "__schema16": {
       "enum": [
@@ -4319,16 +4378,16 @@
       "additionalProperties": false,
       "properties": {
         "actor": {
-          "$ref": "#/$defs/__schema140"
+          "$ref": "#/$defs/__schema144"
         },
         "assumptions": {
-          "$ref": "#/$defs/__schema144"
+          "$ref": "#/$defs/__schema148"
         },
         "createdAt": {
           "$ref": "#/$defs/__schema3"
         },
         "evidenceSignalIds": {
-          "$ref": "#/$defs/__schema143"
+          "$ref": "#/$defs/__schema147"
         },
         "expeditionId": {
           "$ref": "#/$defs/__schema1"
@@ -4343,10 +4402,10 @@
           "$ref": "#/$defs/__schema24"
         },
         "rationale": {
-          "$ref": "#/$defs/__schema142"
+          "$ref": "#/$defs/__schema146"
         },
         "uncertainty": {
-          "$ref": "#/$defs/__schema141"
+          "$ref": "#/$defs/__schema145"
         }
       },
       "required": [
@@ -4553,13 +4612,13 @@
           "$ref": "#/$defs/__schema133"
         },
         "assumptions": {
-          "$ref": "#/$defs/__schema135"
+          "$ref": "#/$defs/__schema136"
         },
         "evidenceUsed": {
           "$ref": "#/$defs/__schema134"
         },
         "limitations": {
-          "$ref": "#/$defs/__schema136"
+          "$ref": "#/$defs/__schema138"
         },
         "mode": {
           "$ref": "#/$defs/__schema131"
@@ -4567,14 +4626,17 @@
         "queryId": {
           "$ref": "#/$defs/__schema1"
         },
+        "runtime": {
+          "$ref": "#/$defs/__schema142"
+        },
         "selectedSignalIds": {
           "$ref": "#/$defs/__schema132"
         },
         "suggestedMission": {
-          "$ref": "#/$defs/__schema138"
+          "$ref": "#/$defs/__schema141"
         },
         "suggestedNextQuestion": {
-          "$ref": "#/$defs/__schema137"
+          "$ref": "#/$defs/__schema140"
         }
       },
       "required": [
@@ -4853,19 +4915,19 @@
       "$ref": "#/$defs/__schema130"
     },
     {
-      "$ref": "#/$defs/__schema139"
+      "$ref": "#/$defs/__schema143"
     },
     {
-      "$ref": "#/$defs/__schema145"
+      "$ref": "#/$defs/__schema149"
     },
     {
-      "$ref": "#/$defs/__schema146"
+      "$ref": "#/$defs/__schema150"
     },
     {
-      "$ref": "#/$defs/__schema147"
+      "$ref": "#/$defs/__schema151"
     },
     {
-      "$ref": "#/$defs/__schema148"
+      "$ref": "#/$defs/__schema152"
     }
   ],
   "title": "Signal Atlas World Event"

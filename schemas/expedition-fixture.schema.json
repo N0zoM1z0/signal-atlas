@@ -2781,6 +2781,7 @@
       "type": "object"
     },
     "__schema162": {
+      "maxLength": 1000,
       "minLength": 1,
       "type": "string"
     },
@@ -3064,6 +3065,7 @@
       "type": "string"
     },
     "__schema169": {
+      "maxLength": 1200,
       "minLength": 1,
       "type": "string"
     },
@@ -3080,12 +3082,14 @@
       "items": {
         "$ref": "#/$defs/__schema2"
       },
+      "maxItems": 256,
       "type": "array"
     },
     "__schema171": {
       "items": {
         "$ref": "#/$defs/__schema2"
       },
+      "maxItems": 256,
       "type": "array"
     },
     "__schema172": {
@@ -3155,50 +3159,50 @@
       "items": {
         "$ref": "#/$defs/__schema2"
       },
+      "maxItems": 256,
       "type": "array"
     },
     "__schema175": {
+      "maxLength": 2000,
       "minLength": 1,
       "type": "string"
     },
     "__schema176": {
       "items": {
-        "additionalProperties": false,
-        "properties": {
-          "id": {
-            "$ref": "#/$defs/__schema2"
-          },
-          "type": {
-            "enum": [
-              "source",
-              "signal"
-            ],
-            "type": "string"
-          }
-        },
-        "required": [
-          "type",
-          "id"
-        ],
-        "type": "object"
+        "$ref": "#/$defs/__schema177"
       },
+      "maxItems": 512,
       "type": "array"
     },
     "__schema177": {
-      "items": {
-        "minLength": 1,
-        "type": "string"
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/__schema2"
+        },
+        "type": {
+          "enum": [
+            "source",
+            "signal"
+          ],
+          "type": "string"
+        }
       },
-      "type": "array"
+      "required": [
+        "type",
+        "id"
+      ],
+      "type": "object"
     },
     "__schema178": {
       "items": {
-        "minLength": 1,
-        "type": "string"
+        "$ref": "#/$defs/__schema179"
       },
+      "maxItems": 8,
       "type": "array"
     },
     "__schema179": {
+      "maxLength": 500,
       "minLength": 1,
       "type": "string"
     },
@@ -3208,6 +3212,23 @@
       "type": "number"
     },
     "__schema180": {
+      "items": {
+        "$ref": "#/$defs/__schema181"
+      },
+      "maxItems": 8,
+      "type": "array"
+    },
+    "__schema181": {
+      "maxLength": 500,
+      "minLength": 1,
+      "type": "string"
+    },
+    "__schema182": {
+      "maxLength": 1200,
+      "minLength": 1,
+      "type": "string"
+    },
+    "__schema183": {
       "additionalProperties": false,
       "properties": {
         "destinationPlaceId": {
@@ -3226,7 +3247,45 @@
       ],
       "type": "object"
     },
-    "__schema181": {
+    "__schema184": {
+      "additionalProperties": false,
+      "properties": {
+        "driverId": {
+          "$ref": "#/$defs/__schema2"
+        },
+        "durationMs": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "fallbackReason": {
+          "maxLength": 160,
+          "minLength": 1,
+          "type": "string"
+        },
+        "mode": {
+          "enum": [
+            "scripted",
+            "local_exec",
+            "scripted_fallback"
+          ],
+          "type": "string"
+        },
+        "repairAttempts": {
+          "maximum": 1,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "mode",
+        "driverId",
+        "durationMs",
+        "repairAttempts"
+      ],
+      "type": "object"
+    },
+    "__schema185": {
       "additionalProperties": false,
       "properties": {
         "actor": {
@@ -3286,7 +3345,7 @@
       ],
       "type": "object"
     },
-    "__schema182": {
+    "__schema186": {
       "additionalProperties": false,
       "properties": {
         "id": {
@@ -3306,7 +3365,7 @@
       ],
       "type": "object"
     },
-    "__schema183": {
+    "__schema187": {
       "additionalProperties": {
         "$ref": "#/$defs/__schema54"
       },
@@ -3315,24 +3374,27 @@
       },
       "type": "object"
     },
-    "__schema184": {
+    "__schema188": {
       "minLength": 1,
       "type": "string"
     },
-    "__schema185": {
+    "__schema189": {
       "items": {
         "$ref": "#/$defs/__schema2"
       },
       "type": "array"
     },
-    "__schema186": {
+    "__schema19": {
+      "$ref": "#/$defs/__schema2"
+    },
+    "__schema190": {
       "items": {
         "minLength": 1,
         "type": "string"
       },
       "type": "array"
     },
-    "__schema187": {
+    "__schema191": {
       "additionalProperties": false,
       "properties": {
         "actor": {
@@ -3468,7 +3530,7 @@
       ],
       "type": "object"
     },
-    "__schema188": {
+    "__schema192": {
       "additionalProperties": false,
       "properties": {
         "actor": {
@@ -3536,7 +3598,7 @@
       ],
       "type": "object"
     },
-    "__schema189": {
+    "__schema193": {
       "additionalProperties": false,
       "properties": {
         "actor": {
@@ -3604,10 +3666,7 @@
       ],
       "type": "object"
     },
-    "__schema19": {
-      "$ref": "#/$defs/__schema2"
-    },
-    "__schema190": {
+    "__schema194": {
       "additionalProperties": false,
       "properties": {
         "actor": {
@@ -3681,7 +3740,7 @@
       ],
       "type": "object"
     },
-    "__schema191": {
+    "__schema195": {
       "additionalProperties": {
         "additionalProperties": false,
         "properties": {
@@ -3749,7 +3808,7 @@
       },
       "type": "object"
     },
-    "__schema192": {
+    "__schema196": {
       "additionalProperties": false,
       "properties": {
         "resolutionNote": {
@@ -4881,16 +4940,16 @@
       "additionalProperties": false,
       "properties": {
         "actor": {
-          "$ref": "#/$defs/__schema182"
+          "$ref": "#/$defs/__schema186"
         },
         "assumptions": {
-          "$ref": "#/$defs/__schema186"
+          "$ref": "#/$defs/__schema190"
         },
         "createdAt": {
           "$ref": "#/$defs/__schema12"
         },
         "evidenceSignalIds": {
-          "$ref": "#/$defs/__schema185"
+          "$ref": "#/$defs/__schema189"
         },
         "expeditionId": {
           "$ref": "#/$defs/__schema2"
@@ -4905,10 +4964,10 @@
           "$ref": "#/$defs/__schema17"
         },
         "rationale": {
-          "$ref": "#/$defs/__schema184"
+          "$ref": "#/$defs/__schema188"
         },
         "uncertainty": {
-          "$ref": "#/$defs/__schema183"
+          "$ref": "#/$defs/__schema187"
         }
       },
       "required": [
@@ -5234,13 +5293,13 @@
           "$ref": "#/$defs/__schema175"
         },
         "assumptions": {
-          "$ref": "#/$defs/__schema177"
+          "$ref": "#/$defs/__schema178"
         },
         "evidenceUsed": {
           "$ref": "#/$defs/__schema176"
         },
         "limitations": {
-          "$ref": "#/$defs/__schema178"
+          "$ref": "#/$defs/__schema180"
         },
         "mode": {
           "$ref": "#/$defs/__schema173"
@@ -5248,14 +5307,17 @@
         "queryId": {
           "$ref": "#/$defs/__schema2"
         },
+        "runtime": {
+          "$ref": "#/$defs/__schema184"
+        },
         "selectedSignalIds": {
           "$ref": "#/$defs/__schema174"
         },
         "suggestedMission": {
-          "$ref": "#/$defs/__schema180"
+          "$ref": "#/$defs/__schema183"
         },
         "suggestedNextQuestion": {
-          "$ref": "#/$defs/__schema179"
+          "$ref": "#/$defs/__schema182"
         }
       },
       "required": [
@@ -5532,19 +5594,19 @@
           "$ref": "#/$defs/__schema172"
         },
         {
-          "$ref": "#/$defs/__schema181"
+          "$ref": "#/$defs/__schema185"
         },
         {
-          "$ref": "#/$defs/__schema187"
+          "$ref": "#/$defs/__schema191"
         },
         {
-          "$ref": "#/$defs/__schema188"
+          "$ref": "#/$defs/__schema192"
         },
         {
-          "$ref": "#/$defs/__schema189"
+          "$ref": "#/$defs/__schema193"
         },
         {
-          "$ref": "#/$defs/__schema190"
+          "$ref": "#/$defs/__schema194"
         }
       ],
       "title": "Signal Atlas World Event"
@@ -5633,10 +5695,10 @@
       "$ref": "#/$defs/https://signal-atlas.local/schemas/professor-response.schema.json"
     },
     "resolutionFixture": {
-      "$ref": "#/$defs/__schema192"
+      "$ref": "#/$defs/__schema196"
     },
     "scriptedMissionResults": {
-      "$ref": "#/$defs/__schema191"
+      "$ref": "#/$defs/__schema195"
     },
     "seed": {
       "$ref": "#/$defs/__schema1"

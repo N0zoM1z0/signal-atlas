@@ -432,6 +432,7 @@
       "type": "string"
     },
     "__schema26": {
+      "maxLength": 1200,
       "minLength": 1,
       "type": "string"
     },
@@ -439,12 +440,14 @@
       "items": {
         "$ref": "#/$defs/__schema1"
       },
+      "maxItems": 256,
       "type": "array"
     },
     "__schema28": {
       "items": {
         "$ref": "#/$defs/__schema1"
       },
+      "maxItems": 256,
       "type": "array"
     },
     "__schema29": {

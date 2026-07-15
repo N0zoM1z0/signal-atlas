@@ -7,7 +7,8 @@ import { renderSchemaArtifacts, schemaDirectory } from '../scripts/generate-sche
 describe('published contract artifacts', () => {
   it('matches every generated JSON Schema byte for byte', () => {
     const artifacts = renderSchemaArtifacts();
-    expect(artifacts.size).toBeGreaterThanOrEqual(18);
+    expect(artifacts.size).toBeGreaterThanOrEqual(22);
+    expect(artifacts.has('professor-response.codex.schema.json')).toBe(true);
     for (const [filename, expected] of artifacts) {
       expect(readFileSync(`${schemaDirectory}${filename}`, 'utf8'), filename).toBe(expected);
     }
@@ -20,10 +21,7 @@ describe('published contract artifacts', () => {
     expect(packageJson.dependencies).toEqual({ zod: '4.4.3' });
   });
 
-  it('publishes a Codex transport schema with every object property required', () => {
-    const schema = JSON.parse(
-      readFileSync(`${schemaDirectory}agent-turn-output.codex.schema.json`, 'utf8'),
-    ) as unknown;
+  it('publishes Codex transport schemas with every object property required', () => {
     const visit = (value: unknown): void => {
       if (Array.isArray(value)) {
         value.forEach(visit);
@@ -39,7 +37,14 @@ describe('published contract artifacts', () => {
       }
       Object.values(record).forEach(visit);
     };
+    const schema = JSON.parse(
+      readFileSync(`${schemaDirectory}agent-turn-output.codex.schema.json`, 'utf8'),
+    ) as unknown;
+    const professorSchema = JSON.parse(
+      readFileSync(`${schemaDirectory}professor-response.codex.schema.json`, 'utf8'),
+    ) as unknown;
     visit(schema);
+    visit(professorSchema);
     const properties = (schema as { properties: Record<string, Record<string, unknown>> })
       .properties;
     expect(properties['rationale']).toMatchObject({ minLength: 1, maxLength: 320 });
