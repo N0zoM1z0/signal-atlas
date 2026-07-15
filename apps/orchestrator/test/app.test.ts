@@ -1,6 +1,7 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { buildApp } from '../src/app.js';
+import type { WorkspaceStore } from '../src/workspace-store.js';
 
 const openApps: ReturnType<typeof buildApp>[] = [];
 
@@ -67,10 +68,42 @@ describe('orchestrator health endpoint', () => {
         configuredMode: 'scripted',
         activeMode: 'scripted',
       },
+      workspace: {
+        mode: 'memory',
+        state: 'ready',
+        eventCount: 2,
+        latestSequence: 2,
+        replayBaseSequence: 0,
+      },
       turns: [],
     });
     expect(response.body).not.toContain('prompt');
     expect(response.body).not.toContain('secret');
+  });
+
+  it('closes an injected workspace store when runtime restoration rejects startup', () => {
+    const close = vi.fn();
+    const workspaceStore: WorkspaceStore = {
+      open: () => {
+        throw new Error('fixture fingerprint mismatch');
+      },
+      commit: () => undefined,
+      saveCheckpoint: () => undefined,
+      checkpointsAtOrBefore: () => [],
+      diagnostics: () => ({
+        mode: 'sqlite',
+        state: 'ready',
+        schemaVersion: 1,
+        location: '<test>',
+        eventCount: 0,
+        latestSequence: 0,
+        checkpointCount: 0,
+      }),
+      close,
+    };
+
+    expect(() => buildApp({ workspaceStore })).toThrow('fixture fingerprint mismatch');
+    expect(close).toHaveBeenCalledOnce();
   });
 
   it('exposes safe Pref connection controls and primitive diagnostics', async () => {

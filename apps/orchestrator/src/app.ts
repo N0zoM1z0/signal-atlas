@@ -170,16 +170,25 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
           : {}),
         runtimeRoot,
       };
-      return new ExpeditionRuntime(fixture, {
-        ...(workspaceStore ? { workspaceStore } : {}),
-        checkpointInterval: configuredCheckpointInterval(),
-        professorDriver: createConfiguredProfessorDriver(localCodexOptions),
-        missionDriverFactory: (scenario) => {
-          const fallback = createConfiguredMissionDriver(fixture, scenario, localCodexOptions);
-          const gateway = prefRuntime.gateway();
-          return gateway ? createPrefAgentProxyDriver({ fixture, gateway, fallback }) : fallback;
-        },
-      });
+      try {
+        return new ExpeditionRuntime(fixture, {
+          ...(workspaceStore ? { workspaceStore } : {}),
+          checkpointInterval: configuredCheckpointInterval(),
+          professorDriver: createConfiguredProfessorDriver(localCodexOptions),
+          missionDriverFactory: (scenario) => {
+            const fallback = createConfiguredMissionDriver(fixture, scenario, localCodexOptions);
+            const gateway = prefRuntime.gateway();
+            return gateway ? createPrefAgentProxyDriver({ fixture, gateway, fallback }) : fallback;
+          },
+        });
+      } catch (error: unknown) {
+        try {
+          workspaceStore?.close();
+        } catch {
+          // Preserve the startup boundary error that explains why the workspace was rejected.
+        }
+        throw error;
+      }
     })();
   const runScheduler = options.runScheduler ?? process.env['NODE_ENV'] !== 'test';
   let scheduler: ReturnType<typeof setInterval> | undefined;
