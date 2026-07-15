@@ -2,7 +2,7 @@
 
 ## Status
 
-In progress.
+Complete.
 
 ## Goal
 
@@ -47,12 +47,65 @@ Turn the deterministic vertical slice into a durable local workspace: authoritat
 
 ## Verification
 
-Pending implementation.
+- `pnpm format:check` - passed.
+- `pnpm typecheck` - passed across all 11 implementation workspaces.
+- `pnpm lint` - passed with zero warnings.
+- `pnpm test` - passed: 49 test files, 247 tests; packages without authored tests remain explicitly
+  `--passWithNoTests`.
+- `pnpm build` - passed across all 11 implementation workspaces. Vite reported only the existing
+  large Phaser chunk advisory.
+- `pnpm test:e2e` - passed: 32 Chromium journeys, including accessibility, mission, archive,
+  Professor, forecast, replay, stream recovery, failure boundaries, and runtime diagnostics.
+- `pnpm test:visual` - passed: 9 Chromium baselines at the required World, Archive, Professor,
+  Forecast, Meeting, Replay, signal-inspector, component, and responsive states.
+- `pnpm exec playwright test tests/e2e/runtime-diagnostics.spec.ts` - passed after the final graceful
+  shutdown change.
+- Live local smoke with the ignored environment and required proxy - Pref connected in `live` mode;
+  `weather.get_current_conditions` validated, while the discovered GDELT search remained explicitly
+  disabled. No credential or authorization header was printed.
+- Durable restart smoke - before shutdown the workspace was at sequence 2 with projection hash
+  `sha256:9962cf353f3b38ccdca94a1a403f53d0710840fd3d4b376ebcddb819023138ab`; after SIGINT and restart,
+  the event count and hash were unchanged, one sequence-2 checkpoint existed, and diagnostics
+  reported replay base sequence 2 with zero invalid checkpoints.
+- Permission smoke - the default state directory is mode `0700` and the SQLite file is mode `0600`.
 
 ## Results
 
-Pending implementation.
+- Normal local runs now use a versioned SQLite workspace by default. Events and accepted-command
+  receipts are append-only, transactionally coupled, and restored with exact idempotency semantics.
+- Runtime mutations are validated and persisted before becoming authoritative or observable. A
+  failed commit restores the last durable projection, publishes nothing, latches a degraded state,
+  stops scheduler progress, and closes command controls in the semantic UI.
+- Checkpoints are written every configurable event interval and during graceful SIGINT/SIGTERM or
+  application shutdown. Startup verifies each candidate against its schema, event sequence, latest
+  applied event, and projection hash before folding only the remaining tail.
+- Active travel, work, meetings, and unanswered Professor consultations are reconstructed from
+  authoritative state. Restart tests cover exact projection/cursor recovery, duplicate receipts,
+  corrupt checkpoint fallback, and multiple active-workspace restarts.
+- Pref capability map v2 supports multiple deterministic provider candidates, typed canonical input
+  projections, bounded transforms, exact discovery/security-policy matching, and response adapters
+  that normalize provider results through the single Pref Gateway.
+- The live default remains honest: weather is enabled; GDELT search is present but disabled because
+  its discovered task-support policy is forbidden; no unreviewed provider was enabled for
+  `read_source`. Fixture mode still provides deterministic search, read, and local conditions.
+- Runtime Diagnostics shows workspace mode, health, event/sequence counts, checkpoint policy,
+  replay base, schema, and invalid-checkpoint count without rendering the local absolute path.
+- No hosted service, telemetry, real-money trading, market order path, write-capable Pref capability,
+  or provider-specific microservice was added.
 
 ## Remaining risks
 
-Pending implementation.
+- Node 22's built-in `node:sqlite` API still emits an experimental warning. The dependency is isolated
+  behind `WorkspaceStore`, so another adapter can replace it without changing the runtime.
+- Checkpoint projections currently retain applied event history, and startup loads the complete event
+  stream for archive/stream reads even though reducer replay starts at the checkpoint. Very long
+  workspaces will eventually need a compact checkpoint schema and paged history reads.
+- One fixture expedition occupies the current database. Fixture fingerprint mismatch deliberately
+  refuses startup; multi-expedition creation, selection, and workspace migration are later product
+  work.
+- A process crash between checkpoints safely replays the durable tail. Resuming an active external
+  read can repeat a read-only provider call, but event identity, schema validation, and persist-before-
+  publish rules prevent it from silently duplicating authoritative state.
+- Live `search_sources` and `read_source` remain unavailable until discovered providers satisfy the
+  exact read-only, schema, side-effect, and task-support policy. The registry can add those providers
+  declaratively without a new service.

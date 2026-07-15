@@ -236,28 +236,37 @@ Commands return an accepted command ID. Resulting changes arrive as events.
 
 ## 9.10 Persistence schema
 
-Core tables:
+The implemented vertical slice keeps the append-only event stream as authority and stores four
+focused relations:
 
-- `expeditions`
-- `markets`
-- `world_manifests`
-- `agents`
-- `missions`
-- `events`
-- `sources`
-- `source_versions`
-- `claims`
-- `signals`
-- `signal_sources`
-- `agent_knowledge`
-- `beliefs`
-- `forecast_commits`
-- `meetings`
-- `agent_sessions`
-- `runtime_turns`
-- `exports`
+- `expeditions`: fixture seed/fingerprint and the latest committed sequence;
+- `world_events`: immutable event envelopes keyed by expedition and sequence, with globally unique
+  event IDs;
+- `command_receipts`: immutable idempotency keys, command hashes, and accepted result envelopes;
+- `world_checkpoints`: rebuildable projection snapshots with schema version and canonical hash.
 
-Use normalized relational tables for identity and relationships. Store versioned payloads in JSON columns where flexibility is needed.
+`workspace_schema_migrations` records deterministic migrations. SQLite foreign keys, a busy
+timeout, full synchronous durability, and WAL mode are enabled for file databases. Triggers reject
+updates and deletes against authoritative events and command receipts. A command's event batch and
+receipt share one transaction; scheduler-generated batches also commit atomically before becoming
+visible in memory or over WebSocket.
+
+Startup verifies the fixture fingerprint and refuses unsupported newer schemas. It parses the full
+event log for continuity, then selects the newest checkpoint whose projection schema, expedition,
+sequence, latest applied event, and canonical hash all agree with the log. Only the tail after that
+checkpoint is reducer-folded. Invalid checkpoints are counted and skipped; deleting every
+checkpoint still produces the same projection from the event authority.
+
+The current checkpoint projection retains applied-event history so archive/case-file reads remain
+simple. This avoids full reducer replay but does not yet bound checkpoint size or the startup event
+history read. A future workspace compaction milestone may introduce a compact projection schema and
+paged archival reads without truncating the authoritative log. Additional normalized source/search
+indexes and FTS5 remain future projections, not parallel authorities.
+
+The production server installs `SIGINT` and `SIGTERM` handlers that close Fastify exactly once.
+Fastify shutdown first stops the scheduler, waits for active bounded turns, writes the current
+checkpoint, closes SQLite, and disconnects Pref. A startup/listen failure also closes any opened
+workspace handle before returning a failing process status.
 
 ## 9.11 Data flow: agent investigation
 
@@ -286,7 +295,14 @@ Return a structured unavailable result. The agent may use cached/archive informa
 
 ### Database error
 
-Pause command acceptance, keep the current frontend projection, and show a blocking persistence warning. Never continue applying non-persisted authoritative events.
+Pause command acceptance, keep the current frontend projection, and show a blocking persistence
+warning. Never continue applying non-persisted authoritative events. The runtime latches a safe
+`workspace_persistence_failed` diagnostic and performs no later scheduler advances in that process.
+
+### Checkpoint corruption
+
+Fall back through older verified checkpoints and then to full event replay. A checkpoint is an
+optimization only and may never repair, delete, or override an authoritative event.
 
 ### WebSocket disconnect
 
@@ -364,6 +380,10 @@ Expected behavior:
 - orchestrator starts on a local port;
 - web app starts and connects automatically;
 - fixture mode is the default if Pref/Codex are not configured;
+- normal local runs persist to `~/.local/state/signal-atlas/workspace.sqlite` unless
+  `SIGNAL_ATLAS_WORKSPACE_DB=off` is set;
+- `SIGNAL_ATLAS_CHECKPOINT_INTERVAL` configures the positive event interval and defaults to 50;
+- test and Playwright profiles remain isolated in memory;
 - diagnostics identify missing dependencies;
 - no cloud account is required to view the scripted vertical slice.
 

@@ -39,38 +39,46 @@ The Pref Gateway is a local service or package that:
 
 ## 8.4 Capability map
 
-Because Pref's exact tools may differ, use a declarative mapping file.
+Because Pref's exact tools may differ, use a declarative mapping file. One canonical capability may
+have several provider candidates; deterministic priority chooses the first enabled mapping whose
+discovered contract passes every boundary check.
 
 Example:
 
-```yaml
-server: pref
-transport: stdio
-capabilities:
-  search_sources:
-    tool: pref.search
-    input:
-      query: $.query
-      location: $.location
-      since: $.since
-    output:
-      items: $.results
-  read_source:
-    tool: pref.read
-    input:
-      id: $.sourceId
-    output:
-      content: $.content
-  local_conditions:
-    tool: pref.weather
-    input:
-      place: $.location
-      at: $.time
-    output:
-      observation: $.current
+```json
+{
+  "mappingId": "provider-article-search-v1",
+  "canonicalName": "search_sources",
+  "enabled": false,
+  "priority": 100,
+  "toolRef": "provider.search_articles",
+  "providerServer": "provider_catalog",
+  "inputProjection": {
+    "query": { "selector": "query", "required": true, "transform": "identity" },
+    "limit": { "selector": "limit", "required": false, "transform": "identity" }
+  },
+  "expectedInput": { "query": "string", "limit": "number" },
+  "responseAdapter": "article_search_v1",
+  "requiredAnnotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": true
+  },
+  "requiredSecurityHints": { "sideEffect": "read_only", "taskSupport": "optional" }
+}
 ```
 
-The actual file should be generated after inspecting the user's Pref MCP tool list.
+The registry schema is versioned. Each provider-required argument must have a required canonical
+projection, projected types must exactly match discovery, and the selected response adapter must
+match the provider output schema. Unknown transforms, unmapped required fields, incompatible
+schemas, write-capable annotations, side effects, or task-support policies fail closed.
+
+The implemented v2 registry enables `weather.get_current_conditions` for `local_conditions`.
+Discovery also found `gdelt.context.search_context`, and the generic article adapter can normalize
+its metadata into canonical `SourceRecord` objects, but that candidate remains disabled because the
+live server reports `task_support: forbidden`. No provider is enabled for `read_source` until one
+passes the same contract and policy checks. This is an intentional truthful capability gap, not an
+implicit fallback to an unreviewed search tool.
 
 ## 8.5 Dual access pattern
 

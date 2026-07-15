@@ -102,12 +102,50 @@ Use a credential explicitly issued for this application. Do not copy Codex OAuth
 
 The first live mission calls the exact read-only primitive `weather.get_current_conditions`. Because Helios-3 and Galehaven are fictional, Cape Canaveral is disclosed everywhere as a real-world interface-testing proxy. Its signal is always context-only with unknown impact and never changes the fictional market forecast.
 
+The Pref capability registry is provider-neutral: canonical requests are projected into an
+allow-listed provider tool, then a bounded response adapter creates canonical source records. A
+mapping becomes callable only when live discovery matches its exact input/output contract,
+read-only annotations, side-effect classification, and task-support policy. The registry may list
+disabled candidates truthfully; it does not create a service for each provider. The current live
+default enables weather. The discovered GDELT context search remains disabled because its live
+`task_support` policy does not satisfy the MVP allow-list, and no safe `read_source` provider is
+enabled yet. Fixture mode continues to implement all three canonical research capabilities.
+
 With `SIGNAL_ATLAS_CODEX_MODE=local`, Professor Vale is also a real bounded local Codex turn rather
 than a simulated reply. Open the study with `P`, select the exact sources/signals to disclose, and
 ask a question. The consultation starts a fresh session with shell, apps, multi-agent, and web search
 disabled; only a repair may resume it. The response badge states **Local Codex**, **Scripted
 fixture**, or **Scripted fallback**, and Runtime Diagnostics exposes run/repair/fallback counts
 without prompts, transcripts, credentials, or private reasoning.
+
+### Durable local workspace
+
+Normal local development stores authoritative history in SQLite at
+`~/.local/state/signal-atlas/workspace.sqlite`. Every event is appended with its expedition
+sequence; an accepted command receipt is committed in the same transaction as the command's
+events. Restarting the orchestrator restores the exact projection and idempotency result instead of
+reseeding the in-memory slice.
+
+Verified projection checkpoints are written every 50 events and on clean shutdown. Startup uses
+the newest schema-valid, hash-valid checkpoint and folds only its event tail. A malformed checkpoint
+is ignored in favor of an older checkpoint or the complete append-only log; checkpoints never
+replace or truncate that log.
+
+Configuration is process-local:
+
+```bash
+# Choose another local database, or set the value to "off" for an ephemeral process.
+export SIGNAL_ATLAS_WORKSPACE_DB="$HOME/.local/state/signal-atlas/workspace.sqlite"
+
+# Use any positive integer; invalid values fall back to 50.
+export SIGNAL_ATLAS_CHECKPOINT_INTERVAL=50
+```
+
+Tests and Playwright use memory mode by default so fixture runs remain isolated and deterministic.
+If a durable write fails, the runtime keeps the last committed projection visible, publishes no
+uncommitted event, rejects new commands, and exposes a blocking workspace warning plus safe
+diagnostics. The database directory and file are created with owner-only permissions. Never place a
+workspace database in version control.
 
 ### Resolution, replay, and case-file export
 
@@ -131,6 +169,7 @@ Connection failures remain distinct in the UI and diagnostics:
 - **Local Codex unavailable · scripted fixture fallback active** means local execution could not start and the deterministic authored driver remains available.
 - **Professor · Scripted fallback** means the consultation process timed out, failed, or remained invalid after one repair; the authored bounded answer is shown and labeled instead.
 - **Agent output schema boundary rejected** means no source, claim, signal, or world action from that result was applied.
+- **Workspace persistence paused** means a SQLite transaction failed; the last durable projection remains visible and commands stay closed until the local service is restarted after the storage problem is corrected.
 
 All essential world places, agents, movement progress, routes, and actions have semantic React representations outside Phaser. Modal dialogs contain focus and restore it on close; Archive, Professor, Meeting, and Replay focus their main landmark and return to the originating world control. The required journey supports `/`, `1`–`3`, `A`, `P`, `C`, `R`, `M`, `Space`, `[`/`]`, `F`, `Home`, `Tab`, `Enter`, and `Escape`. Closed responsive drawers leave the focus order, reduced-motion disables nonessential motion, and forced-colors mode restores explicit borders and focus/selection outlines. The 200% reflow target is the 720 × 450 CSS viewport equivalent of the 1440 × 900 reference desktop.
 

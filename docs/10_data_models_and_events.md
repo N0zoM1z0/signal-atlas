@@ -11,6 +11,23 @@ Four rules are non-negotiable:
 3. A belief update records the previous value and the evidence used.
 4. Every state-changing action is represented by an append-only event.
 
+### Durable workspace records
+
+The local workspace persists serialized, schema-validated `WorldEvent` envelopes as the sole
+authority. `(expeditionId, sequence)` is the ordered primary key and event IDs are unique. Updates
+and deletes are rejected by database triggers.
+
+An accepted command also creates an immutable receipt containing its idempotency key, command ID,
+canonical command hash, acceptance time, and exact result envelope. The receipt and every event
+caused synchronously by that command commit in one transaction. On restart, receipts rebuild the
+idempotency ledger so the same key and command return the original result; a different command under
+the same key remains a conflict.
+
+A checkpoint records the expedition ID, event sequence, projection schema version, projection hash,
+serialized projection, and creation time. It is a disposable acceleration structure rather than a
+domain event. Loading a checkpoint never advances authority: the runtime verifies it against the
+event at the same sequence and folds the remaining event tail through the same pure reducer.
+
 ## 10.2 Market
 
 ```ts
