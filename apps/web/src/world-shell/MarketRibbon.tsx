@@ -9,6 +9,7 @@ export interface MarketRibbonProps {
   runtimeState: RuntimeState;
   speed: 1 | 2 | 4;
   publicProbability: number;
+  resolvedOutcomeLabel?: string;
   teamProbability: number;
   onModeChange: () => void;
   onOpenForecast: () => void;
@@ -24,10 +25,12 @@ export function MarketRibbon({
   onSpeedChange,
   paused,
   publicProbability,
+  resolvedOutcomeLabel,
   runtimeState,
   speed,
   teamProbability,
 }: MarketRibbonProps) {
+  const resolved = resolvedOutcomeLabel !== undefined;
   const probabilityStyle = {
     '--atlas-public-probability': `${publicProbability}%`,
     '--atlas-team-probability': `${teamProbability}%`,
@@ -78,8 +81,13 @@ export function MarketRibbon({
       </div>
 
       <div className="atlas-ribbon-actions">
-        <button className="atlas-forecast-open" onClick={onOpenForecast} type="button">
-          <span aria-hidden="true">◒</span> Commit Forecast
+        <button
+          className="atlas-forecast-open"
+          disabled={resolved}
+          onClick={onOpenForecast}
+          type="button"
+        >
+          <span aria-hidden="true">◒</span> {resolved ? 'Forecast closed' : 'Commit Forecast'}
         </button>
         <Badge
           className="atlas-runtime-badge"
@@ -92,12 +100,13 @@ export function MarketRibbon({
               : '● Fixture ready'}
         </Badge>
         <span className="atlas-deadline">
-          <small>Resolves</small>
-          <strong>Sep 30</strong>
+          <small>{resolved ? 'Resolved' : 'Resolves'}</small>
+          <strong>{resolvedOutcomeLabel ?? 'Sep 30'}</strong>
         </span>
         <button
           aria-label={paused ? 'Resume simulation' : 'Pause simulation'}
           className="atlas-compact-control"
+          disabled={resolved}
           onClick={onPauseChange}
           type="button"
         >
@@ -106,6 +115,7 @@ export function MarketRibbon({
         <button
           aria-label={`Simulation speed ${speed} times`}
           className="atlas-compact-control"
+          disabled={resolved}
           onClick={onSpeedChange}
           type="button"
         >

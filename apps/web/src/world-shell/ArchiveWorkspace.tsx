@@ -15,6 +15,7 @@ export interface ArchiveWorkspaceProps {
   loading: boolean;
   projection: WorldProjection;
   onClose: () => void;
+  onOpenReplay: (sequence: number) => void;
   onToggleCaseFile: (archiveId: string) => void;
 }
 
@@ -152,6 +153,7 @@ export function ArchiveWorkspace({
   events,
   loading,
   onClose,
+  onOpenReplay,
   onToggleCaseFile,
   projection,
 }: ArchiveWorkspaceProps) {
@@ -159,7 +161,6 @@ export function ArchiveWorkspace({
   const [query, setQuery] = useState<Omit<ArchiveSearchQuery, 'kind'>>({});
   const [selectedArchiveId, setSelectedArchiveId] = useState<string>();
   const [comparisonIds, setComparisonIds] = useState<string[]>([]);
-  const [replayArchiveId, setReplayArchiveId] = useState<string>();
   const index = useMemo(() => createArchiveIndex(projection, events), [events, projection]);
   const results = useMemo(() => searchArchive(index, { ...query, kind: tab }), [index, query, tab]);
   const counts = useMemo(
@@ -178,14 +179,6 @@ export function ArchiveWorkspace({
     const entry = index.entries.find((candidate) => candidate.archiveId === id);
     return entry ? [entry] : [];
   });
-  const replayEntry = index.entries.find((entry) => entry.archiveId === replayArchiveId);
-  const replayEvents = replayEntry?.entrySequence
-    ? events.filter(
-        (event) =>
-          event.sequence >= replayEntry.entrySequence! - 2 &&
-          event.sequence <= replayEntry.entrySequence! + 2,
-      )
-    : [];
 
   const updateQuery = (patch: ArchiveQueryPatch) =>
     setQuery((current) => {
@@ -392,7 +385,9 @@ export function ArchiveWorkspace({
                 </button>
                 <button
                   disabled={!selected.entrySequence}
-                  onClick={() => setReplayArchiveId(selected.archiveId)}
+                  onClick={() => {
+                    if (selected.entrySequence) onOpenReplay(selected.entrySequence);
+                  }}
                   type="button"
                 >
                   Replay to entry
@@ -426,28 +421,6 @@ export function ArchiveWorkspace({
               <ComparisonCard entry={entry} key={entry.archiveId} />
             ))}
           </div>
-        </section>
-      )}
-
-      {replayEntry && (
-        <section className="atlas-archive-replay" aria-label="Replay entry context">
-          <header>
-            <div>
-              <span className="atlas-kicker">Replay marker</span>
-              <h3>{replayEntry.title}</h3>
-            </div>
-            <button onClick={() => setReplayArchiveId(undefined)} type="button">
-              Close replay context
-            </button>
-          </header>
-          <p>Entry sequence {replayEntry.entrySequence}; nearby immutable events:</p>
-          <ol>
-            {replayEvents.map((event) => (
-              <li key={event.id}>
-                <b>SEQ {event.sequence}</b> {event.type}
-              </li>
-            ))}
-          </ol>
         </section>
       )}
 

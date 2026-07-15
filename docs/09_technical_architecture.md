@@ -203,6 +203,9 @@ POST /api/expeditions
 GET  /api/expeditions/:id/snapshot
 POST /api/expeditions/:id/commands
 GET  /api/expeditions/:id/events
+GET  /api/expeditions/:id/replay?sequence=N
+GET  /api/expeditions/:id/case-file
+POST /api/expeditions/:id/resolve-fixture
 GET  /api/archive/search
 GET  /api/sources/:id
 POST /api/professor/query
@@ -211,6 +214,8 @@ GET  /api/runtime/diagnostics
 POST /api/runtime/test-pref
 POST /api/runtime/test-codex
 ```
+
+The fixture-resolution endpoint is intentionally narrower than the ordinary command surface. It accepts no caller-selected outcome and emits only the authored fixture resolution plus deterministic scores. Replay folds the authoritative event log from the sequence-zero bootstrap and verifies its latest canonical projection hash. Public case-file serialization strips private forecast memos from summaries and event copies.
 
 WebSocket topics:
 

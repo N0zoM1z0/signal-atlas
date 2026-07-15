@@ -1,5 +1,6 @@
 import type { MissionVerb, WorldCommand, WorldEvent } from '@signal-atlas/contracts';
 import type { CodexRuntimeDiagnostics } from '@signal-atlas/codex-runtime';
+import type { SignalAtlasCaseFile } from '@signal-atlas/archive';
 import type { PrefMcpConnectionDiagnostics } from '@signal-atlas/pref-gateway';
 import type { WorldProjection } from '@signal-atlas/simulation';
 
@@ -43,6 +44,23 @@ interface CommandResponse {
 interface RejectedCommandResponse {
   accepted: false;
   issues: Array<{ code: string; message: string; path: Array<string | number> }>;
+}
+
+export interface ReplayProjectionResponse {
+  sequence: number;
+  latestSequence: number;
+  projection: WorldProjection;
+  hash: string;
+  authoritativeHash: string;
+  selectedEvent?: WorldEvent;
+}
+
+export interface FixtureResolutionResponse {
+  resolved: true;
+  duplicate: boolean;
+  events: WorldEvent[];
+  sequence: number;
+  projectionHash: string;
 }
 
 const expeditionId = shellModel.projection.expedition.id;
@@ -102,6 +120,22 @@ export async function fetchExpeditionEvents(after = 0): Promise<{
   return requestJson<{ events: WorldEvent[]; sequence: number }>(
     `/api/expeditions/${expeditionId}/events?after=${after}`,
   );
+}
+
+export async function fetchReplayProjection(sequence?: number): Promise<ReplayProjectionResponse> {
+  const query = sequence === undefined ? '' : `?sequence=${sequence}`;
+  return requestJson<ReplayProjectionResponse>(`/api/expeditions/${expeditionId}/replay${query}`);
+}
+
+export async function resolveFixtureCase(): Promise<FixtureResolutionResponse> {
+  return requestJson<FixtureResolutionResponse>(
+    `/api/expeditions/${expeditionId}/resolve-fixture`,
+    { method: 'POST', body: JSON.stringify({}) },
+  );
+}
+
+export async function fetchCaseFile(): Promise<SignalAtlasCaseFile> {
+  return requestJson<SignalAtlasCaseFile>(`/api/expeditions/${expeditionId}/case-file`);
 }
 
 export async function fetchFixtureConfiguration(): Promise<FixtureConfiguration> {

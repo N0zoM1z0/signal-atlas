@@ -22,6 +22,7 @@ import { MeetingWorkspace } from './MeetingWorkspace.js';
 import { ForecastWorkspace, type ForecastCommitInput } from './ForecastWorkspace.js';
 import { createShellModel, shellModel } from './model.js';
 import { ProfessorWorkspace, type ProfessorQuestionInput } from './ProfessorWorkspace.js';
+import { ReplayWorkspace } from './ReplayWorkspace.js';
 import { RuntimeDiagnosticsDialog } from './RuntimeDiagnosticsDialog.js';
 import {
   createClientId,
@@ -40,7 +41,7 @@ import { WorldStageHost } from './WorldStageHost.js';
 
 type RuntimeState = 'ready' | 'loading' | 'disconnected';
 type MobilePanel = 'agents' | 'signals' | null;
-type Workspace = 'world' | 'archive' | 'meeting' | 'professor';
+type Workspace = 'world' | 'archive' | 'meeting' | 'professor' | 'replay';
 
 function runtimeStateFromLocation(): RuntimeState {
   if (typeof window === 'undefined') return 'ready';
@@ -104,6 +105,7 @@ export function WorldShell() {
   const [skipTravel, setSkipTravel] = useState(skipTravelPreference);
   const [fixtureScenario, setFixtureScenario] = useState<FixtureMissionScenario>('success');
   const [workspace, setWorkspace] = useState<Workspace>('world');
+  const [replayInitialSequence, setReplayInitialSequence] = useState<number>();
   const [forecastOpen, setForecastOpen] = useState(false);
   const [runtimeDiagnosticsOpen, setRuntimeDiagnosticsOpen] = useState(false);
   const [archiveEvents, setArchiveEvents] = useState<WorldEvent[]>([]);
@@ -371,6 +373,19 @@ export function WorldShell() {
     }
   }, [refreshProjection]);
 
+  const openReplayWorkspace = useCallback((sequence?: number) => {
+    setReplayInitialSequence(sequence);
+    setWorkspace('replay');
+    setInspectedSignalId(undefined);
+    setTrayExpanded(false);
+    setMobilePanel(null);
+    setAnnouncement(
+      sequence === undefined
+        ? 'Expedition case-file replay opened at the latest sequence.'
+        : `Expedition case-file replay opened at sequence ${sequence}.`,
+    );
+  }, []);
+
   const commitForecast = useCallback(
     async (input: ForecastCommitInput) => {
       const createdAt = nextRecordedTimestamp(projection.appliedEvents);
@@ -449,7 +464,7 @@ export function WorldShell() {
   );
 
   const openPanel = useCallback(
-    (panel: 'agents' | 'signals' | 'archive' | 'professor' | 'forecast') => {
+    (panel: 'agents' | 'signals' | 'archive' | 'professor' | 'forecast' | 'replay') => {
       if (panel === 'agents' || panel === 'signals') {
         setMobilePanel((current) => (current === panel ? null : panel));
         return;
@@ -462,9 +477,13 @@ export function WorldShell() {
         void openForecastWorkspace();
         return;
       }
+      if (panel === 'replay') {
+        openReplayWorkspace();
+        return;
+      }
       void openProfessorWorkspace();
     },
-    [openArchiveWorkspace, openForecastWorkspace, openProfessorWorkspace],
+    [openArchiveWorkspace, openForecastWorkspace, openProfessorWorkspace, openReplayWorkspace],
   );
 
   const changePauseState = useCallback(async () => {
@@ -670,6 +689,12 @@ export function WorldShell() {
         return;
       }
 
+      if (event.key.toLocaleLowerCase('en-US') === 'r') {
+        event.preventDefault();
+        openReplayWorkspace();
+        return;
+      }
+
       const agentIndex = Number(event.key) - 1;
       const shortcutAgent = model.agents[agentIndex];
       if (shortcutAgent) {
@@ -700,6 +725,7 @@ export function WorldShell() {
     openArchiveWorkspace,
     openForecastWorkspace,
     openPanel,
+    openReplayWorkspace,
     runtimeDiagnosticsOpen,
     workspace,
   ]);
@@ -925,6 +951,10 @@ export function WorldShell() {
     setCommandError(undefined);
   };
 
+  const resolvedOutcomeLabel = projection.market.outcomes.find(
+    (outcome) => outcome.id === projection.market.resolvedOutcomeId,
+  )?.shortLabel;
+
   return (
     <div
       className="signal-atlas-shell"
@@ -946,6 +976,7 @@ export function WorldShell() {
         onSpeedChange={() => void changeSpeed()}
         paused={paused}
         publicProbability={model.market.publicProbability}
+        {...(resolvedOutcomeLabel ? { resolvedOutcomeLabel } : {})}
         runtimeState={runtimeState}
         speed={speed}
         teamProbability={model.market.teamProbability}
@@ -991,6 +1022,7 @@ export function WorldShell() {
             setWorkspace('world');
             setAnnouncement('Returned to the world atlas.');
           }}
+          onOpenReplay={openReplayWorkspace}
           onToggleCaseFile={toggleCaseFileEntry}
           projection={projection}
         />
@@ -1017,6 +1049,28 @@ export function WorldShell() {
           }}
           onUseSuggestedMission={useProfessorMission}
           projection={projection}
+        />
+      ) : workspace === 'replay' ? (
+        <ReplayWorkspace
+          {...(replayInitialSequence === undefined
+            ? {}
+            : { initialSequence: replayInitialSequence })}
+          onAuthoritativeProjectionChange={(nextProjection) => {
+            setProjection(nextProjection);
+            setRuntimeState('ready');
+            setAnnouncement('Fixture resolution recorded and final projection verified.');
+          }}
+          onClose={() => {
+            setWorkspace('world');
+            setReplayInitialSequence(undefined);
+            void refreshProjection().catch((error: unknown) => {
+              const message =
+                error instanceof Error ? error.message : 'World projection failed to refresh.';
+              setCommandError(message);
+              setRuntimeState('disconnected');
+            });
+            setAnnouncement('Returned to the world atlas.');
+          }}
         />
       ) : (
         <WorldStageHost

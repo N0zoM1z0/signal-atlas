@@ -75,10 +75,15 @@ test('Archive Quarter searches, compares, files, and replays discovered evidence
   await comparison.getByRole('button', { name: 'Clear comparison' }).click();
 
   await page.getByRole('button', { name: 'Replay to entry' }).click();
-  const replay = page.getByRole('region', { name: 'Replay entry context' });
-  await expect(replay).toContainText('signal.created');
-  await expect(replay).toContainText(/Entry sequence \d+/);
-  await replay.getByRole('button', { name: 'Close replay context' }).click();
+  const replay = page.getByRole('main', { name: 'Expedition replay case file' });
+  await expect(replay).toBeVisible();
+  await expect(replay.getByRole('region', { name: 'Selected world projection' })).toContainText(
+    'Signal Created',
+  );
+  const replaySequence = await replay.getByRole('slider', { name: 'Replay sequence' }).inputValue();
+  await expect(replay.getByRole('region', { name: 'Selected world projection' })).toContainText(
+    `World at sequence ${replaySequence}`,
+  );
 
   await page.keyboard.press('Escape');
   await expect(page.getByRole('main', { name: 'Interactive world stage' })).toBeVisible();

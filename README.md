@@ -100,6 +100,14 @@ Use a credential explicitly issued for this application. Do not copy Codex OAuth
 
 The first live mission calls the exact read-only primitive `weather.get_current_conditions`. Because Helios-3 and Galehaven are fictional, Cape Canaveral is disclosed everywhere as a real-world interface-testing proxy. Its signal is always context-only with unknown impact and never changes the fictional market forecast.
 
+### Resolution, replay, and case-file export
+
+Open **Replay** from the world toolbar or press `R` outside an editable field. The replay workspace reconstructs the world from sequence zero, exposes event-backed evidence and forecast turning points, and verifies the latest projection against the orchestrator's canonical hash.
+
+Fixture resolution is deliberately not a general outcome command. `POST /api/expeditions/:id/resolve-fixture` accepts only an empty body and copies the outcome, time, and note from the parsed Helios-3 fixture. It records the market resolution, a Brier score for each explicitly scoring-eligible forecast, and the expedition resolution. The browser cannot select an outcome.
+
+`GET /api/expeditions/:id/replay?sequence=N` returns the exact projection at an event sequence. `GET /api/expeditions/:id/case-file` returns a deterministic public JSON case file with separate source, claim, signal, and forecast-rationale sections. Private forecast memos are excluded from both those sections and the exported event stream.
+
 Run the current repository gate with:
 
 ```bash

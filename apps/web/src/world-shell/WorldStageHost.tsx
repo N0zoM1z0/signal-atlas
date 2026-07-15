@@ -27,7 +27,9 @@ export interface WorldStageHostProps {
   meetingBusy: boolean;
   meetingDisabled: boolean;
   onConveneMeeting: () => void;
-  onOpenPanel: (panel: 'agents' | 'signals' | 'archive' | 'professor' | 'forecast') => void;
+  onOpenPanel: (
+    panel: 'agents' | 'signals' | 'archive' | 'professor' | 'forecast' | 'replay',
+  ) => void;
   onSelectAgent: (agentId: string) => void;
   onSelectPlace: (placeId: string) => void;
   onSkipTravelChange: (enabled: boolean) => void;
@@ -108,6 +110,9 @@ export function WorldStageHost({
           </button>
           <button onClick={() => onOpenPanel('forecast')} type="button">
             Forecast
+          </button>
+          <button onClick={() => onOpenPanel('replay')} type="button">
+            Replay
           </button>
           <button
             aria-label="Center map"
