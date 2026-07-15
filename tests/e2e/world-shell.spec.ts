@@ -103,8 +103,10 @@ test('@visual world shell remains usable at 1280 × 800', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.goto('/?capture=1');
 
-  await expect(page.getByRole('button', { name: 'Collapse agent dock' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Collapse signal rail' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Open agents drawer' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Open signals drawer' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Collapse agent dock' })).toBeHidden();
+  await expect(page.getByRole('button', { name: 'Collapse signal rail' })).toBeHidden();
   await expect(page.getByRole('textbox', { name: 'Command Mira' })).toBeVisible();
   await expect(page.locator('.atlas-world-canvas')).toHaveAttribute('data-scene-ready', 'true');
   await expect(page.locator('.atlas-world-canvas')).toHaveAttribute('data-reduced-motion', 'true');
@@ -121,7 +123,7 @@ test('@visual world shell remains usable at 1280 × 800', async ({ page }) => {
 test('desktop panels collapse independently and keyboard shortcuts preserve focus', async ({
   page,
 }) => {
-  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto('/');
 
   const shell = page.locator('.signal-atlas-shell');

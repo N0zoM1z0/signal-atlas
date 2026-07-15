@@ -25,7 +25,9 @@ interface MissionSnapshot {
   };
 }
 
-test('authored guidance prepares a complete local draft at a compact viewport', async ({ page }) => {
+test('authored guidance prepares a complete local draft at a compact viewport', async ({
+  page,
+}) => {
   await page.setViewportSize({ width: 720, height: 450 });
   await page.goto('/');
 

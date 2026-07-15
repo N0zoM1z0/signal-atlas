@@ -97,20 +97,22 @@ export function CommandTray({
   const destinationSelectRef = useRef<HTMLSelectElement>(null);
   const verbSelectRef = useRef<HTMLSelectElement>(null);
   const confirmRef = useRef<HTMLButtonElement>(null);
+  const draftSubmissionId = draft?.submissionId;
+  const firstMissingField = draft?.missing[0];
   const missingKey = draft?.missing.join(',') ?? '';
 
   useEffect(() => {
-    if (!expanded || busy || !draft) return;
+    if (!expanded || busy || !draftSubmissionId) return;
     const target = draftReady
       ? confirmRef.current
-      : draft.missing[0] === 'agent'
+      : firstMissingField === 'agent'
         ? agentSelectRef.current
-        : draft.missing[0] === 'destination'
+        : firstMissingField === 'destination'
           ? destinationSelectRef.current
           : verbSelectRef.current;
     const frame = window.requestAnimationFrame(() => target?.focus());
     return () => window.cancelAnimationFrame(frame);
-  }, [busy, draft?.submissionId, draftReady, expanded, missingKey]);
+  }, [busy, draftReady, draftSubmissionId, expanded, firstMissingField, missingKey]);
 
   return (
     <footer className="atlas-command-tray" aria-label="Agent command desk">
