@@ -28,6 +28,21 @@ const missions = [
 
 test.use({ reducedMotion: 'no-preference' });
 
+test.beforeEach(async ({ request }) => {
+  const response = await request.post('/api/testing/reset');
+  expect(response.ok(), 'The soak gate requires a clean SIGNAL_ATLAS_E2E=1 fixture runtime.').toBe(
+    true,
+  );
+  const pref = await request.get('/api/runtime/pref');
+  expect(pref.ok(), 'The soak gate requires Pref diagnostics.').toBe(true);
+  expect(await pref.json()).toMatchObject({ mode: 'fixture', transport: 'fixture' });
+  const codex = await request.get('/api/runtime/diagnostics');
+  expect(codex.ok(), 'The soak gate requires Codex runtime diagnostics.').toBe(true);
+  expect(await codex.json()).toMatchObject({
+    driver: { id: 'fixture-scripted-codex', kind: 'scripted' },
+  });
+});
+
 test('@soak fixture world remains interactive and bounded for thirty minutes', async ({
   page,
 }, testInfo) => {

@@ -133,4 +133,39 @@ pnpm test
 pnpm build
 ```
 
+Run the browser gates separately:
+
+```bash
+pnpm test:e2e
+pnpm test:visual
+pnpm test:soak
+```
+
+`test:soak` is an explicit 30-minute gate. It runs the normal-motion experience, completes the three authored evidence missions across the session, and records FPS p10, zoom-interaction p95, JavaScript heap growth, page errors, final event sequence, and mission count as `soak-metrics.json`. For a quick harness check only, set `SIGNAL_ATLAS_SOAK_DURATION_MS`; a shortened result is not release evidence.
+
+### Controls
+
+- `/` focuses the selected agent's command field; `1`–`3` select Mira, Orin, or Kestrel.
+- `A`, `P`, `C`, `R`, and `M` open Archive, Professor, Forecast, Replay, and Lantern Square.
+- `Space` pauses or resumes simulation; `[` and `]` change speed.
+- `F` follows the selected agent; `Home` centers the map.
+- `Tab`, arrow keys inside tablists, `Enter`, and `Escape` support the complete keyboard journey.
+- The **Skip travel** checkbox is a local, non-authoritative convenience. If browser storage is unavailable, the current-session toggle still works.
+
+### Capture workflow
+
+Use `http://127.0.0.1:4173/?capture=1` for clean screenshots or video. Capture mode hides the first-run guide, renderer diagnostics, and test-only fixture controls; it does not hide fixture/live mode, connection health, source provenance, forecast semantics, or runtime fallback truth.
+
+The reference baselines are 1440 × 900 and 1280 × 800. Wait until the world reports ready before recording. Presentation sound remains off until explicitly enabled and is locally synthesized; all art in the shipped world is programmatic CSS, SVG, canvas, or Phaser geometry. No third-party image, audio, or font asset is required.
+
+### Local Codex smoke
+
+The fixture driver is always available, even without Codex. To test the bounded local runtime explicitly:
+
+```bash
+pnpm --filter @signal-atlas/orchestrator smoke:codex
+```
+
+The command uses the local `codex` executable unless `SIGNAL_ATLAS_CODEX_EXECUTABLE` overrides it. It runs with an app-scoped per-user runtime root, one-tool mission budget, strict structured output, source-reference validation, and the same event-authority boundary as the fixture driver. A missing or failing executable is reported as unavailable; it is never described as a successful local turn.
+
 Local credentials, databases, runtime transcripts, and cached source bodies must not be committed.
