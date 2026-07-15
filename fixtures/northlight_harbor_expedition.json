@@ -1,0 +1,1653 @@
+{
+  "fixtureVersion": 1,
+  "seed": "northlight-harbor-watch-v1",
+  "market": {
+    "id": "market-northlight-harbor-2028",
+    "provider": "signal-atlas-fixture",
+    "question": "Will Northlight Harbor suspend outbound traffic before 18:00 UTC on November 12?",
+    "description": "A fictional binary market about whether the harbor authority will halt all outbound vessel movements before the stated cutoff.",
+    "outcomes": [
+      {
+        "id": "suspended",
+        "label": "Outbound traffic is suspended",
+        "shortLabel": "SUSPENDED"
+      },
+      {
+        "id": "operating",
+        "label": "Outbound traffic remains operating",
+        "shortLabel": "OPERATING"
+      }
+    ],
+    "resolutionRules": "Resolve SUSPENDED if the fictional Northlight Harbor Authority issues an official order halting all outbound vessel movements at any time before 2028-11-12T18:00:00Z. Routine delays, pilot discretion, berth restrictions, or inbound-only limits do not qualify. Otherwise resolve OPERATING. This fixture is entirely fictional.",
+    "resolutionSource": "fixture://northlight-harbor/resolution",
+    "opensAt": "2028-11-12T06:00:00Z",
+    "closesAt": "2028-11-12T17:55:00Z",
+    "resolvesAt": "2028-11-12T18:05:00Z",
+    "status": "open",
+    "currentPublicProbabilities": {
+      "suspended": 0.43,
+      "operating": 0.57
+    },
+    "tags": [
+      "fictional",
+      "harbor",
+      "infrastructure",
+      "weather",
+      "operations"
+    ],
+    "createdAt": "2028-11-12T06:00:00Z",
+    "updatedAt": "2028-11-12T14:00:00Z"
+  },
+  "expedition": {
+    "id": "exp-northlight-harbor-demo",
+    "marketId": "market-northlight-harbor-2028",
+    "worldManifestId": "world-northlight-harbor-v1",
+    "title": "Northlight Harbor Watch",
+    "mode": "director",
+    "status": "active",
+    "simulationSpeed": 1,
+    "currentSequence": 2,
+    "startedAt": "2028-11-12T14:00:00Z",
+    "settings": {
+      "fixtureMode": true,
+      "reducedMotion": false,
+      "autoCamera": true,
+      "autonomy": "suggest"
+    }
+  },
+  "worldManifest": {
+    "id": "world-northlight-harbor-v1",
+    "version": 1,
+    "template": "coastal-harbor",
+    "logicalWidth": 50,
+    "logicalHeight": 28,
+    "tileSize": 16,
+    "places": [
+      {
+        "id": "harbor-watch",
+        "name": "Northlight Watch House",
+        "archetype": "observatory",
+        "position": {
+          "x": 14,
+          "y": 13
+        },
+        "entranceNodeId": "n-harbor-watch",
+        "description": "Home base for the harbor expedition, market overview, and forecast commits.",
+        "missionVerbs": [
+          "reassess_forecast"
+        ],
+        "capabilityBindings": [],
+        "tags": [
+          "home",
+          "forecast",
+          "harbor"
+        ],
+        "visualState": {
+          "windowGlow": "amber",
+          "roofBeacon": true
+        }
+      },
+      {
+        "id": "signal-station",
+        "name": "Gullwing Signal Station",
+        "archetype": "weather_tower",
+        "position": {
+          "x": 37,
+          "y": 7
+        },
+        "entranceNodeId": "n-signal-station",
+        "description": "Fresh sea-state observations, wind warnings, and visibility reports.",
+        "missionVerbs": [
+          "observe_conditions",
+          "investigate",
+          "verify"
+        ],
+        "capabilityBindings": [
+          {
+            "canonicalCapability": "local_conditions",
+            "configuration": {
+              "providerLocation": "Rotterdam, Netherlands",
+              "displayLabel": "Rotterdam coastal live proxy",
+              "marketRelevance": "context_only"
+            }
+          },
+          {
+            "canonicalCapability": "search_sources"
+          }
+        ],
+        "tags": [
+          "weather",
+          "sea-state",
+          "fresh"
+        ],
+        "visualState": {
+          "signalFlags": "gale-watch",
+          "anemometerSpeed": 0.9
+        }
+      },
+      {
+        "id": "harbor-office",
+        "name": "Harbor Authority Office",
+        "archetype": "newsroom",
+        "position": {
+          "x": 39,
+          "y": 22
+        },
+        "entranceNodeId": "n-harbor-office",
+        "description": "Official traffic notices, public statements, and local reporting.",
+        "missionVerbs": [
+          "investigate",
+          "verify",
+          "find_contradiction"
+        ],
+        "capabilityBindings": [
+          {
+            "canonicalCapability": "search_sources"
+          },
+          {
+            "canonicalCapability": "read_source"
+          }
+        ],
+        "tags": [
+          "authority",
+          "notices",
+          "reporting"
+        ],
+        "visualState": {
+          "ticker": "OUTBOUND REVIEW 15:30",
+          "noticeBoard": 3
+        }
+      },
+      {
+        "id": "records-office",
+        "name": "Tide Ledger Archive",
+        "archetype": "archive",
+        "position": {
+          "x": 8,
+          "y": 24
+        },
+        "entranceNodeId": "n-records-office",
+        "description": "Past suspension orders, channel incidents, and versioned authority records.",
+        "missionVerbs": [
+          "search_history",
+          "compare_sources"
+        ],
+        "capabilityBindings": [
+          {
+            "canonicalCapability": "search_resolution_history"
+          },
+          {
+            "canonicalCapability": "search_sources"
+          }
+        ],
+        "tags": [
+          "history",
+          "base-rate",
+          "versions"
+        ],
+        "visualState": {
+          "ledgerLamps": 5,
+          "shelves": "blue-grey"
+        }
+      },
+      {
+        "id": "tide-scholar",
+        "name": "Tide Scholar's Loft",
+        "archetype": "professor",
+        "position": {
+          "x": 29,
+          "y": 4
+        },
+        "entranceNodeId": "n-tide-scholar",
+        "description": "An independent desk for correlation, base-rate, and missing-evidence checks.",
+        "missionVerbs": [
+          "consult_professor"
+        ],
+        "capabilityBindings": [],
+        "tags": [
+          "professor",
+          "review"
+        ],
+        "visualState": {
+          "lanterns": 2,
+          "charts": "tide"
+        }
+      },
+      {
+        "id": "quayside",
+        "name": "Lantern Quayside",
+        "archetype": "town_square",
+        "position": {
+          "x": 25,
+          "y": 18
+        },
+        "entranceNodeId": "n-quayside",
+        "description": "A sheltered meeting point where agents exchange sourced observations.",
+        "missionVerbs": [
+          "meet_agent",
+          "deliver_signal"
+        ],
+        "capabilityBindings": [],
+        "tags": [
+          "meeting",
+          "sharing"
+        ],
+        "visualState": {
+          "mooringLights": 6,
+          "marketStalls": false
+        }
+      },
+      {
+        "id": "outer-breakwater",
+        "name": "Outer Breakwater Control",
+        "archetype": "field_site",
+        "position": {
+          "x": 45,
+          "y": 16
+        },
+        "entranceNodeId": "n-outer-breakwater",
+        "description": "Direct vessel counts, channel-marker status, and pilot observations.",
+        "missionVerbs": [
+          "investigate",
+          "verify",
+          "find_contradiction"
+        ],
+        "capabilityBindings": [
+          {
+            "canonicalCapability": "search_sources"
+          },
+          {
+            "canonicalCapability": "read_source"
+          }
+        ],
+        "tags": [
+          "field",
+          "traffic",
+          "channel-marker"
+        ],
+        "visualState": {
+          "beacon": "intermittent",
+          "waveSpray": 0.7
+        }
+      }
+    ],
+    "routes": [
+      {
+        "id": "r-watch-quayside",
+        "fromPlaceId": "harbor-watch",
+        "toPlaceId": "quayside",
+        "waypoints": [
+          {
+            "x": 14,
+            "y": 13
+          },
+          {
+            "x": 18,
+            "y": 15
+          },
+          {
+            "x": 22,
+            "y": 17
+          },
+          {
+            "x": 25,
+            "y": 18
+          }
+        ],
+        "baseDurationMs": 5000,
+        "bidirectional": true,
+        "transitType": "walk",
+        "cameraHint": "follow"
+      },
+      {
+        "id": "r-quayside-signal",
+        "fromPlaceId": "quayside",
+        "toPlaceId": "signal-station",
+        "waypoints": [
+          {
+            "x": 25,
+            "y": 18
+          },
+          {
+            "x": 29,
+            "y": 15
+          },
+          {
+            "x": 33,
+            "y": 11
+          },
+          {
+            "x": 37,
+            "y": 7
+          }
+        ],
+        "baseDurationMs": 7000,
+        "bidirectional": true,
+        "transitType": "walk",
+        "cameraHint": "follow"
+      },
+      {
+        "id": "r-quayside-office",
+        "fromPlaceId": "quayside",
+        "toPlaceId": "harbor-office",
+        "waypoints": [
+          {
+            "x": 25,
+            "y": 18
+          },
+          {
+            "x": 30,
+            "y": 19
+          },
+          {
+            "x": 35,
+            "y": 21
+          },
+          {
+            "x": 39,
+            "y": 22
+          }
+        ],
+        "baseDurationMs": 6200,
+        "bidirectional": true,
+        "transitType": "walk",
+        "cameraHint": "follow"
+      },
+      {
+        "id": "r-quayside-records",
+        "fromPlaceId": "quayside",
+        "toPlaceId": "records-office",
+        "waypoints": [
+          {
+            "x": 25,
+            "y": 18
+          },
+          {
+            "x": 20,
+            "y": 20
+          },
+          {
+            "x": 14,
+            "y": 22
+          },
+          {
+            "x": 8,
+            "y": 24
+          }
+        ],
+        "baseDurationMs": 7600,
+        "bidirectional": true,
+        "transitType": "walk",
+        "cameraHint": "follow"
+      },
+      {
+        "id": "r-quayside-scholar",
+        "fromPlaceId": "quayside",
+        "toPlaceId": "tide-scholar",
+        "waypoints": [
+          {
+            "x": 25,
+            "y": 18
+          },
+          {
+            "x": 26,
+            "y": 13
+          },
+          {
+            "x": 28,
+            "y": 8
+          },
+          {
+            "x": 29,
+            "y": 4
+          }
+        ],
+        "baseDurationMs": 6800,
+        "bidirectional": true,
+        "transitType": "walk",
+        "cameraHint": "follow"
+      },
+      {
+        "id": "r-quayside-breakwater",
+        "fromPlaceId": "quayside",
+        "toPlaceId": "outer-breakwater",
+        "waypoints": [
+          {
+            "x": 25,
+            "y": 18
+          },
+          {
+            "x": 31,
+            "y": 18
+          },
+          {
+            "x": 38,
+            "y": 17
+          },
+          {
+            "x": 45,
+            "y": 16
+          }
+        ],
+        "baseDurationMs": 8200,
+        "bidirectional": true,
+        "transitType": "boat",
+        "cameraHint": "wide"
+      },
+      {
+        "id": "r-office-breakwater",
+        "fromPlaceId": "harbor-office",
+        "toPlaceId": "outer-breakwater",
+        "waypoints": [
+          {
+            "x": 39,
+            "y": 22
+          },
+          {
+            "x": 42,
+            "y": 20
+          },
+          {
+            "x": 44,
+            "y": 18
+          },
+          {
+            "x": 45,
+            "y": 16
+          }
+        ],
+        "baseDurationMs": 4600,
+        "bidirectional": true,
+        "transitType": "walk",
+        "cameraHint": "follow"
+      },
+      {
+        "id": "r-watch-records",
+        "fromPlaceId": "harbor-watch",
+        "toPlaceId": "records-office",
+        "waypoints": [
+          {
+            "x": 14,
+            "y": 13
+          },
+          {
+            "x": 12,
+            "y": 17
+          },
+          {
+            "x": 10,
+            "y": 21
+          },
+          {
+            "x": 8,
+            "y": 24
+          }
+        ],
+        "baseDurationMs": 6100,
+        "bidirectional": true,
+        "transitType": "walk",
+        "cameraHint": "follow"
+      }
+    ],
+    "ambientLayers": [
+      {
+        "id": "harbor-sky",
+        "type": "gradient",
+        "state": "storm-dusk"
+      },
+      {
+        "id": "sea-mist",
+        "type": "weather",
+        "state": "windy-sea-mist"
+      },
+      {
+        "id": "gulls",
+        "type": "particles",
+        "state": "sheltering"
+      },
+      {
+        "id": "northlight-beacon",
+        "type": "landmark",
+        "state": "gale-watch"
+      },
+      {
+        "id": "quay-lamps",
+        "type": "lighting",
+        "state": "amber"
+      }
+    ],
+    "cameraZones": [
+      {
+        "id": "harbor-panorama",
+        "x": 22,
+        "y": 5,
+        "width": 27,
+        "height": 20,
+        "zoom": 1,
+        "label": "Northlight outer harbor"
+      }
+    ],
+    "defaultSpawnPlaceId": "harbor-watch",
+    "assetPack": "northlight-harbor-programmatic-v1"
+  },
+  "agents": [
+    {
+      "id": "tern",
+      "displayName": "Tern",
+      "role": "scout",
+      "profileVersion": 1,
+      "placeId": "harbor-watch",
+      "queuedMissionIds": [],
+      "knownSourceIds": [],
+      "knownSignalIds": [],
+      "belief": {
+        "probabilities": {
+          "suspended": 0.46,
+          "operating": 0.54
+        },
+        "uncertainty": {
+          "suspended": {
+            "low": 0.36,
+            "high": 0.56
+          },
+          "operating": {
+            "low": 0.44,
+            "high": 0.64
+          }
+        },
+        "updatedAt": "2028-11-12T14:00:00Z",
+        "rationale": "The gale watch matters, but direct channel and vessel observations have not been checked.",
+        "evidenceSignalIds": []
+      },
+      "publicState": "idle"
+    },
+    {
+      "id": "cora",
+      "displayName": "Cora",
+      "role": "archivist",
+      "profileVersion": 1,
+      "placeId": "quayside",
+      "queuedMissionIds": [],
+      "knownSourceIds": [],
+      "knownSignalIds": [],
+      "belief": {
+        "probabilities": {
+          "suspended": 0.38,
+          "operating": 0.62
+        },
+        "uncertainty": {
+          "suspended": {
+            "low": 0.28,
+            "high": 0.5
+          },
+          "operating": {
+            "low": 0.5,
+            "high": 0.72
+          }
+        },
+        "updatedAt": "2028-11-12T14:00:00Z",
+        "rationale": "Past suspensions usually required a conjunction of hazards rather than wind alone.",
+        "evidenceSignalIds": []
+      },
+      "publicState": "idle"
+    },
+    {
+      "id": "brin",
+      "displayName": "Brin",
+      "role": "skeptic",
+      "profileVersion": 1,
+      "placeId": "harbor-watch",
+      "queuedMissionIds": [],
+      "knownSourceIds": [],
+      "knownSignalIds": [],
+      "belief": {
+        "probabilities": {
+          "suspended": 0.49,
+          "operating": 0.51
+        },
+        "uncertainty": {
+          "suspended": {
+            "low": 0.37,
+            "high": 0.61
+          },
+          "operating": {
+            "low": 0.39,
+            "high": 0.63
+          }
+        },
+        "updatedAt": "2028-11-12T14:00:00Z",
+        "rationale": "News reports may be repeating one warning, while authority language and field operations can diverge.",
+        "evidenceSignalIds": []
+      },
+      "publicState": "idle"
+    }
+  ],
+  "sources": [
+    {
+      "id": "src-northlight-sea-state-1",
+      "version": 1,
+      "externalUri": "fixture://northlight-harbor/src-northlight-sea-state-1",
+      "title": "Gullwing Gale and Sea-State Report 14:10Z",
+      "publisher": "Northlight Coastal Signal Service",
+      "sourceClass": "official_primary",
+      "publishedAt": "2028-11-12T14:12:00Z",
+      "observedAt": "2028-11-12T14:10:00Z",
+      "retrievedAt": "2028-11-12T14:20:00Z",
+      "location": {
+        "placeId": "signal-station",
+        "label": "Northlight outer harbor"
+      },
+      "mediaType": "text/plain",
+      "excerpt": "Gusts at the outer harbor are above the caution band and wave height is rising. Visibility remains acceptable. The fictional authority's automatic suspension threshold has not been crossed.",
+      "contentHash": "1111111111111111111111111111111111111111111111111111111111111111",
+      "provenance": {
+        "serverName": "pref-fixture",
+        "transport": "fixture",
+        "primitive": "fixture",
+        "primitiveName": "fixture.harbor.conditions",
+        "argumentsHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "responseHash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "callId": "call-northlight-sea-state-1"
+      },
+      "rights": {
+        "display": "full",
+        "license": "Original fictional fixture",
+        "notes": "Created for Signal Atlas development."
+      },
+      "tags": [
+        "weather",
+        "gale",
+        "sea-state",
+        "official"
+      ]
+    },
+    {
+      "id": "src-northlight-authority-open-1",
+      "version": 1,
+      "externalUri": "fixture://northlight-harbor/src-northlight-authority-open-1",
+      "title": "Outbound Traffic Remains Open Pending 15:30 Review",
+      "publisher": "Northlight Harbor Authority",
+      "sourceClass": "official_primary",
+      "publishedAt": "2028-11-12T13:55:00Z",
+      "observedAt": null,
+      "retrievedAt": "2028-11-12T14:20:00Z",
+      "location": {
+        "placeId": "harbor-office",
+        "label": "Northlight Harbor"
+      },
+      "mediaType": "text/plain",
+      "excerpt": "Outbound traffic remains open under pilot discretion. The authority will review wind, wave, and channel-marker conditions at 15:30Z. This notice is not a guarantee that operations will continue.",
+      "contentHash": "2222222222222222222222222222222222222222222222222222222222222222",
+      "provenance": {
+        "serverName": "pref-fixture",
+        "transport": "fixture",
+        "primitive": "fixture",
+        "primitiveName": "fixture.authority.notice",
+        "argumentsHash": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "responseHash": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "callId": "call-northlight-authority-open-1"
+      },
+      "rights": {
+        "display": "full",
+        "license": "Original fictional fixture",
+        "notes": "Created for Signal Atlas development."
+      },
+      "tags": [
+        "authority",
+        "operations",
+        "official",
+        "review"
+      ]
+    },
+    {
+      "id": "src-northlight-traffic-log-1",
+      "version": 1,
+      "externalUri": "fixture://northlight-harbor/src-northlight-traffic-log-1",
+      "title": "Outer Breakwater Departure Count 14:00-14:35Z",
+      "publisher": "Northlight Vessel Traffic Control",
+      "sourceClass": "primary",
+      "publishedAt": "2028-11-12T14:36:00Z",
+      "observedAt": "2028-11-12T14:35:00Z",
+      "retrievedAt": "2028-11-12T14:38:00Z",
+      "location": {
+        "placeId": "outer-breakwater",
+        "label": "Northlight outbound channel"
+      },
+      "mediaType": "text/plain",
+      "excerpt": "Three outbound vessels cleared the outer breakwater after 14:00Z. Two additional departures are delayed at pilot discretion; no harbor-wide suspension order is recorded in this interval.",
+      "contentHash": "3333333333333333333333333333333333333333333333333333333333333333",
+      "provenance": {
+        "serverName": "pref-fixture",
+        "transport": "fixture",
+        "primitive": "fixture",
+        "primitiveName": "fixture.traffic.observation",
+        "argumentsHash": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "responseHash": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "callId": "call-northlight-traffic-log-1"
+      },
+      "rights": {
+        "display": "full",
+        "license": "Original fictional fixture",
+        "notes": "Created for Signal Atlas development."
+      },
+      "tags": [
+        "traffic",
+        "field-observation",
+        "departures"
+      ]
+    },
+    {
+      "id": "src-northlight-suspension-history-1",
+      "version": 1,
+      "externalUri": "fixture://northlight-harbor/src-northlight-suspension-history-1",
+      "title": "Case File: Thirty Gale-Watch Harbor Decisions",
+      "publisher": "Tide Ledger Archive",
+      "sourceClass": "archive",
+      "publishedAt": "2028-10-01T10:00:00Z",
+      "observedAt": null,
+      "retrievedAt": "2028-11-12T14:20:00Z",
+      "location": {
+        "placeId": "records-office",
+        "label": "Northlight Harbor"
+      },
+      "mediaType": "text/plain",
+      "excerpt": "Eight of thirty comparable fictional gale-watch decisions produced outbound suspensions. Seven of those eight also involved an unavailable outer-channel marker or visibility below the authority minimum. The sample spans several harbor layouts.",
+      "contentHash": "4444444444444444444444444444444444444444444444444444444444444444",
+      "provenance": {
+        "serverName": "pref-fixture",
+        "transport": "fixture",
+        "primitive": "fixture",
+        "primitiveName": "fixture.resolution.history",
+        "argumentsHash": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+        "responseHash": "fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210",
+        "callId": "call-northlight-suspension-history-1"
+      },
+      "rights": {
+        "display": "full",
+        "license": "Original fictional fixture",
+        "notes": "Created for Signal Atlas development."
+      },
+      "tags": [
+        "history",
+        "base-rate",
+        "conditional",
+        "resolution"
+      ]
+    },
+    {
+      "id": "src-northlight-wire-1",
+      "version": 1,
+      "externalUri": "fixture://northlight-harbor/src-northlight-wire-1",
+      "title": "Northlight Closure Risk Rises With Gale Warning",
+      "publisher": "Coastline Wire",
+      "sourceClass": "secondary",
+      "publishedAt": "2028-11-12T14:25:00Z",
+      "observedAt": null,
+      "retrievedAt": "2028-11-12T14:30:00Z",
+      "location": {
+        "placeId": "harbor-office",
+        "label": "Northlight Harbor"
+      },
+      "mediaType": "text/plain",
+      "excerpt": "A local wire report says suspension risk is rising. Its weather description comes from the Gullwing report and its operating status comes from the authority's 13:55Z notice; it adds no independent field observation.",
+      "contentHash": "5555555555555555555555555555555555555555555555555555555555555555",
+      "provenance": {
+        "serverName": "pref-fixture",
+        "transport": "fixture",
+        "primitive": "fixture",
+        "primitiveName": "fixture.news.search",
+        "argumentsHash": "13579bdf13579bdf13579bdf13579bdf13579bdf13579bdf13579bdf13579bdf",
+        "responseHash": "2468ace02468ace02468ace02468ace02468ace02468ace02468ace02468ace0",
+        "callId": "call-northlight-wire-1"
+      },
+      "rights": {
+        "display": "full",
+        "license": "Original fictional fixture",
+        "notes": "Created for Signal Atlas development."
+      },
+      "tags": [
+        "reporting",
+        "derivative",
+        "correlated",
+        "weather"
+      ]
+    },
+    {
+      "id": "src-northlight-pilots-1",
+      "version": 1,
+      "externalUri": "fixture://northlight-harbor/src-northlight-pilots-1",
+      "title": "Pilots Expect Selective Delays, Not Harbor-Wide Suspension",
+      "publisher": "Northlight Pilots Association",
+      "sourceClass": "primary",
+      "publishedAt": "2028-11-12T14:28:00Z",
+      "observedAt": null,
+      "retrievedAt": "2028-11-12T14:32:00Z",
+      "location": {
+        "placeId": "harbor-office",
+        "label": "Northlight Harbor"
+      },
+      "mediaType": "text/plain",
+      "excerpt": "The pilots association expects vessel-specific delays through the next review but does not expect a harbor-wide outbound halt on the current readings. The association does not issue authority orders.",
+      "contentHash": "6666666666666666666666666666666666666666666666666666666666666666",
+      "provenance": {
+        "serverName": "pref-fixture",
+        "transport": "fixture",
+        "primitive": "fixture",
+        "primitiveName": "fixture.news.search",
+        "argumentsHash": "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789",
+        "responseHash": "9876543210abcdef9876543210abcdef9876543210abcdef9876543210abcdef",
+        "callId": "call-northlight-pilots-1"
+      },
+      "rights": {
+        "display": "full",
+        "license": "Original fictional fixture",
+        "notes": "Created for Signal Atlas development."
+      },
+      "tags": [
+        "pilots",
+        "statement",
+        "delays",
+        "contradiction"
+      ]
+    },
+    {
+      "id": "src-northlight-marker-1",
+      "version": 1,
+      "externalUri": "fixture://northlight-harbor/src-northlight-marker-1",
+      "title": "Outer Marker Inspection: Intermittent Signal",
+      "publisher": "Northlight Channel Control",
+      "sourceClass": "official_primary",
+      "publishedAt": "2028-11-12T14:40:00Z",
+      "observedAt": "2028-11-12T14:38:00Z",
+      "retrievedAt": "2028-11-12T14:42:00Z",
+      "location": {
+        "placeId": "outer-breakwater",
+        "label": "Northlight outer channel marker"
+      },
+      "mediaType": "text/plain",
+      "excerpt": "The outer-channel marker signal is intermittent and technicians are inspecting the power relay. Channel Control has not declared the marker unavailable.",
+      "contentHash": "7777777777777777777777777777777777777777777777777777777777777777",
+      "provenance": {
+        "serverName": "pref-fixture",
+        "transport": "fixture",
+        "primitive": "fixture",
+        "primitiveName": "fixture.channel.notice",
+        "argumentsHash": "0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a",
+        "responseHash": "0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b",
+        "callId": "call-northlight-marker-1"
+      },
+      "rights": {
+        "display": "full",
+        "license": "Original fictional fixture",
+        "notes": "Created for Signal Atlas development."
+      },
+      "tags": [
+        "channel-marker",
+        "inspection",
+        "official"
+      ]
+    },
+    {
+      "id": "src-northlight-marker-2",
+      "version": 2,
+      "externalUri": "fixture://northlight-harbor/src-northlight-marker-2",
+      "title": "Outer Marker Inspection: Signal Restored and Verified",
+      "publisher": "Northlight Channel Control",
+      "sourceClass": "official_primary",
+      "publishedAt": "2028-11-12T15:07:00Z",
+      "observedAt": "2028-11-12T15:05:00Z",
+      "retrievedAt": "2028-11-12T15:09:00Z",
+      "location": {
+        "placeId": "outer-breakwater",
+        "label": "Northlight outer channel marker"
+      },
+      "mediaType": "text/plain",
+      "excerpt": "Technicians reseated the power relay. The outer-channel marker signal has remained stable through two verification cycles and is cleared for normal use.",
+      "contentHash": "8888888888888888888888888888888888888888888888888888888888888888",
+      "provenance": {
+        "serverName": "pref-fixture",
+        "transport": "fixture",
+        "primitive": "fixture",
+        "primitiveName": "fixture.channel.notice",
+        "argumentsHash": "0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c",
+        "responseHash": "0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d",
+        "callId": "call-northlight-marker-2"
+      },
+      "rights": {
+        "display": "full",
+        "license": "Original fictional fixture",
+        "notes": "Created for Signal Atlas development."
+      },
+      "supersedesSourceId": "src-northlight-marker-1",
+      "tags": [
+        "channel-marker",
+        "restored",
+        "official",
+        "superseding"
+      ]
+    }
+  ],
+  "claims": [
+    {
+      "id": "claim-northlight-sea-state",
+      "text": "Outer-harbor gusts and wave height are above caution levels, but the automatic suspension threshold has not been crossed.",
+      "sourceIds": [
+        "src-northlight-sea-state-1"
+      ],
+      "extractor": {
+        "kind": "agent",
+        "id": "tern"
+      },
+      "qualifiers": [
+        "fresh official observation",
+        "caution threshold",
+        "not an authority order"
+      ],
+      "temporalScope": {
+        "startsAt": "2028-11-12T14:10:00Z",
+        "endsAt": "2028-11-12T16:00:00Z"
+      },
+      "status": "active",
+      "createdAt": "2028-11-12T14:21:00Z"
+    },
+    {
+      "id": "claim-northlight-authority-open",
+      "text": "The harbor authority says outbound traffic remains open pending a 15:30 review.",
+      "sourceIds": [
+        "src-northlight-authority-open-1"
+      ],
+      "extractor": {
+        "kind": "agent",
+        "id": "brin"
+      },
+      "qualifiers": [
+        "official notice",
+        "temporary operating status",
+        "future review pending"
+      ],
+      "status": "active",
+      "createdAt": "2028-11-12T14:23:00Z"
+    },
+    {
+      "id": "claim-northlight-traffic",
+      "text": "Three outbound vessels cleared the breakwater after 14:00Z while two others were selectively delayed.",
+      "sourceIds": [
+        "src-northlight-traffic-log-1"
+      ],
+      "extractor": {
+        "kind": "agent",
+        "id": "tern"
+      },
+      "qualifiers": [
+        "direct traffic observation",
+        "bounded interval",
+        "does not predict later authority action"
+      ],
+      "temporalScope": {
+        "startsAt": "2028-11-12T14:00:00Z",
+        "endsAt": "2028-11-12T14:35:00Z"
+      },
+      "status": "active",
+      "createdAt": "2028-11-12T14:39:00Z"
+    },
+    {
+      "id": "claim-northlight-history",
+      "text": "Eight of thirty comparable gale-watch decisions ended in suspension, usually when another channel or visibility hazard was also present.",
+      "sourceIds": [
+        "src-northlight-suspension-history-1"
+      ],
+      "extractor": {
+        "kind": "agent",
+        "id": "cora"
+      },
+      "qualifiers": [
+        "conditional base rate",
+        "mixed harbor layouts",
+        "small suspension sample"
+      ],
+      "status": "active",
+      "createdAt": "2028-11-12T14:26:00Z"
+    },
+    {
+      "id": "claim-northlight-wire",
+      "text": "The wire report says suspension risk is rising but derives its operational facts from two already available primary sources.",
+      "sourceIds": [
+        "src-northlight-wire-1"
+      ],
+      "extractor": {
+        "kind": "agent",
+        "id": "brin"
+      },
+      "qualifiers": [
+        "secondary report",
+        "derivative",
+        "not independent confirmation"
+      ],
+      "status": "active",
+      "createdAt": "2028-11-12T14:33:00Z"
+    },
+    {
+      "id": "claim-northlight-pilots",
+      "text": "The pilots association expects selective delays rather than a harbor-wide outbound suspension on current readings.",
+      "sourceIds": [
+        "src-northlight-pilots-1"
+      ],
+      "extractor": {
+        "kind": "agent",
+        "id": "brin"
+      },
+      "qualifiers": [
+        "interested primary statement",
+        "not an authority decision",
+        "contradicts closure framing"
+      ],
+      "status": "active",
+      "createdAt": "2028-11-12T14:34:00Z"
+    },
+    {
+      "id": "claim-northlight-marker-intermittent",
+      "text": "The outer-channel marker signal was intermittent while technicians inspected its power relay.",
+      "sourceIds": [
+        "src-northlight-marker-1"
+      ],
+      "extractor": {
+        "kind": "agent",
+        "id": "tern"
+      },
+      "qualifiers": [
+        "official inspection",
+        "marker not declared unavailable",
+        "subject to revision"
+      ],
+      "temporalScope": {
+        "startsAt": "2028-11-12T14:38:00Z",
+        "endsAt": "2028-11-12T15:05:00Z"
+      },
+      "status": "active",
+      "createdAt": "2028-11-12T14:43:00Z"
+    },
+    {
+      "id": "claim-northlight-marker-restored",
+      "text": "The outer-channel marker signal was restored and passed two verification cycles by 15:05Z.",
+      "sourceIds": [
+        "src-northlight-marker-2"
+      ],
+      "extractor": {
+        "kind": "agent",
+        "id": "brin"
+      },
+      "qualifiers": [
+        "official superseding inspection",
+        "two verification cycles"
+      ],
+      "temporalScope": {
+        "startsAt": "2028-11-12T15:05:00Z"
+      },
+      "status": "active",
+      "createdAt": "2028-11-12T15:10:00Z"
+    }
+  ],
+  "signals": [
+    {
+      "id": "sig-northlight-sea-state",
+      "marketId": "market-northlight-harbor-2028",
+      "claimIds": [
+        "claim-northlight-sea-state"
+      ],
+      "sourceIds": [
+        "src-northlight-sea-state-1"
+      ],
+      "headline": "Gale conditions exceed the caution band",
+      "summary": "Fresh official conditions increase suspension risk, but the automatic threshold remains uncrossed.",
+      "direction": "supports_outcome",
+      "targetOutcomeId": "suspended",
+      "impact": {
+        "label": "medium",
+        "probabilityPointRange": {
+          "low": 0.05,
+          "high": 0.11
+        }
+      },
+      "reliability": {
+        "label": "verified_primary",
+        "reasons": [
+          "Official fictional signal service",
+          "Direct time-stamped outer-harbor observation",
+          "Threshold limitation is explicit"
+        ],
+        "assessedBy": {
+          "kind": "system"
+        }
+      },
+      "freshness": {
+        "referenceTime": "2028-11-12T14:10:00Z",
+        "usefulUntil": "2028-11-12T16:00:00Z",
+        "label": "fresh"
+      },
+      "correlationGroupIds": [
+        "corr-northlight-gale-report"
+      ],
+      "discoveredByAgentId": "tern",
+      "createdAt": "2028-11-12T14:21:00Z",
+      "status": "active"
+    },
+    {
+      "id": "sig-northlight-authority-open",
+      "marketId": "market-northlight-harbor-2028",
+      "claimIds": [
+        "claim-northlight-authority-open"
+      ],
+      "sourceIds": [
+        "src-northlight-authority-open-1"
+      ],
+      "headline": "Authority keeps outbound traffic open pending review",
+      "summary": "The current official operating status weighs against an immediate suspension but can change at 15:30Z.",
+      "direction": "opposes_outcome",
+      "targetOutcomeId": "suspended",
+      "impact": {
+        "label": "small",
+        "probabilityPointRange": {
+          "low": -0.05,
+          "high": -0.01
+        }
+      },
+      "reliability": {
+        "label": "verified_primary",
+        "reasons": [
+          "Official fictional harbor authority notice",
+          "Current status and next review time are explicit"
+        ],
+        "assessedBy": {
+          "kind": "system"
+        }
+      },
+      "freshness": {
+        "referenceTime": "2028-11-12T13:55:00Z",
+        "usefulUntil": "2028-11-12T15:30:00Z",
+        "label": "fresh"
+      },
+      "correlationGroupIds": [
+        "corr-northlight-authority-status"
+      ],
+      "discoveredByAgentId": "brin",
+      "createdAt": "2028-11-12T14:23:00Z",
+      "status": "active"
+    },
+    {
+      "id": "sig-northlight-traffic",
+      "marketId": "market-northlight-harbor-2028",
+      "claimIds": [
+        "claim-northlight-traffic"
+      ],
+      "sourceIds": [
+        "src-northlight-traffic-log-1"
+      ],
+      "headline": "Outbound vessels continue to clear the breakwater",
+      "summary": "Direct traffic counts show ongoing operations in a bounded interval, with selective delays rather than a general halt.",
+      "direction": "opposes_outcome",
+      "targetOutcomeId": "suspended",
+      "impact": {
+        "label": "small",
+        "probabilityPointRange": {
+          "low": -0.06,
+          "high": -0.02
+        }
+      },
+      "reliability": {
+        "label": "primary_unconfirmed",
+        "reasons": [
+          "Direct fictional traffic-control observation",
+          "Covers only thirty-five minutes"
+        ],
+        "assessedBy": {
+          "kind": "agent",
+          "id": "tern"
+        }
+      },
+      "freshness": {
+        "referenceTime": "2028-11-12T14:35:00Z",
+        "usefulUntil": "2028-11-12T15:30:00Z",
+        "label": "fresh"
+      },
+      "correlationGroupIds": [
+        "corr-northlight-live-operations"
+      ],
+      "discoveredByAgentId": "tern",
+      "createdAt": "2028-11-12T14:39:00Z",
+      "status": "active"
+    },
+    {
+      "id": "sig-northlight-history",
+      "marketId": "market-northlight-harbor-2028",
+      "claimIds": [
+        "claim-northlight-history"
+      ],
+      "sourceIds": [
+        "src-northlight-suspension-history-1"
+      ],
+      "headline": "Historical suspensions usually required a second hazard",
+      "summary": "The conditional base rate makes wind-only extrapolation weak and focuses attention on visibility and channel-marker status.",
+      "direction": "opposes_outcome",
+      "targetOutcomeId": "suspended",
+      "impact": {
+        "label": "small",
+        "probabilityPointRange": {
+          "low": -0.04,
+          "high": -0.01
+        }
+      },
+      "reliability": {
+        "label": "derived",
+        "reasons": [
+          "Archived fictional decision sample",
+          "Conditional comparison rather than direct observation",
+          "Harbor layouts differ"
+        ],
+        "assessedBy": {
+          "kind": "agent",
+          "id": "cora"
+        }
+      },
+      "freshness": {
+        "referenceTime": "2028-10-01T10:00:00Z",
+        "label": "timeless"
+      },
+      "correlationGroupIds": [
+        "corr-northlight-conditional-prior"
+      ],
+      "discoveredByAgentId": "cora",
+      "createdAt": "2028-11-12T14:26:00Z",
+      "status": "active"
+    },
+    {
+      "id": "sig-northlight-wire",
+      "marketId": "market-northlight-harbor-2028",
+      "claimIds": [
+        "claim-northlight-wire"
+      ],
+      "sourceIds": [
+        "src-northlight-wire-1"
+      ],
+      "headline": "Wire report frames suspension risk as rising",
+      "summary": "The framing is directionally negative, but it repeats the same upstream gale report and authority notice rather than adding independent evidence.",
+      "direction": "supports_outcome",
+      "targetOutcomeId": "suspended",
+      "impact": {
+        "label": "small",
+        "probabilityPointRange": {
+          "low": 0,
+          "high": 0.02
+        }
+      },
+      "reliability": {
+        "label": "single_secondary",
+        "reasons": [
+          "Transparent secondary attribution",
+          "No independent field observation",
+          "Must not be double-counted with its primary sources"
+        ],
+        "assessedBy": {
+          "kind": "agent",
+          "id": "brin"
+        }
+      },
+      "freshness": {
+        "referenceTime": "2028-11-12T14:25:00Z",
+        "usefulUntil": "2028-11-12T15:30:00Z",
+        "label": "fresh"
+      },
+      "correlationGroupIds": [
+        "corr-northlight-gale-report",
+        "corr-northlight-authority-status"
+      ],
+      "discoveredByAgentId": "brin",
+      "createdAt": "2028-11-12T14:33:00Z",
+      "status": "active"
+    },
+    {
+      "id": "sig-northlight-pilots",
+      "marketId": "market-northlight-harbor-2028",
+      "claimIds": [
+        "claim-northlight-pilots"
+      ],
+      "sourceIds": [
+        "src-northlight-pilots-1"
+      ],
+      "headline": "Pilots expect selective delays rather than suspension",
+      "summary": "The primary stakeholder statement contradicts closure framing but cannot determine what the authority will order.",
+      "direction": "opposes_outcome",
+      "targetOutcomeId": "suspended",
+      "impact": {
+        "label": "small",
+        "probabilityPointRange": {
+          "low": -0.04,
+          "high": -0.01
+        }
+      },
+      "reliability": {
+        "label": "primary_unconfirmed",
+        "reasons": [
+          "Named fictional stakeholder",
+          "Operational expertise",
+          "Interested party without ordering authority"
+        ],
+        "assessedBy": {
+          "kind": "agent",
+          "id": "brin"
+        }
+      },
+      "freshness": {
+        "referenceTime": "2028-11-12T14:28:00Z",
+        "usefulUntil": "2028-11-12T15:30:00Z",
+        "label": "fresh"
+      },
+      "correlationGroupIds": [
+        "corr-northlight-stakeholder-statements"
+      ],
+      "discoveredByAgentId": "brin",
+      "createdAt": "2028-11-12T14:34:00Z",
+      "status": "active"
+    },
+    {
+      "id": "sig-northlight-marker-intermittent",
+      "marketId": "market-northlight-harbor-2028",
+      "claimIds": [
+        "claim-northlight-marker-intermittent"
+      ],
+      "sourceIds": [
+        "src-northlight-marker-1"
+      ],
+      "headline": "Outer-channel marker signal is intermittent",
+      "summary": "A possible second hazard raises suspension risk, although the marker was not declared unavailable and the inspection remained open.",
+      "direction": "supports_outcome",
+      "targetOutcomeId": "suspended",
+      "impact": {
+        "label": "medium",
+        "probabilityPointRange": {
+          "low": 0.04,
+          "high": 0.09
+        }
+      },
+      "reliability": {
+        "label": "verified_primary",
+        "reasons": [
+          "Official fictional Channel Control notice",
+          "Direct inspection status",
+          "Explicitly provisional"
+        ],
+        "assessedBy": {
+          "kind": "system"
+        }
+      },
+      "freshness": {
+        "referenceTime": "2028-11-12T14:38:00Z",
+        "usefulUntil": "2028-11-12T15:10:00Z",
+        "label": "fresh"
+      },
+      "correlationGroupIds": [
+        "corr-northlight-marker-status"
+      ],
+      "discoveredByAgentId": "tern",
+      "createdAt": "2028-11-12T14:43:00Z",
+      "status": "active"
+    },
+    {
+      "id": "sig-northlight-marker-restored",
+      "marketId": "market-northlight-harbor-2028",
+      "claimIds": [
+        "claim-northlight-marker-restored"
+      ],
+      "sourceIds": [
+        "src-northlight-marker-2"
+      ],
+      "headline": "Superseding notice verifies the channel marker",
+      "summary": "The restored and verified marker removes the strongest candidate second hazard from the historical conjunction.",
+      "direction": "opposes_outcome",
+      "targetOutcomeId": "suspended",
+      "impact": {
+        "label": "medium",
+        "probabilityPointRange": {
+          "low": -0.08,
+          "high": -0.03
+        }
+      },
+      "reliability": {
+        "label": "verified_primary",
+        "reasons": [
+          "Official fictional superseding notice",
+          "Two verification cycles",
+          "Version link preserves the prior state"
+        ],
+        "assessedBy": {
+          "kind": "system"
+        }
+      },
+      "freshness": {
+        "referenceTime": "2028-11-12T15:05:00Z",
+        "usefulUntil": "2028-11-12T17:00:00Z",
+        "label": "fresh"
+      },
+      "correlationGroupIds": [
+        "corr-northlight-marker-status"
+      ],
+      "discoveredByAgentId": "brin",
+      "createdAt": "2028-11-12T15:10:00Z",
+      "status": "active"
+    }
+  ],
+  "initialEvents": [
+    {
+      "id": "evt-northlight-0001",
+      "expeditionId": "exp-northlight-harbor-demo",
+      "sequence": 1,
+      "type": "expedition.created",
+      "occurredAt": "2028-11-12T14:00:00Z",
+      "recordedAt": "2028-11-12T14:00:00Z",
+      "actor": {
+        "kind": "system"
+      },
+      "schemaVersion": 1,
+      "payload": {
+        "marketId": "market-northlight-harbor-2028",
+        "worldManifestId": "world-northlight-harbor-v1",
+        "mode": "director"
+      }
+    },
+    {
+      "id": "evt-northlight-0002",
+      "expeditionId": "exp-northlight-harbor-demo",
+      "sequence": 2,
+      "type": "forecast.committed",
+      "occurredAt": "2028-11-12T14:00:01Z",
+      "recordedAt": "2028-11-12T14:00:01Z",
+      "actor": {
+        "kind": "system"
+      },
+      "schemaVersion": 1,
+      "payload": {
+        "actor": {
+          "kind": "team"
+        },
+        "previousProbabilities": {
+          "suspended": 0.5,
+          "operating": 0.5
+        },
+        "newProbabilities": {
+          "suspended": 0.42,
+          "operating": 0.58
+        },
+        "rationale": "Initial team prior before checking current harbor operations and source dependencies.",
+        "evidenceSignalIds": []
+      }
+    }
+  ],
+  "scriptedMissionResults": {
+    "tern:observe_conditions:signal-station": {
+      "latencyMs": 2300,
+      "sourceIds": [
+        "src-northlight-sea-state-1"
+      ],
+      "claimIds": [
+        "claim-northlight-sea-state"
+      ],
+      "signalIds": [
+        "sig-northlight-sea-state"
+      ],
+      "dialogue": "The gale report is fresh and cautionary, but it explicitly says the automatic suspension threshold has not been crossed.",
+      "suggestedFollowUp": {
+        "verb": "investigate",
+        "objective": "Check whether outbound vessels are still clearing the outer breakwater.",
+        "destinationPlaceId": "outer-breakwater"
+      }
+    },
+    "tern:investigate:outer-breakwater": {
+      "latencyMs": 2100,
+      "sourceIds": [
+        "src-northlight-traffic-log-1"
+      ],
+      "claimIds": [
+        "claim-northlight-traffic"
+      ],
+      "signalIds": [
+        "sig-northlight-traffic"
+      ],
+      "dialogue": "Three vessels cleared the breakwater in the observed interval. Operations are still moving, though that does not settle what the authority may order later.",
+      "suggestedFollowUp": {
+        "verb": "verify",
+        "objective": "Verify the latest outer-channel marker inspection status.",
+        "destinationPlaceId": "outer-breakwater"
+      }
+    },
+    "tern:verify:outer-breakwater": {
+      "latencyMs": 1900,
+      "sourceIds": [
+        "src-northlight-marker-1"
+      ],
+      "claimIds": [
+        "claim-northlight-marker-intermittent"
+      ],
+      "signalIds": [
+        "sig-northlight-marker-intermittent"
+      ],
+      "dialogue": "The marker signal is intermittent, which could become the second hazard the archive warns about. The notice is provisional and does not call it unavailable.",
+      "suggestedFollowUp": {
+        "verb": "verify",
+        "objective": "Look for a superseding Channel Control inspection notice.",
+        "destinationPlaceId": "outer-breakwater"
+      }
+    },
+    "brin:verify:outer-breakwater": {
+      "latencyMs": 1800,
+      "sourceIds": [
+        "src-northlight-marker-2"
+      ],
+      "claimIds": [
+        "claim-northlight-marker-restored"
+      ],
+      "signalIds": [
+        "sig-northlight-marker-restored"
+      ],
+      "dialogue": "A newer official notice supersedes the intermittent-marker report: the relay was reseated and the signal passed two verification cycles. The older hazard signal should be stale.",
+      "suggestedFollowUp": {
+        "verb": "compare_sources",
+        "objective": "Revisit the historical conjunction with the restored marker status.",
+        "destinationPlaceId": "records-office"
+      }
+    },
+    "cora:search_history:records-office": {
+      "latencyMs": 2700,
+      "sourceIds": [
+        "src-northlight-suspension-history-1"
+      ],
+      "claimIds": [
+        "claim-northlight-history"
+      ],
+      "signalIds": [
+        "sig-northlight-history"
+      ],
+      "dialogue": "Only eight of thirty gale-watch cases suspended outbound traffic, and nearly all eight had another channel or visibility hazard. Wind alone is a weak comparison.",
+      "suggestedFollowUp": {
+        "verb": "verify",
+        "objective": "Verify current channel-marker and visibility status before applying the base rate.",
+        "destinationPlaceId": "outer-breakwater"
+      }
+    },
+    "brin:verify:harbor-office": {
+      "latencyMs": 2000,
+      "sourceIds": [
+        "src-northlight-authority-open-1"
+      ],
+      "claimIds": [
+        "claim-northlight-authority-open"
+      ],
+      "signalIds": [
+        "sig-northlight-authority-open"
+      ],
+      "dialogue": "The official notice keeps outbound traffic open only until the next review. It weighs against an immediate halt, not against every suspension before 18:00.",
+      "suggestedFollowUp": {
+        "verb": "find_contradiction",
+        "objective": "Compare closure reporting with primary stakeholder and authority statements.",
+        "destinationPlaceId": "harbor-office"
+      }
+    },
+    "brin:find_contradiction:harbor-office": {
+      "latencyMs": 2500,
+      "sourceIds": [
+        "src-northlight-wire-1",
+        "src-northlight-pilots-1"
+      ],
+      "claimIds": [
+        "claim-northlight-wire",
+        "claim-northlight-pilots"
+      ],
+      "signalIds": [
+        "sig-northlight-wire",
+        "sig-northlight-pilots"
+      ],
+      "dialogue": "The closure headline repeats the same gale and authority sources, while pilots expect selective delays. That is a real disagreement, but neither item is an authority order.",
+      "suggestedFollowUp": {
+        "verb": "consult_professor",
+        "objective": "Check whether the wire report adds independent evidence or only correlated framing.",
+        "destinationPlaceId": "tide-scholar"
+      }
+    }
+  },
+  "professorFixture": {
+    "queryId": "prof-northlight-correlation-1",
+    "mode": "correlation_check",
+    "selectedSignalIds": [
+      "sig-northlight-sea-state",
+      "sig-northlight-wire"
+    ],
+    "answer": "Do not count these as two independent warnings. The wire report explicitly derives its weather claim from the Gullwing report and adds framing rather than a new observation. Keep the official sea-state signal; treat the wire as correlated context, then seek channel status and the authority's actual decision rule.",
+    "evidenceUsed": [
+      {
+        "type": "signal",
+        "id": "sig-northlight-sea-state"
+      },
+      {
+        "type": "signal",
+        "id": "sig-northlight-wire"
+      }
+    ],
+    "assumptions": [
+      "The wire report's disclosed attribution is complete.",
+      "The authority applies the fictional rule described in the market resolution criteria."
+    ],
+    "limitations": [
+      "The selected signals do not include the 15:30 authority review.",
+      "The condition of the outer-channel marker may change quickly."
+    ],
+    "suggestedNextQuestion": "Does the current marker status complete the historical two-hazard conjunction?",
+    "suggestedMission": {
+      "verb": "verify",
+      "objective": "Retrieve the newest official outer-channel marker inspection notice.",
+      "destinationPlaceId": "outer-breakwater"
+    }
+  },
+  "resolutionFixture": {
+    "resolvedOutcomeId": "suspended",
+    "resolvedAt": "2028-11-12T18:05:00Z",
+    "resolutionNote": "In the fictional fixture, the Northlight Harbor Authority issued an outbound suspension order at 17:42Z after visibility fell below its minimum."
+  }
+}

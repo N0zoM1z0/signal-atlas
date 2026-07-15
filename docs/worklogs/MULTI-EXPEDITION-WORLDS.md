@@ -79,6 +79,16 @@ In progress.
 - A second bounded live weather-to-Codex smoke passed with the new scope gate. The accepted signal
   was `context`, had no target outcome, retained `unknown` impact, and caused zero belief or forecast
   events after the mission began.
+- The Northlight Harbor milestone installs a second complete scenario with opaque `suspended` and
+  `operating` outcome IDs, a coastal-harbor presentation, Tern/Cora/Brin, seven domain-specific
+  places, eight source-linked claims and signals, and seven authored mission results. Its evidence
+  journey covers official sea state, an authority notice, vessel movement, conditional history, a
+  derivative wire report with overlapping correlation groups, a pilot contradiction, and a newer
+  marker notice that supersedes the first notice and marks its signal stale.
+- Northlight focused validation passes world-content 3/3, test-fixtures 2/2, web 26/26, and
+  orchestrator 112/112. Three focused Chromium journeys pass, including registry creation,
+  teardown-safe switching, serious/critical WCAG scanning, no viewport overflow, and the updated
+  Lobby plus new `tests/visual/northlight-harbor-world-1440x900.png` baselines.
 
 ## Goal
 
@@ -252,4 +262,15 @@ user files remain unstaged.
 - final requirement-by-requirement completion audit
 
 Exact commands, counts, screenshots, live limitations, and remaining risks will be recorded here as
-the implementation progresses.
+the implementation progresses. For the Northlight milestone the focused commands were:
+
+```bash
+pnpm --filter @signal-atlas/world-content build
+pnpm --filter @signal-atlas/test-fixtures build
+pnpm --filter @signal-atlas/world-content test
+pnpm --filter @signal-atlas/test-fixtures test
+pnpm --filter @signal-atlas/orchestrator test -- app.test.ts northlight-expedition.test.ts
+pnpm --filter @signal-atlas/web test -- App.test.tsx
+pnpm --filter @signal-atlas/web typecheck
+pnpm exec playwright test tests/e2e/expedition-lobby.spec.ts tests/e2e/northlight-harbor.spec.ts --update-snapshots
+```

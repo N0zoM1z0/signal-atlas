@@ -138,6 +138,13 @@ fully remounts the five-part world shell; returning to the Lobby closes that wor
 canvas first. Pinned, archived, seen, and case-file evidence selections plus skip-travel settings
 are stored in expedition-specific browser namespaces and never carry into another world.
 
+The installed shelf currently contains two complete offline worlds. Helios-3 remains the golden
+science/technology regression expedition. Northlight Harbor is a distinct climate/infrastructure
+expedition with a coastal map, three different agents, harbor-specific research sites, contradictory
+evidence, overlapping correlation groups, and a versioned authority notice that makes an older
+signal stale. In live mode its disclosed Rotterdam conditions binding is context-only; capabilities
+without a separately live-gated route continue to use the complete authored fixture choreography.
+
 Verified projection checkpoints are written every 50 events and on clean shutdown. Startup uses
 the newest schema-valid, hash-valid checkpoint and folds only its event tail. A malformed checkpoint
 is ignored in favor of an older checkpoint or the complete append-only log; checkpoints never

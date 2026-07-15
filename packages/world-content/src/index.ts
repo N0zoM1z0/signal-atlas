@@ -1,4 +1,5 @@
 import heliosFixtureJson from '../../../fixtures/helios3_expedition.json' with { type: 'json' };
+import northlightFixtureJson from '../../../fixtures/northlight_harbor_expedition.json' with { type: 'json' };
 
 import {
   ScenarioDefinitionSchema,
@@ -40,6 +41,29 @@ const heliosDefinitionInput = {
     },
   },
   fixture: heliosFixtureJson,
+} as const;
+
+const northlightDefinitionInput = {
+  definitionSchemaVersion: 1,
+  scenario: {
+    id: 'northlight-harbor-watch',
+    version: 1,
+    title: 'Northlight Harbor Watch',
+    category: 'climate_infrastructure',
+    summary:
+      'Track a fictional harbor suspension decision through sea conditions, authority notices, vessel traffic, historical cases, contradictions, and source revisions.',
+    mode: 'fixture',
+    requiredCapabilities: ['local_conditions', 'search_sources', 'search_resolution_history'],
+    availabilityPolicy: 'live_optional',
+    primaryOutcomeId: 'suspended',
+    preview: {
+      template: 'coastal-harbor',
+      assetPack: 'northlight-harbor-programmatic-v1',
+      regionLabel: 'Northlight Coast',
+      tagline: 'Separate a gale warning from an actual closure order.',
+    },
+  },
+  fixture: northlightFixtureJson,
 } as const;
 
 export function scenarioDefinitionHash(definition: ScenarioDefinition): string {
@@ -110,10 +134,19 @@ export class InstalledScenarioCatalog {
   }
 }
 
-export const installedScenarioCatalog = new InstalledScenarioCatalog([heliosDefinitionInput]);
+export const installedScenarioCatalog = new InstalledScenarioCatalog([
+  heliosDefinitionInput,
+  northlightDefinitionInput,
+]);
 
 export function createHeliosScenarioDefinition(): ScenarioDefinition {
   const entry = installedScenarioCatalog.resolve('helios-3-launch-window', 1);
   if (!entry) throw new Error('The installed Helios-3 scenario definition is missing.');
+  return entry.definition;
+}
+
+export function createNorthlightScenarioDefinition(): ScenarioDefinition {
+  const entry = installedScenarioCatalog.resolve('northlight-harbor-watch', 1);
+  if (!entry) throw new Error('The installed Northlight Harbor scenario definition is missing.');
   return entry.definition;
 }

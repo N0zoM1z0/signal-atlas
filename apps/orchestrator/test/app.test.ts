@@ -139,8 +139,9 @@ describe('orchestrator health endpoint', () => {
 
     const response = await app.inject({ method: 'GET', url: '/api/scenarios' });
     expect(response.statusCode).toBe(200);
+    expect(response.json().scenarios).toHaveLength(2);
     expect(response.json()).toEqual({
-      scenarios: [
+      scenarios: expect.arrayContaining([
         expect.objectContaining({
           id: 'helios-3-launch-window',
           version: 1,
@@ -149,11 +150,68 @@ describe('orchestrator health endpoint', () => {
           available: true,
           requiredCapabilities: ['local_conditions', 'search_sources'],
         }),
-      ],
+        expect.objectContaining({
+          id: 'northlight-harbor-watch',
+          version: 1,
+          authoredExpeditionId: 'exp-northlight-harbor-demo',
+          definitionSchemaVersion: 1,
+          available: true,
+          primaryOutcomeId: 'suspended',
+          requiredCapabilities: ['local_conditions', 'search_sources', 'search_resolution_history'],
+        }),
+      ]),
     });
     expect(response.body).not.toContain('resolutionFixture');
     expect(response.body).not.toContain('resolvedOutcomeId');
     expect(response.body).not.toContain('scriptedMissionResults');
+  });
+
+  it('creates and opens the installed Northlight world through the public registry', async () => {
+    const app = buildApp();
+    openApps.push(app);
+
+    const created = await app.inject({
+      method: 'POST',
+      url: '/api/expeditions',
+      payload: {
+        scenarioId: 'northlight-harbor-watch',
+        scenarioVersion: 1,
+        idempotencyKey: 'create:northlight:app:1',
+      },
+    });
+    const snapshot = await app.inject({
+      method: 'GET',
+      url: '/api/expeditions/exp-northlight-harbor-demo/snapshot',
+    });
+
+    expect(created.statusCode).toBe(201);
+    expect(created.json()).toMatchObject({
+      created: true,
+      expedition: {
+        id: 'exp-northlight-harbor-demo',
+        scenarioId: 'northlight-harbor-watch',
+      },
+    });
+    expect(snapshot.statusCode).toBe(200);
+    expect(snapshot.json()).toMatchObject({
+      projection: {
+        sequence: 2,
+        expedition: { title: 'Northlight Harbor Watch' },
+        market: {
+          outcomes: [{ id: 'suspended' }, { id: 'operating' }],
+        },
+        worldManifest: {
+          template: 'coastal-harbor',
+          assetPack: 'northlight-harbor-programmatic-v1',
+        },
+        agentsById: {
+          tern: { displayName: 'Tern' },
+          cora: { displayName: 'Cora' },
+          brin: { displayName: 'Brin' },
+        },
+      },
+    });
+    expect(snapshot.body).not.toMatch(/Helios|Galehaven|Meridian Coast|launch/iu);
   });
 
   it('reports the configured driver and scheduler without exposing private input', async () => {

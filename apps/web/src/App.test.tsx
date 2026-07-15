@@ -1,6 +1,9 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import { createHelios3ExpeditionFixture } from '@signal-atlas/test-fixtures';
+import {
+  createHelios3ExpeditionFixture,
+  createNorthlightHarborExpeditionFixture,
+} from '@signal-atlas/test-fixtures';
 import { replayFixture } from '@signal-atlas/simulation';
 
 import { App } from './App.js';
@@ -72,5 +75,21 @@ describe('Signal Atlas world shell', () => {
     expect(markup).toContain('Sequence 42');
     expect(markup).toContain('Enter Helios-3 Launch Window');
     expect(markup).toContain('No real trading path is enabled.');
+  });
+
+  it('renders Northlight as a distinct harbor world without Helios copy leakage', () => {
+    const projection = replayFixture(createNorthlightHarborExpeditionFixture()).projection;
+    const markup = renderToStaticMarkup(<App initialProjection={projection} />);
+
+    expect(markup).toContain(
+      'Will Northlight Harbor suspend outbound traffic before 18:00 UTC on November 12?',
+    );
+    expect(markup).toContain('Northlight Watch House');
+    expect(markup).toContain('Gullwing Signal Station');
+    expect(markup).toContain('Outer Breakwater Control');
+    expect(markup).toContain('Tern');
+    expect(markup).toContain('Cora');
+    expect(markup).toContain('Brin');
+    expect(markup).not.toMatch(/Helios|Galehaven|Meridian Coast|launch/iu);
   });
 });

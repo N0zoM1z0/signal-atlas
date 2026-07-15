@@ -616,4 +616,5 @@ target or directionally support an outcome and must retain unknown impact.
 
 ## 10.16 Sample data
 
-See `../fixtures/helios3_expedition.json` and the JSON Schemas in `../schemas/` for a deterministic vertical-slice fixture.
+See `../fixtures/helios3_expedition.json`, `../fixtures/northlight_harbor_expedition.json`, and the
+JSON Schemas in `../schemas/` for deterministic, independently replayable expedition fixtures.
