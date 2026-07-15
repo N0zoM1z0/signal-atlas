@@ -159,7 +159,8 @@ Before implementation:
 During implementation:
 
 - keep changes scoped;
-- commit or checkpoint after a coherent milestone if the environment permits;
+- commit or checkpoint after each coherent milestone if the environment permits;
+- write commit subjects and detailed commit bodies in English, keeping unrelated milestones in separate commits;
 - update docs when contracts or behavior change;
 - preserve fixture mode.
 
