@@ -1,5 +1,7 @@
 import { chmodSync, mkdirSync } from 'node:fs';
+import { homedir } from 'node:os';
 import { dirname } from 'node:path';
+import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 
 import { parseWorldEvent, type WorldEvent } from '@signal-atlas/contracts';
@@ -476,4 +478,9 @@ export class SqliteWorkspaceStore implements WorkspaceStore {
   #assertOpen(): void {
     if (this.#closed) throw new WorkspacePersistenceError('Workspace store is closed.');
   }
+}
+
+export function defaultWorkspaceDatabasePath(): string {
+  const stateRoot = process.env['XDG_STATE_HOME'] ?? join(homedir(), '.local', 'state');
+  return join(stateRoot, 'signal-atlas', 'workspace.sqlite');
 }

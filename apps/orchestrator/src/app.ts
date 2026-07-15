@@ -24,6 +24,8 @@ import {
 import { createPrefAgentProxyDriver } from './pref-agent-proxy-driver.js';
 import { createConfiguredPrefRuntime, type PrefRuntime } from './pref-runtime.js';
 import { createConfiguredProfessorDriver } from './professor-driver.js';
+import { defaultWorkspaceDatabasePath, SqliteWorkspaceStore } from './sqlite-workspace-store.js';
+import type { WorkspaceStore } from './workspace-store.js';
 
 export interface HealthResponse {
   status: 'ok';
@@ -36,6 +38,7 @@ export interface BuildAppOptions {
   runtime?: ExpeditionRuntime;
   prefRuntime?: PrefRuntime;
   runScheduler?: boolean;
+  workspaceStore?: WorkspaceStore;
 }
 
 interface ExpeditionParams {
@@ -112,12 +115,32 @@ function hasDisallowedPublicCommandActor(input: unknown): boolean {
   return record['kind'] !== 'player' || record['id'] !== undefined;
 }
 
+function configuredWorkspaceStore(): WorkspaceStore | undefined {
+  if (process.env['NODE_ENV'] === 'test' || process.env['SIGNAL_ATLAS_E2E'] === '1') {
+    return undefined;
+  }
+  const configured = process.env['SIGNAL_ATLAS_WORKSPACE_DB']?.trim();
+  if (configured === 'off') return undefined;
+  return new SqliteWorkspaceStore({ location: configured || defaultWorkspaceDatabasePath() });
+}
+
+function configuredCheckpointInterval(): number {
+  const parsed = Number(process.env['SIGNAL_ATLAS_CHECKPOINT_INTERVAL'] ?? 50);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : 50;
+}
+
 export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   const app = Fastify({
     logger:
       process.env['NODE_ENV'] === 'test' ? false : { level: process.env['LOG_LEVEL'] ?? 'warn' },
   });
   const prefRuntime = options.prefRuntime ?? createConfiguredPrefRuntime();
+  if (options.runtime && options.workspaceStore) {
+    throw new Error('Inject a workspace store through ExpeditionRuntime when supplying a runtime.');
+  }
+  const workspaceStore = options.runtime
+    ? undefined
+    : (options.workspaceStore ?? configuredWorkspaceStore());
   app.register(websocket, { options: { maxPayload: 1_024 } });
   app.addHook('onRequest', async (request, reply) => {
     if (hasRejectedAuthority(request.headers.host)) {
@@ -148,6 +171,8 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
         runtimeRoot,
       };
       return new ExpeditionRuntime(fixture, {
+        ...(workspaceStore ? { workspaceStore } : {}),
+        checkpointInterval: configuredCheckpointInterval(),
         professorDriver: createConfiguredProfessorDriver(localCodexOptions),
         missionDriverFactory: (scenario) => {
           const fallback = createConfiguredMissionDriver(fixture, scenario, localCodexOptions);
@@ -162,7 +187,19 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
     let previousTick = Date.now();
     scheduler = setInterval(() => {
       const currentTick = Date.now();
-      runtime.advance(currentTick - previousTick, new Date(currentTick).toISOString());
+      try {
+        runtime.advance(currentTick - previousTick, new Date(currentTick).toISOString());
+      } catch (error: unknown) {
+        app.log.error(
+          {
+            error:
+              error instanceof Error
+                ? { name: error.name, message: error.message }
+                : { name: 'UnknownError', message: 'Unknown scheduler failure.' },
+          },
+          'The expedition scheduler paused after a runtime boundary failure.',
+        );
+      }
       previousTick = currentTick;
     }, 100);
     scheduler.unref();
@@ -170,6 +207,7 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   app.addHook('onClose', async () => {
     if (scheduler) clearInterval(scheduler);
     await runtime.waitForRuntimeIdle();
+    runtime.close();
     await prefRuntime.disconnect();
   });
 

@@ -11,6 +11,15 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { ExpeditionRuntime } from '../src/expedition-runtime.js';
 import { SqliteWorkspaceStore } from '../src/sqlite-workspace-store.js';
 import { WorkspacePersistenceError, WorkspaceSchemaError } from '../src/workspace-store.js';
+import type {
+  WorkspaceCheckpoint,
+  WorkspaceCheckpointInput,
+  WorkspaceCommit,
+  WorkspaceLoadRequest,
+  WorkspaceLoadResult,
+  WorkspaceStore,
+  WorkspaceStoreDiagnostics,
+} from '../src/workspace-store.js';
 
 const temporaryDirectories: string[] = [];
 
@@ -40,6 +49,82 @@ function pauseCommand() {
     type: 'expedition.pause',
     payload: {},
   };
+}
+
+function startCommand() {
+  return {
+    id: 'cmd-persistence-start-1',
+    idempotencyKey: 'persistence:start:1',
+    expeditionId: 'exp-helios3-demo',
+    issuedAt: '2027-09-26T18:41:00Z',
+    actor: { kind: 'player' },
+    schemaVersion: 1,
+    type: 'expedition.start',
+    payload: {},
+  };
+}
+
+function weatherAssignmentCommand() {
+  return {
+    id: 'cmd-persistence-weather-1',
+    idempotencyKey: 'persistence:weather:1',
+    expeditionId: 'exp-helios3-demo',
+    issuedAt: '2027-09-26T18:32:00Z',
+    actor: { kind: 'player' },
+    schemaVersion: 1,
+    type: 'agent.assign_mission',
+    payload: {
+      mission: {
+        id: 'mission-persistence-weather-1',
+        expeditionId: 'exp-helios3-demo',
+        assignedAgentId: 'mira',
+        verb: 'observe_conditions',
+        objective: 'Check current conditions after a workspace restart.',
+        destinationPlaceId: 'weather-tower',
+        budget: { maxToolCalls: 3, timeoutMs: 30_000 },
+        status: 'draft',
+        createdBy: { kind: 'player' },
+        createdAt: '2027-09-26T18:32:00Z',
+      },
+    },
+  };
+}
+
+class FailingCommitStore implements WorkspaceStore {
+  #request: WorkspaceLoadRequest | undefined;
+
+  open(request: WorkspaceLoadRequest): WorkspaceLoadResult {
+    this.#request = request;
+    return {
+      created: true,
+      events: [...structuredClone(request.initialEvents)],
+      receipts: [],
+    };
+  }
+
+  commit(_input: WorkspaceCommit): void {
+    throw new WorkspacePersistenceError('Injected local database write failure.');
+  }
+
+  saveCheckpoint(_input: WorkspaceCheckpointInput): void {}
+
+  checkpointsAtOrBefore(_expeditionId: string, _sequence: number): WorkspaceCheckpoint[] {
+    return [];
+  }
+
+  diagnostics(): WorkspaceStoreDiagnostics {
+    return {
+      mode: 'sqlite',
+      state: 'ready',
+      schemaVersion: 1,
+      location: ':injected-failure:',
+      eventCount: this.#request?.initialEvents.length ?? 0,
+      latestSequence: this.#request?.initialEvents.at(-1)?.sequence ?? 0,
+      checkpointCount: 0,
+    };
+  }
+
+  close(): void {}
 }
 
 afterEach(() => {
@@ -253,5 +338,153 @@ describe('SQLite workspace store', () => {
     );
     expect(() => database.exec('DELETE FROM command_receipts')).toThrow(/append-only/u);
     database.close();
+  });
+
+  it('restores the exact projection, replay cursor, and duplicate result after restart', () => {
+    const fixture = createHelios3ExpeditionFixture();
+    const location = temporaryDatabasePath();
+    const first = new ExpeditionRuntime(fixture, {
+      workspaceStore: new SqliteWorkspaceStore({ location }),
+      checkpointInterval: 2,
+    });
+    const accepted = first.submit(pauseCommand());
+    if (!accepted.accepted) throw new Error('Expected the pause command to be accepted.');
+    const expectedProjection = first.snapshot();
+    const expectedHash = projectionHash(expectedProjection);
+    const expectedEvents = first.eventsAfter(0);
+    first.close();
+
+    const restored = new ExpeditionRuntime(fixture, {
+      workspaceStore: new SqliteWorkspaceStore({ location }),
+      checkpointInterval: 2,
+    });
+    expect(restored.snapshot()).toEqual(expectedProjection);
+    expect(projectionHash(restored.snapshot())).toBe(expectedHash);
+    expect(restored.eventsAfter(0)).toEqual(expectedEvents);
+    expect(restored.runtimeDiagnostics().workspace).toMatchObject({
+      mode: 'sqlite',
+      state: 'ready',
+      replayBaseSequence: expectedProjection.sequence,
+      store: {
+        eventCount: expectedProjection.sequence,
+        latestSequence: expectedProjection.sequence,
+      },
+    });
+
+    expect(restored.submit(pauseCommand())).toEqual({ ...accepted, duplicate: true });
+    expect(
+      restored.submit({
+        ...pauseCommand(),
+        id: 'cmd-persistence-pause-conflict',
+        payload: { reason: 'Different command under the same key.' },
+      }),
+    ).toMatchObject({
+      accepted: false,
+      issues: expect.arrayContaining([expect.objectContaining({ code: 'idempotency_conflict' })]),
+    });
+    restored.close();
+  });
+
+  it('falls back to an older verified checkpoint and replays only its event tail', () => {
+    const fixture = createHelios3ExpeditionFixture();
+    const location = temporaryDatabasePath();
+    const first = new ExpeditionRuntime(fixture, {
+      workspaceStore: new SqliteWorkspaceStore({ location }),
+      checkpointInterval: 1,
+    });
+    expect(first.submit(pauseCommand())).toMatchObject({ accepted: true, sequence: 3 });
+    expect(first.submit(startCommand())).toMatchObject({ accepted: true, sequence: 4 });
+    const expected = first.snapshot();
+    first.close();
+
+    const database = new DatabaseSync(location);
+    database
+      .prepare('UPDATE world_checkpoints SET projection_hash = ? WHERE sequence = ?')
+      .run('injected-invalid-checkpoint-hash', 4);
+    database.close();
+
+    const restored = new ExpeditionRuntime(fixture, {
+      workspaceStore: new SqliteWorkspaceStore({ location }),
+      checkpointInterval: 1,
+    });
+    expect(restored.snapshot()).toEqual(expected);
+    expect(restored.runtimeDiagnostics().workspace).toMatchObject({
+      replayBaseSequence: 3,
+      invalidCheckpointCount: 1,
+    });
+    expect(restored.replayAt(4).hash).toBe(projectionHash(expected));
+    restored.close();
+  });
+
+  it('resumes durable travel and work scheduling without renumbering history', () => {
+    const fixture = createHelios3ExpeditionFixture();
+    const location = temporaryDatabasePath();
+    const first = new ExpeditionRuntime(fixture, {
+      workspaceStore: new SqliteWorkspaceStore({ location }),
+    });
+    expect(first.submit(weatherAssignmentCommand())).toMatchObject({ accepted: true });
+    first.advance(1_000, '2027-09-26T18:32:01Z');
+    const travelSequence = first.snapshot().sequence;
+    expect(first.snapshot().agentsById['mira']).toMatchObject({
+      publicState: 'traveling',
+      movement: { progress: expect.any(Number) },
+    });
+    first.close();
+
+    const afterTravelRestart = new ExpeditionRuntime(fixture, {
+      workspaceStore: new SqliteWorkspaceStore({ location }),
+    });
+    expect(afterTravelRestart.snapshot().sequence).toBe(travelSequence);
+    afterTravelRestart.advance(15_000, '2027-09-26T18:32:16Z');
+    expect(afterTravelRestart.snapshot().agentsById['mira']).toMatchObject({
+      publicState: 'working',
+      placeId: 'weather-tower',
+    });
+    const workSequence = afterTravelRestart.snapshot().sequence;
+    afterTravelRestart.close();
+
+    const afterWorkRestart = new ExpeditionRuntime(fixture, {
+      workspaceStore: new SqliteWorkspaceStore({ location }),
+    });
+    expect(afterWorkRestart.snapshot().sequence).toBe(workSequence);
+    afterWorkRestart.advance(2_400, '2027-09-26T18:32:18.400Z');
+    expect(afterWorkRestart.snapshot().missionsById['mission-persistence-weather-1']).toMatchObject(
+      {
+        status: 'completed',
+      },
+    );
+    expect(afterWorkRestart.snapshot().signalsById['sig-crosswind']).toBeDefined();
+    expect(afterWorkRestart.replayAt(afterWorkRestart.snapshot().sequence).hash).toBe(
+      projectionHash(afterWorkRestart.snapshot()),
+    );
+    afterWorkRestart.close();
+  });
+
+  it('rejects and publishes nothing when persistence fails before authority changes', () => {
+    const runtime = new ExpeditionRuntime(createHelios3ExpeditionFixture(), {
+      workspaceStore: new FailingCommitStore(),
+    });
+    const before = runtime.snapshot();
+    const published: unknown[] = [];
+    runtime.subscribeEvents((events) => published.push(...events));
+
+    expect(runtime.submit(pauseCommand())).toMatchObject({
+      accepted: false,
+      issues: [
+        expect.objectContaining({
+          code: 'invalid_state',
+          message: 'Injected local database write failure.',
+        }),
+      ],
+    });
+    expect(runtime.snapshot()).toEqual(before);
+    expect(runtime.eventsAfter(before.sequence)).toEqual([]);
+    expect(published).toEqual([]);
+    expect(runtime.runtimeDiagnostics().workspace).toMatchObject({
+      state: 'degraded',
+      issue: { code: 'workspace_persistence_failed' },
+    });
+    expect(runtime.submit(pauseCommand())).toMatchObject({ accepted: false });
+    runtime.close();
   });
 });

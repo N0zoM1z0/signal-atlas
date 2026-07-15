@@ -28,7 +28,10 @@ import {
 } from '@signal-atlas/codex-runtime';
 import {
   calculateBrierScore,
+  canonicalHash,
   createInitialWorldStateFromFixture,
+  parseWorldProjection,
+  PROJECTION_SCHEMA_VERSION,
   recordAcceptedCommand,
   reduceWorldEvent,
   replayFixture,
@@ -56,6 +59,13 @@ import {
   type ProfessorDriverDiagnostics,
   type ProfessorTurnInput,
 } from './professor-driver.js';
+import {
+  WorkspacePersistenceError,
+  type StoredCommandReceipt,
+  type WorkspaceCheckpoint,
+  type WorkspaceStore,
+  type WorkspaceStoreDiagnostics,
+} from './workspace-store.js';
 
 export interface AcceptedCommandResult {
   accepted: true;
@@ -166,10 +176,28 @@ export interface ExpeditionRuntimeOptions {
   defaultTurnTimeoutMs?: number;
   professorDriver?: ProfessorDriver;
   professorTimeoutMs?: number;
+  workspaceStore?: WorkspaceStore;
+  checkpointInterval?: number;
 }
 
 export interface SignalAtlasRuntimeDiagnostics extends CodexRuntimeDiagnostics {
   professor: ProfessorDriverDiagnostics;
+  workspace: RuntimeWorkspaceDiagnostics;
+}
+
+export interface RuntimeWorkspaceDiagnostics {
+  mode: 'memory' | 'sqlite';
+  state: 'ready' | 'degraded' | 'closed';
+  eventCount: number;
+  latestSequence: number;
+  checkpointInterval: number;
+  replayBaseSequence: number;
+  invalidCheckpointCount: number;
+  store?: WorkspaceStoreDiagnostics;
+  issue?: {
+    code: 'workspace_persistence_failed';
+    message: string;
+  };
 }
 
 function actorForEvent(actor: WorldCommand['actor']): WorldEvent['actor'] {
@@ -188,6 +216,29 @@ function addMilliseconds(timestamp: string, durationMs: number): string {
   return new Date(new Date(timestamp).getTime() + durationMs).toISOString();
 }
 
+function parseAcceptedCommandResult(input: unknown): AcceptedCommandResult {
+  if (input === null || typeof input !== 'object' || Array.isArray(input)) {
+    throw new WorkspacePersistenceError('Stored command receipt result must be an object.');
+  }
+  const record = input as Record<string, unknown>;
+  if (
+    record['accepted'] !== true ||
+    record['duplicate'] !== false ||
+    typeof record['commandId'] !== 'string' ||
+    !Number.isInteger(record['sequence']) ||
+    !Array.isArray(record['events'])
+  ) {
+    throw new WorkspacePersistenceError('Stored command receipt result is malformed.');
+  }
+  return {
+    accepted: true,
+    duplicate: false,
+    commandId: record['commandId'],
+    sequence: record['sequence'] as number,
+    events: record['events'].map((event) => parseWorldEvent(event)),
+  };
+}
+
 export class ExpeditionRuntime {
   readonly #fixture: ExpeditionFixture;
   readonly #missionDriver: CodexDriver<AgentTurnInput, ScriptedFixtureTurn>;
@@ -195,6 +246,8 @@ export class ExpeditionRuntime {
   readonly #maxConcurrentTurns: number;
   readonly #defaultTurnTimeoutMs: number;
   readonly #professorTimeoutMs: number;
+  readonly #workspaceStore: WorkspaceStore | undefined;
+  readonly #checkpointInterval: number;
   #turnScheduler: CodexTurnScheduler<AgentTurnInput, ScriptedFixtureTurn> | undefined;
   #projection: WorldProjection;
   #events: WorldEvent[];
@@ -210,12 +263,20 @@ export class ExpeditionRuntime {
   readonly #activeProfessorTurns = new Map<string, ActiveProfessorTurn>();
   #runtimeGeneration = 0;
   #missionScenario: FixtureMissionScenario = 'success';
+  #persistenceIssue: RuntimeWorkspaceDiagnostics['issue'];
+  #lastCheckpointSequence = 0;
+  #lastReplayBaseSequence = 0;
+  readonly #invalidCheckpointSequences = new Set<number>();
+  #stagedEvents: WorldEvent[] | undefined;
+  #closed = false;
 
   constructor(fixture: ExpeditionFixture, options: ExpeditionRuntimeOptions = {}) {
     this.#fixture = structuredClone(fixture);
     this.#maxConcurrentTurns = options.maxConcurrentTurns ?? 2;
     this.#defaultTurnTimeoutMs = options.defaultTurnTimeoutMs ?? 30_000;
     this.#professorTimeoutMs = options.professorTimeoutMs ?? 90_000;
+    this.#workspaceStore = options.workspaceStore;
+    this.#checkpointInterval = options.checkpointInterval ?? 50;
     if (!Number.isInteger(this.#maxConcurrentTurns) || this.#maxConcurrentTurns < 1) {
       throw new Error('Runtime turn concurrency must be a positive integer.');
     }
@@ -226,15 +287,33 @@ export class ExpeditionRuntime {
     ) {
       throw new Error('Professor timeout must be an integer from 1 through 120000 ms.');
     }
+    if (!Number.isInteger(this.#checkpointInterval) || this.#checkpointInterval < 1) {
+      throw new Error('Workspace checkpoint interval must be a positive integer.');
+    }
     this.#missionDriver =
       options.missionDriver ??
       options.missionDriverFactory?.(() => this.#missionScenario) ??
       createFixtureCodexDriver(this.#fixture, () => this.#missionScenario);
     this.#professorDriver = options.professorDriver ?? createScriptedProfessorDriver();
+    if (this.#workspaceStore) {
+      const loaded = this.#workspaceStore.open({
+        expeditionId: this.#fixture.expedition.id,
+        fixtureSeed: this.#fixture.seed,
+        fixtureHash: canonicalHash(this.#fixture),
+        initialEvents: this.#fixture.initialEvents,
+      });
+      this.#events = loaded.events;
+      const replay = this.#replayProjectionAt(this.#events.at(-1)?.sequence ?? 0);
+      this.#projection = replay.projection;
+      this.#lastReplayBaseSequence = replay.baseSequence;
+      this.#restoreCommandReceipts(loaded.receipts);
+    } else {
+      const replay = replayFixture(this.#fixture);
+      this.#projection = replay.projection;
+      this.#events = structuredClone(this.#fixture.initialEvents);
+    }
     this.#turnScheduler = this.#createTurnScheduler();
-    const replay = replayFixture(this.#fixture);
-    this.#projection = replay.projection;
-    this.#events = structuredClone(this.#fixture.initialEvents);
+    this.#restoreRuntimeSchedules();
   }
 
   get expeditionId(): string {
@@ -264,10 +343,8 @@ export class ExpeditionRuntime {
       );
     }
     const events = this.#events.filter((event) => event.sequence <= sequence);
-    const replay = replayWorldEventsWithHash(
-      createInitialWorldStateFromFixture(this.#fixture),
-      events,
-    );
+    const replay = this.#replayProjectionAt(sequence);
+    this.#lastReplayBaseSequence = replay.baseSequence;
     if (replay.projection.sequence !== sequence) {
       throw new ReplaySequenceError(
         `Replay sequence ${sequence} is not present; stopped at ${replay.projection.sequence}.`,
@@ -351,8 +428,7 @@ export class ExpeditionRuntime {
     );
     let nextProjection = this.#projection;
     for (const event of events) nextProjection = reduceWorldEvent(nextProjection, event);
-    this.#projection = nextProjection;
-    this.#events = [...this.#events, ...events];
+    this.#commitPreparedEvents(events, nextProjection);
     this.#publishEvents(events);
     return {
       resolved: true,
@@ -382,6 +458,7 @@ export class ExpeditionRuntime {
       return {
         ...diagnostics,
         professor: this.#professorDriver.diagnostics(),
+        workspace: this.#workspaceDiagnostics(),
         turns: [...diagnostics.turns].sort(
           (left, right) =>
             right.requestedAt.localeCompare(left.requestedAt) ||
@@ -456,6 +533,7 @@ export class ExpeditionRuntime {
     return {
       driver: this.#missionDriver.diagnostics(),
       professor: this.#professorDriver.diagnostics(),
+      workspace: this.#workspaceDiagnostics(),
       scheduler: {
         maxConcurrency: this.#maxConcurrentTurns,
         defaultTimeoutMs: this.#defaultTurnTimeoutMs,
@@ -474,6 +552,11 @@ export class ExpeditionRuntime {
   }
 
   resetToFixture(): void {
+    if (this.#workspaceStore) {
+      throw new WorkspacePersistenceError(
+        'A durable workspace cannot be destructively reset through the fixture test boundary.',
+      );
+    }
     this.#runtimeGeneration += 1;
     for (const task of this.#activeProfessorTurns.values()) {
       task.controller.abort(new CodexTurnCanceledError('Fixture reset.'));
@@ -506,7 +589,21 @@ export class ExpeditionRuntime {
     await Promise.resolve();
   }
 
+  close(): void {
+    if (this.#closed) return;
+    if (this.#workspaceStore && !this.#persistenceIssue) {
+      try {
+        this.#saveCheckpoint(this.#projection, new Date().toISOString());
+      } catch (error: unknown) {
+        this.#latchPersistenceFailure(error);
+      }
+    }
+    this.#workspaceStore?.close();
+    this.#closed = true;
+  }
+
   submit(input: unknown): SubmitCommandResult {
+    if (this.#persistenceIssue || this.#closed) return this.#persistenceRejection();
     const validation = validateWorldCommand(input, this.#projection, this.#ledger);
     if (!validation.accepted) return validation;
 
@@ -528,6 +625,13 @@ export class ExpeditionRuntime {
       return { ...structuredClone(original), duplicate: true };
     }
 
+    const previousProjection = this.#projection;
+    const previousEvents = this.#events;
+    const travelBefore = new Map(this.#travelByAgentId);
+    const workBefore = new Map(this.#workByAgentId);
+    const attemptsBefore = new Map(this.#attemptByMissionId);
+    const meetingsBefore = new Map(this.#meetingsById);
+    const meetingIdsBefore = new Map(this.#meetingIdByMissionId);
     const plan = this.#eventPlanForCommand(command);
     if (!plan) {
       return { accepted: false, issues: [unsupportedCommandIssue(command.type)] };
@@ -538,13 +642,12 @@ export class ExpeditionRuntime {
 
     this.#projection = nextProjection;
     this.#events = [...this.#events, ...plan.events];
-    this.#ledger = recordAcceptedCommand(this.#ledger, command);
+    this.#stagedEvents = [...plan.events];
+    const workToCancel = plan.clearScheduledForAgentId
+      ? this.#workByAgentId.get(plan.clearScheduledForAgentId)
+      : undefined;
     if (plan.clearScheduledForAgentId) {
       this.#travelByAgentId.delete(plan.clearScheduledForAgentId);
-      const work = this.#workByAgentId.get(plan.clearScheduledForAgentId);
-      if (work?.schedulerManaged) {
-        this.#turnScheduler?.cancel(work.turnId, 'Mission canceled by an accepted world command.');
-      }
       this.#workByAgentId.delete(plan.clearScheduledForAgentId);
     }
     if (plan.scheduleTravel) {
@@ -560,161 +663,216 @@ export class ExpeditionRuntime {
         this.#meetingIdByMissionId.set(missionId, plan.scheduleMeeting.meetingId);
       }
     }
-    if (plan.scheduleProfessor) this.#scheduleProfessorTurn(plan.scheduleProfessor);
-    const meetingEvents = this.#completeReadyMeetings(command.issuedAt);
-    const result: AcceptedCommandResult = {
-      accepted: true,
-      duplicate: false,
-      commandId: command.id,
-      events: structuredClone([...plan.events, ...meetingEvents]),
-      sequence: this.#projection.sequence,
-    };
-    this.#acceptedByKey.set(command.idempotencyKey, result);
-    this.#publishEvents(result.events);
-    return structuredClone(result);
+    try {
+      this.#completeReadyMeetings(command.issuedAt);
+      const committedEvents = structuredClone(this.#stagedEvents);
+      const result: AcceptedCommandResult = {
+        accepted: true,
+        duplicate: false,
+        commandId: command.id,
+        events: committedEvents,
+        sequence: this.#projection.sequence,
+      };
+      const nextLedger = recordAcceptedCommand(this.#ledger, command);
+      const ledgerRecord = nextLedger[command.idempotencyKey];
+      if (!ledgerRecord) throw new Error('Accepted command did not produce an idempotency record.');
+      this.#persistPreparedEvents(previousProjection.sequence, committedEvents, this.#projection, {
+        idempotencyKey: command.idempotencyKey,
+        commandId: ledgerRecord.commandId,
+        commandHash: ledgerRecord.commandHash,
+        acceptedAt: command.issuedAt,
+        result,
+      });
+      this.#ledger = nextLedger;
+      this.#acceptedByKey.set(command.idempotencyKey, result);
+      this.#stagedEvents = undefined;
+      if (workToCancel?.schedulerManaged) {
+        this.#turnScheduler?.cancel(
+          workToCancel.turnId,
+          'Mission canceled by an accepted world command.',
+        );
+      }
+      if (plan.scheduleProfessor) this.#scheduleProfessorTurn(plan.scheduleProfessor);
+      this.#publishEvents(result.events);
+      return structuredClone(result);
+    } catch (error: unknown) {
+      this.#projection = previousProjection;
+      this.#events = previousEvents;
+      this.#restoreMap(this.#travelByAgentId, travelBefore);
+      this.#restoreMap(this.#workByAgentId, workBefore);
+      this.#restoreMap(this.#attemptByMissionId, attemptsBefore);
+      this.#restoreMap(this.#meetingsById, meetingsBefore);
+      this.#restoreMap(this.#meetingIdByMissionId, meetingIdsBefore);
+      this.#stagedEvents = undefined;
+      if (plan.scheduleWork?.schedulerManaged) {
+        this.#turnScheduler?.cancel(plan.scheduleWork.turnId, 'Workspace persistence failed.');
+      }
+      if (error instanceof WorkspacePersistenceError || this.#persistenceIssue) {
+        this.#latchPersistenceFailure(error);
+        return this.#persistenceRejection();
+      }
+      throw error;
+    }
   }
 
   /** Advance scheduled travel by real elapsed time. Global speed scales time, never event order. */
   advance(elapsedRealMs: number, occurredAt = new Date().toISOString()): WorldEvent[] {
     if (!Number.isFinite(elapsedRealMs) || elapsedRealMs <= 0) return [];
+    if (this.#persistenceIssue || this.#closed) return [];
     if (this.#projection.expedition.status !== 'active') return [];
     const speed = this.#projection.expedition.simulationSpeed;
     if (speed === 0) return [];
 
+    const previousProjection = this.#projection;
+    const previousEvents = this.#events;
+    this.#stagedEvents = [];
     const appended: WorldEvent[] = [];
-    // Capture existing work first so a long tick cannot count the same elapsed time toward both
-    // the final travel leg and newly-started location work.
-    const existingWork = [...this.#workByAgentId.values()].sort((left, right) =>
-      left.agentId.localeCompare(right.agentId),
-    );
-    const tasks = [...this.#travelByAgentId.values()].sort((left, right) =>
-      left.agentId.localeCompare(right.agentId),
-    );
-    for (const task of tasks) {
-      let remainingMs = elapsedRealMs * speed;
-      while (remainingMs > 0 && this.#travelByAgentId.has(task.agentId)) {
-        const leg = task.plan.legs[task.legIndex];
-        if (!leg) {
-          this.#travelByAgentId.delete(task.agentId);
-          break;
-        }
-        const availableMs = leg.durationMs - task.elapsedMs;
-        const consumedMs = Math.min(remainingMs, availableMs);
-        task.elapsedMs += consumedMs;
-        remainingMs -= consumedMs;
+    try {
+      // Capture existing work first so a long tick cannot count the same elapsed time toward both
+      // the final travel leg and newly-started location work.
+      const existingWork = [...this.#workByAgentId.values()].sort((left, right) =>
+        left.agentId.localeCompare(right.agentId),
+      );
+      const tasks = [...this.#travelByAgentId.values()].sort((left, right) =>
+        left.agentId.localeCompare(right.agentId),
+      );
+      for (const task of tasks) {
+        let remainingMs = elapsedRealMs * speed;
+        while (remainingMs > 0 && this.#travelByAgentId.has(task.agentId)) {
+          const leg = task.plan.legs[task.legIndex];
+          if (!leg) {
+            this.#travelByAgentId.delete(task.agentId);
+            break;
+          }
+          const availableMs = leg.durationMs - task.elapsedMs;
+          const consumedMs = Math.min(remainingMs, availableMs);
+          task.elapsedMs += consumedMs;
+          remainingMs -= consumedMs;
 
-        const targetStep = Math.min(10, Math.floor((task.elapsedMs / leg.durationMs) * 10));
-        for (let step = task.emittedProgressStep + 1; step <= targetStep; step += 1) {
+          const targetStep = Math.min(10, Math.floor((task.elapsedMs / leg.durationMs) * 10));
+          for (let step = task.emittedProgressStep + 1; step <= targetStep; step += 1) {
+            appended.push(
+              this.#appendSystemEvent(
+                `evt-travel-${task.missionId}-${task.legIndex}-progress-${step}`,
+                'agent.travel.progressed',
+                {
+                  agentId: task.agentId,
+                  routeId: leg.routeId,
+                  progress: step / 10,
+                },
+                occurredAt,
+                task.missionId,
+              ),
+            );
+            task.emittedProgressStep = step;
+          }
+
+          if (task.elapsedMs < leg.durationMs) break;
+
           appended.push(
             this.#appendSystemEvent(
-              `evt-travel-${task.missionId}-${task.legIndex}-progress-${step}`,
-              'agent.travel.progressed',
+              `evt-travel-${task.missionId}-${task.legIndex}-arrived`,
+              'agent.arrived',
               {
                 agentId: task.agentId,
-                routeId: leg.routeId,
-                progress: step / 10,
+                missionId: task.missionId,
+                placeId: leg.toPlaceId,
               },
               occurredAt,
               task.missionId,
             ),
           );
-          task.emittedProgressStep = step;
-        }
 
-        if (task.elapsedMs < leg.durationMs) break;
-
-        appended.push(
-          this.#appendSystemEvent(
-            `evt-travel-${task.missionId}-${task.legIndex}-arrived`,
-            'agent.arrived',
-            {
-              agentId: task.agentId,
-              missionId: task.missionId,
-              placeId: leg.toPlaceId,
-            },
-            occurredAt,
-            task.missionId,
-          ),
-        );
-
-        const nextLegIndex = task.legIndex + 1;
-        const nextLeg = task.plan.legs[nextLegIndex];
-        if (nextLeg) {
-          task.legIndex = nextLegIndex;
-          task.elapsedMs = 0;
-          task.emittedProgressStep = 0;
-          appended.push(
-            this.#appendSystemEvent(
-              `evt-travel-${task.missionId}-${nextLegIndex}-started`,
-              'agent.travel.started',
-              this.#travelStartedPayload(task.agentId, task.missionId, nextLeg, occurredAt),
-              occurredAt,
-              task.missionId,
-            ),
-          );
-        } else {
-          this.#travelByAgentId.delete(task.agentId);
-          const meetingId = this.#meetingIdByMissionId.get(task.missionId);
-          if (meetingId) {
+          const nextLegIndex = task.legIndex + 1;
+          const nextLeg = task.plan.legs[nextLegIndex];
+          if (nextLeg) {
+            task.legIndex = nextLegIndex;
+            task.elapsedMs = 0;
+            task.emittedProgressStep = 0;
             appended.push(
               this.#appendSystemEvent(
-                `evt-meeting-arrival-${meetingId}-${task.agentId}`,
-                'agent.mission.completed',
-                { missionId: task.missionId, completedAt: occurredAt },
-                occurredAt,
-                meetingId,
-              ),
-            );
-          } else {
-            appended.push(
-              this.#appendSystemEvent(
-                `evt-work-${task.missionId}-started`,
-                'agent.work.started',
-                { agentId: task.agentId, missionId: task.missionId },
+                `evt-travel-${task.missionId}-${nextLegIndex}-started`,
+                'agent.travel.started',
+                this.#travelStartedPayload(task.agentId, task.missionId, nextLeg, occurredAt),
                 occurredAt,
                 task.missionId,
               ),
             );
-            const mission = this.#projection.missionsById[task.missionId];
-            if (!mission) continue;
-            const effectivePlaceId =
-              mission.destinationPlaceId ??
-              this.#projection.agentsById[task.agentId]?.placeId ??
-              task.plan.toPlaceId;
-            const scheduled = this.#createScheduledWork(mission, effectivePlaceId);
-            this.#workByAgentId.set(task.agentId, scheduled);
+          } else {
+            this.#travelByAgentId.delete(task.agentId);
+            const meetingId = this.#meetingIdByMissionId.get(task.missionId);
+            if (meetingId) {
+              appended.push(
+                this.#appendSystemEvent(
+                  `evt-meeting-arrival-${meetingId}-${task.agentId}`,
+                  'agent.mission.completed',
+                  { missionId: task.missionId, completedAt: occurredAt },
+                  occurredAt,
+                  meetingId,
+                ),
+              );
+            } else {
+              appended.push(
+                this.#appendSystemEvent(
+                  `evt-work-${task.missionId}-started`,
+                  'agent.work.started',
+                  { agentId: task.agentId, missionId: task.missionId },
+                  occurredAt,
+                  task.missionId,
+                ),
+              );
+              const mission = this.#projection.missionsById[task.missionId];
+              if (!mission) continue;
+              const effectivePlaceId =
+                mission.destinationPlaceId ??
+                this.#projection.agentsById[task.agentId]?.placeId ??
+                task.plan.toPlaceId;
+              const scheduled = this.#createScheduledWork(mission, effectivePlaceId);
+              this.#workByAgentId.set(task.agentId, scheduled);
+            }
           }
         }
       }
-    }
 
-    appended.push(...this.#completeReadyMeetings(occurredAt));
+      appended.push(...this.#completeReadyMeetings(occurredAt));
 
-    for (const task of existingWork) {
-      if (this.#workByAgentId.get(task.agentId) !== task) continue;
-      if (task.error) {
+      for (const task of existingWork) {
+        if (this.#workByAgentId.get(task.agentId) !== task) continue;
+        if (task.error) {
+          this.#workByAgentId.delete(task.agentId);
+          appended.push(...this.#completeFailedScheduledWork(task, occurredAt));
+          continue;
+        }
+        if (!task.turn) continue;
+        task.remainingMs -= elapsedRealMs * speed;
+        if (task.remainingMs > 0) continue;
         this.#workByAgentId.delete(task.agentId);
-        appended.push(...this.#completeFailedScheduledWork(task, occurredAt));
-        continue;
+        try {
+          appended.push(...this.#completeScheduledWork(task, occurredAt));
+        } catch {
+          task.error = {
+            code: 'runtime_invalid_result',
+            message: 'The runtime rejected an invalid mission result before accepting evidence.',
+            recoverable: true,
+          };
+          appended.push(...this.#completeFailedScheduledWork(task, occurredAt));
+        }
       }
-      if (!task.turn) continue;
-      task.remainingMs -= elapsedRealMs * speed;
-      if (task.remainingMs > 0) continue;
-      this.#workByAgentId.delete(task.agentId);
-      try {
-        appended.push(...this.#completeScheduledWork(task, occurredAt));
-      } catch {
-        task.error = {
-          code: 'runtime_invalid_result',
-          message: 'The runtime rejected an invalid mission result before accepting evidence.',
-          recoverable: true,
-        };
-        appended.push(...this.#completeFailedScheduledWork(task, occurredAt));
-      }
-    }
 
-    this.#publishEvents(appended);
-    return structuredClone(appended);
+      const committedEvents = [...this.#stagedEvents];
+      this.#persistPreparedEvents(previousProjection.sequence, committedEvents, this.#projection);
+      this.#stagedEvents = undefined;
+      this.#publishEvents(appended);
+      return structuredClone(appended);
+    } catch (error: unknown) {
+      this.#projection = previousProjection;
+      this.#events = previousEvents;
+      this.#stagedEvents = undefined;
+      if (error instanceof WorkspacePersistenceError || this.#persistenceIssue) {
+        this.#latchPersistenceFailure(error);
+      }
+      throw error;
+    }
   }
 
   #publishEvents(events: readonly WorldEvent[]): void {
@@ -780,6 +938,10 @@ export class ExpeditionRuntime {
       })
       .catch((error: unknown) => {
         if (task.generation !== this.#runtimeGeneration) return;
+        if (error instanceof WorkspacePersistenceError || this.#persistenceIssue) {
+          this.#latchPersistenceFailure(error);
+          return;
+        }
         const publicError = publicCodexError(error);
         const response = ProfessorResponseSchema.parse({
           ...structuredClone(task.input.scriptedResponse),
@@ -811,47 +973,60 @@ export class ExpeditionRuntime {
     occurredAt: string,
     correlationId: string,
   ): void {
+    const previousProjection = this.#projection;
+    const previousEvents = this.#events;
+    this.#stagedEvents = [];
     const events: WorldEvent[] = [];
-    const selectedSignalIds = [...new Set(query.selectedSignalIds)].sort();
-    const hasEnoughEvidence =
-      query.mode === 'correlation_check' &&
-      selectedSignalIds.length >= 2 &&
-      !response.answer.startsWith('Insufficient evidence:');
-    const alreadyAssessed = Object.values(this.#projection.correlationsById).some(
-      (correlation) => [...correlation.signalIds].sort().join('|') === selectedSignalIds.join('|'),
-    );
-    if (hasEnoughEvidence && !alreadyAssessed) {
+    try {
+      const selectedSignalIds = [...new Set(query.selectedSignalIds)].sort();
+      const hasEnoughEvidence =
+        query.mode === 'correlation_check' &&
+        selectedSignalIds.length >= 2 &&
+        !response.answer.startsWith('Insufficient evidence:');
+      const alreadyAssessed = Object.values(this.#projection.correlationsById).some(
+        (correlation) =>
+          [...correlation.signalIds].sort().join('|') === selectedSignalIds.join('|'),
+      );
+      if (hasEnoughEvidence && !alreadyAssessed) {
+        events.push(
+          this.#appendSystemEvent(
+            `evt-professor-${query.id}-correlation`,
+            'correlation.detected',
+            {
+              correlation: {
+                id: `correlation-${query.id}`,
+                signalIds: selectedSignalIds,
+                relationship: 'possibly_correlated',
+                reasons: [
+                  'The selected records describe different evidence layers but may share a crosswind-delay mechanism.',
+                  'Distinct sources and signal IDs do not establish statistical independence.',
+                ],
+                assessedAt: occurredAt,
+              },
+            },
+            occurredAt,
+            correlationId,
+          ),
+        );
+      }
       events.push(
         this.#appendSystemEvent(
-          `evt-professor-${query.id}-correlation`,
-          'correlation.detected',
-          {
-            correlation: {
-              id: `correlation-${query.id}`,
-              signalIds: selectedSignalIds,
-              relationship: 'possibly_correlated',
-              reasons: [
-                'The selected records describe different evidence layers but may share a crosswind-delay mechanism.',
-                'Distinct sources and signal IDs do not establish statistical independence.',
-              ],
-              assessedAt: occurredAt,
-            },
-          },
+          `evt-professor-${query.id}-response`,
+          'professor.response.created',
+          { response },
           occurredAt,
           correlationId,
         ),
       );
+      this.#persistPreparedEvents(previousProjection.sequence, events, this.#projection);
+      this.#stagedEvents = undefined;
+      this.#publishEvents(events);
+    } catch (error: unknown) {
+      this.#projection = previousProjection;
+      this.#events = previousEvents;
+      this.#stagedEvents = undefined;
+      throw error;
     }
-    events.push(
-      this.#appendSystemEvent(
-        `evt-professor-${query.id}-response`,
-        'professor.response.created',
-        { response },
-        occurredAt,
-        correlationId,
-      ),
-    );
-    this.#publishEvents(events);
   }
 
   #createScheduledWork(
@@ -975,8 +1150,7 @@ export class ExpeditionRuntime {
       appended.push(event);
     };
     const commit = (): WorldEvent[] => {
-      this.#projection = plannedProjection;
-      this.#events = [...this.#events, ...appended];
+      this.#commitPreparedEvents(appended, plannedProjection);
       return appended;
     };
 
@@ -1458,6 +1632,321 @@ export class ExpeditionRuntime {
     };
   }
 
+  #replayProjectionAt(sequence: number): {
+    projection: WorldProjection;
+    hash: string;
+    baseSequence: number;
+  } {
+    let baseProjection = createInitialWorldStateFromFixture(this.#fixture);
+    let baseSequence = 0;
+    for (const checkpoint of this.#workspaceStore?.checkpointsAtOrBefore(
+      this.#fixture.expedition.id,
+      sequence,
+    ) ?? []) {
+      const projection = this.#validatedCheckpointProjection(checkpoint);
+      if (!projection) {
+        this.#invalidCheckpointSequences.add(checkpoint.sequence);
+        continue;
+      }
+      baseProjection = projection;
+      baseSequence = checkpoint.sequence;
+      this.#lastCheckpointSequence = Math.max(this.#lastCheckpointSequence, baseSequence);
+      break;
+    }
+    const tail = this.#events.filter(
+      (event) => event.sequence > baseSequence && event.sequence <= sequence,
+    );
+    const replay = replayWorldEventsWithHash(baseProjection, tail);
+    if (replay.projection.sequence !== sequence) {
+      throw new WorkspacePersistenceError(
+        `Replay sequence ${sequence} is absent from the durable append-only event log.`,
+      );
+    }
+    return { ...replay, baseSequence };
+  }
+
+  #validatedCheckpointProjection(checkpoint: WorkspaceCheckpoint): WorldProjection | undefined {
+    if (
+      checkpoint.expeditionId !== this.#fixture.expedition.id ||
+      checkpoint.projectionSchemaVersion !== PROJECTION_SCHEMA_VERSION
+    ) {
+      return undefined;
+    }
+    try {
+      const projection = parseWorldProjection(checkpoint.projection);
+      if (
+        projection.sequence !== checkpoint.sequence ||
+        projection.expedition.id !== checkpoint.expeditionId ||
+        projectionHash(projection) !== checkpoint.projectionHash
+      ) {
+        return undefined;
+      }
+      if (checkpoint.sequence > 0) {
+        const storedEvent = this.#events[checkpoint.sequence - 1];
+        const appliedEvent = projection.appliedEvents.at(-1);
+        if (
+          !storedEvent ||
+          !appliedEvent ||
+          appliedEvent.id !== storedEvent.id ||
+          appliedEvent.sequence !== storedEvent.sequence
+        ) {
+          return undefined;
+        }
+      }
+      return projection;
+    } catch {
+      return undefined;
+    }
+  }
+
+  #restoreCommandReceipts(receipts: readonly StoredCommandReceipt[]): void {
+    const ledger = Object.create(null) as Record<
+      string,
+      { commandId: string; commandHash: string }
+    >;
+    for (const receipt of receipts) {
+      const result = parseAcceptedCommandResult(receipt.result);
+      if (result.commandId !== receipt.commandId || result.sequence > this.#projection.sequence) {
+        throw new WorkspacePersistenceError(
+          `Stored command receipt ${receipt.commandId} does not match durable world history.`,
+        );
+      }
+      for (const event of result.events) {
+        const durableEvent = this.#events[event.sequence - 1];
+        if (!durableEvent || canonicalHash(durableEvent) !== canonicalHash(event)) {
+          throw new WorkspacePersistenceError(
+            `Stored command receipt ${receipt.commandId} references a non-authoritative event.`,
+          );
+        }
+      }
+      ledger[receipt.idempotencyKey] = {
+        commandId: receipt.commandId,
+        commandHash: receipt.commandHash,
+      };
+      this.#acceptedByKey.set(receipt.idempotencyKey, result);
+    }
+    this.#ledger = ledger;
+  }
+
+  #commitPreparedEvents(events: readonly WorldEvent[], nextProjection: WorldProjection): void {
+    if (this.#stagedEvents) {
+      this.#projection = nextProjection;
+      this.#events = [...this.#events, ...events];
+      this.#stagedEvents.push(...events);
+      return;
+    }
+    const expectedSequence = this.#projection.sequence;
+    this.#persistPreparedEvents(expectedSequence, events, nextProjection);
+    this.#projection = nextProjection;
+    this.#events = [...this.#events, ...events];
+  }
+
+  #persistPreparedEvents(
+    expectedSequence: number,
+    events: readonly WorldEvent[],
+    nextProjection: WorldProjection,
+    receipt?: StoredCommandReceipt,
+  ): void {
+    if (events.length === 0 && !receipt) return;
+    if (!this.#workspaceStore) return;
+    if (this.#persistenceIssue || this.#closed) {
+      throw new WorkspacePersistenceError('Workspace persistence is not accepting mutations.');
+    }
+    const shouldCheckpoint =
+      nextProjection.sequence - this.#lastCheckpointSequence >= this.#checkpointInterval;
+    try {
+      this.#workspaceStore.commit({
+        expeditionId: this.expeditionId,
+        expectedSequence,
+        events,
+        ...(receipt ? { receipt } : {}),
+        ...(shouldCheckpoint
+          ? {
+              checkpoint: this.#checkpointInput(
+                nextProjection,
+                events.at(-1)?.recordedAt ?? new Date().toISOString(),
+              ),
+            }
+          : {}),
+      });
+      if (shouldCheckpoint) this.#lastCheckpointSequence = nextProjection.sequence;
+    } catch (error: unknown) {
+      this.#latchPersistenceFailure(error);
+      throw error instanceof WorkspacePersistenceError
+        ? error
+        : new WorkspacePersistenceError('Workspace commit failed.', { cause: error });
+    }
+  }
+
+  #checkpointInput(projection: WorldProjection, createdAt: string) {
+    return {
+      expeditionId: projection.expedition.id,
+      sequence: projection.sequence,
+      projectionSchemaVersion: projection.projectionSchemaVersion,
+      projectionHash: projectionHash(projection),
+      projection: structuredClone(projection),
+      createdAt,
+    };
+  }
+
+  #saveCheckpoint(projection: WorldProjection, createdAt: string): void {
+    if (!this.#workspaceStore) return;
+    this.#workspaceStore.saveCheckpoint(this.#checkpointInput(projection, createdAt));
+    this.#lastCheckpointSequence = Math.max(this.#lastCheckpointSequence, projection.sequence);
+  }
+
+  #latchPersistenceFailure(error: unknown): void {
+    if (this.#persistenceIssue) return;
+    this.#persistenceIssue = {
+      code: 'workspace_persistence_failed',
+      message:
+        error instanceof WorkspacePersistenceError
+          ? error.message
+          : 'The local workspace could not durably record an authoritative event.',
+    };
+  }
+
+  #persistenceRejection(): RejectedCommandResult {
+    return {
+      accepted: false,
+      issues: [
+        {
+          code: 'invalid_state',
+          path: [],
+          message:
+            this.#persistenceIssue?.message ??
+            'The local workspace is closed and cannot accept commands.',
+        },
+      ],
+    };
+  }
+
+  #workspaceDiagnostics(): RuntimeWorkspaceDiagnostics {
+    let store: WorkspaceStoreDiagnostics | undefined;
+    if (this.#workspaceStore && !this.#closed) {
+      try {
+        store = this.#workspaceStore.diagnostics();
+      } catch {
+        // The latched public issue is sufficient; diagnostics must never make runtime health fail.
+      }
+    }
+    return {
+      mode: this.#workspaceStore ? 'sqlite' : 'memory',
+      state: this.#closed ? 'closed' : this.#persistenceIssue ? 'degraded' : 'ready',
+      eventCount: this.#events.length,
+      latestSequence: this.#projection.sequence,
+      checkpointInterval: this.#checkpointInterval,
+      replayBaseSequence: this.#lastReplayBaseSequence,
+      invalidCheckpointCount: this.#invalidCheckpointSequences.size,
+      ...(store ? { store } : {}),
+      ...(this.#persistenceIssue ? { issue: this.#persistenceIssue } : {}),
+    };
+  }
+
+  #restoreRuntimeSchedules(): void {
+    if (this.#projection.expedition.status === 'resolved') return;
+
+    for (const turn of Object.values(this.#projection.agentTurnsById)) {
+      this.#attemptByMissionId.set(
+        turn.missionId,
+        (this.#attemptByMissionId.get(turn.missionId) ?? 0) + 1,
+      );
+    }
+
+    for (const request of Object.values(this.#projection.meetingRequestsById)) {
+      if (this.#projection.meetingsById[request.meetingId]?.endedAt) continue;
+      const missionIdsByAgentId = Object.fromEntries(
+        request.participantAgentIds.flatMap((agentId) => {
+          const missionId = `meeting-mission-${request.meetingId}-${agentId}`;
+          return this.#projection.missionsById[missionId] ? [[agentId, missionId]] : [];
+        }),
+      );
+      const meeting: ScheduledMeeting = {
+        meetingId: request.meetingId,
+        placeId: request.placeId,
+        participantAgentIds: [...request.participantAgentIds],
+        missionIdsByAgentId,
+      };
+      this.#meetingsById.set(meeting.meetingId, meeting);
+      for (const missionId of Object.values(missionIdsByAgentId)) {
+        this.#meetingIdByMissionId.set(missionId, meeting.meetingId);
+      }
+    }
+
+    for (const agent of Object.values(this.#projection.agentsById)) {
+      const missionId = agent.activeMissionId;
+      const mission = missionId ? this.#projection.missionsById[missionId] : undefined;
+      if (!missionId || !mission) continue;
+      if (agent.movement) {
+        const firstStarted = this.#events.find(
+          (event) => event.type === 'agent.travel.started' && event.payload.missionId === missionId,
+        );
+        const origin =
+          firstStarted?.type === 'agent.travel.started'
+            ? firstStarted.payload.fromPlaceId
+            : agent.movement.fromPlaceId;
+        const destination = mission.destinationPlaceId ?? agent.movement.toPlaceId;
+        const plan = selectRoutePlan(this.#projection.worldManifest, origin, destination);
+        const legIndex = plan?.legs.findIndex(
+          (leg) =>
+            leg.routeId === agent.movement?.routeId &&
+            leg.fromPlaceId === agent.movement.fromPlaceId &&
+            leg.toPlaceId === agent.movement.toPlaceId,
+        );
+        if (plan && legIndex !== undefined && legIndex >= 0) {
+          const leg = plan.legs[legIndex];
+          if (leg) {
+            this.#travelByAgentId.set(agent.id, {
+              agentId: agent.id,
+              missionId,
+              plan,
+              legIndex,
+              elapsedMs: leg.durationMs * agent.movement.progress,
+              emittedProgressStep: Math.floor(agent.movement.progress * 10),
+            });
+          }
+        }
+        continue;
+      }
+      if (agent.publicState === 'working' && mission.status === 'running') {
+        this.#workByAgentId.set(
+          agent.id,
+          this.#createScheduledWork(mission, mission.destinationPlaceId ?? agent.placeId),
+        );
+      }
+    }
+
+    if (this.#professorDriver.kind === 'local_exec') {
+      for (const query of Object.values(this.#projection.professorQueriesById)) {
+        if (this.#projection.professorResponsesByQueryId[query.id]) continue;
+        const queryEvent = this.#events.find(
+          (event) =>
+            event.type === 'professor.query.started' && event.payload.query.id === query.id,
+        );
+        this.#scheduleProfessorTurn({
+          input: this.#professorTurnInput(
+            query,
+            createScriptedProfessorResponse(this.#fixture, this.#projection, query),
+          ),
+          correlationId: queryEvent?.correlationId ?? query.id,
+          generation: this.#runtimeGeneration,
+        });
+      }
+    }
+
+    const occurredAt =
+      this.#events.at(-1)?.recordedAt ??
+      this.#projection.market.updatedAt ??
+      new Date().toISOString();
+    const readyMeetingEvents = this.#completeReadyMeetings(occurredAt);
+    this.#publishEvents(readyMeetingEvents);
+  }
+
+  #restoreMap<Key, Value>(target: Map<Key, Value>, source: ReadonlyMap<Key, Value>): void {
+    target.clear();
+    for (const [key, value] of source) target.set(key, value);
+  }
+
   #appendSystemEvent(
     id: string,
     type: WorldEvent['type'],
@@ -1478,8 +1967,14 @@ export class ExpeditionRuntime {
       schemaVersion: SCHEMA_VERSION,
       payload,
     });
-    this.#projection = reduceWorldEvent(this.#projection, event);
-    this.#events = [...this.#events, event];
+    const nextProjection = reduceWorldEvent(this.#projection, event);
+    if (this.#stagedEvents) {
+      this.#projection = nextProjection;
+      this.#events = [...this.#events, event];
+      this.#stagedEvents.push(event);
+      return event;
+    }
+    this.#commitPreparedEvents([event], nextProjection);
     return event;
   }
 
