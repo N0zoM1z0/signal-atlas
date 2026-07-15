@@ -323,7 +323,7 @@ export class ExpeditionRuntime {
 
   caseFile(): SignalAtlasCaseFile {
     const replay = this.replayAt(this.#projection.sequence);
-    return createSignalAtlasCaseFile(replay.projection, this.#events, replay.hash);
+    return createSignalAtlasCaseFile(replay.projection, this.#events);
   }
 
   fixtureConfiguration(): { seed: string; missionScenario: FixtureMissionScenario } {

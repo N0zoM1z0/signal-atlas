@@ -1,3 +1,10 @@
+import {
+  projectionHash,
+  type ForecastProjection,
+  type MeetingMemoProjection,
+  type ScoreProjection,
+  type WorldProjection,
+} from '@signal-atlas/simulation';
 import type {
   Claim,
   Expedition,
@@ -8,12 +15,6 @@ import type {
   WorldEvent,
   WorldEventType,
 } from '@signal-atlas/contracts';
-import type {
-  ForecastProjection,
-  MeetingMemoProjection,
-  ScoreProjection,
-  WorldProjection,
-} from '@signal-atlas/simulation';
 
 export type ArchiveEntryKind = 'source' | 'signal' | 'memo';
 
@@ -459,6 +460,13 @@ function publicEvent(event: WorldEvent): WorldEvent {
   return cloned;
 }
 
+/** Hash only the projection fields a public case file can reproduce from its exported events. */
+export function publicProjectionHash(projection: WorldProjection): string {
+  const cloned = structuredClone(projection);
+  for (const forecast of cloned.forecasts) delete forecast.privateMemo;
+  return projectionHash(cloned);
+}
+
 /**
  * Build a deterministic public case file. Forecast private memos are deliberately omitted from
  * both the rationale section and the exported event stream.
@@ -466,7 +474,6 @@ function publicEvent(event: WorldEvent): WorldEvent {
 export function createSignalAtlasCaseFile(
   projection: WorldProjection,
   events: readonly WorldEvent[],
-  finalProjectionHash: string,
 ): SignalAtlasCaseFile {
   const resolutionEvent = events.findLast((event) => event.type === 'market.resolved');
   const scoresByForecastId = new Map(
@@ -500,7 +507,7 @@ export function createSignalAtlasCaseFile(
     schemaVersion: 1,
     kind: 'signal-atlas.case-file',
     recordedThroughSequence: projection.sequence,
-    finalProjectionHash,
+    finalProjectionHash: publicProjectionHash(projection),
     expedition: structuredClone(projection.expedition),
     market: structuredClone(projection.market),
     ...(resolutionEvent?.type === 'market.resolved'

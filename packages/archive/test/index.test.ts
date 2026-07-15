@@ -7,6 +7,7 @@ import {
   createArchiveIndex,
   createCaseFileTurningPoints,
   createSignalAtlasCaseFile,
+  publicProjectionHash,
   searchArchive,
 } from '../src/index.js';
 
@@ -197,13 +198,10 @@ describe('resolved case files', () => {
       }),
     ];
     const projection = replayWorldEvents(initial, events);
-    const hash = projectionHash(projection);
+    const privateHash = projectionHash(projection);
+    const hash = publicProjectionHash(projection);
 
-    const exported = createSignalAtlasCaseFile(
-      projection,
-      [...fixture.initialEvents, ...events],
-      hash,
-    );
+    const exported = createSignalAtlasCaseFile(projection, [...fixture.initialEvents, ...events]);
 
     expect(exported).toMatchObject({
       schemaVersion: 1,
@@ -229,8 +227,29 @@ describe('resolved case files', () => {
       ]),
     });
     expect(JSON.stringify(exported)).not.toContain('Never export this note.');
+    expect(exported.finalProjectionHash).not.toBe(privateHash);
     expect(exported.events.find((event) => event.id === 'evt-case-forecast')).not.toHaveProperty(
       'payload.privateMemo',
     );
+
+    const replayedPublicProjection = replayWorldEvents(
+      initial,
+      exported.events.filter((event) => event.sequence > initial.sequence),
+    );
+    expect(projectionHash(replayedPublicProjection)).toBe(exported.finalProjectionHash);
+
+    const changedPrivateEvents = events.map((event) => {
+      if (event.type !== 'forecast.committed') return event;
+      return parseWorldEvent({
+        ...structuredClone(event),
+        payload: { ...event.payload, privateMemo: 'A completely different private note.' },
+      });
+    });
+    const changedPrivateProjection = replayWorldEvents(initial, changedPrivateEvents);
+    const changedPrivateExport = createSignalAtlasCaseFile(changedPrivateProjection, [
+      ...fixture.initialEvents,
+      ...changedPrivateEvents,
+    ]);
+    expect(changedPrivateExport.finalProjectionHash).toBe(exported.finalProjectionHash);
   });
 });
