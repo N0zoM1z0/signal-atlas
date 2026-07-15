@@ -358,6 +358,7 @@ describe('event, command, and agent-turn envelopes', () => {
       allowedCapabilities: ['search_sources'],
       currentTurnEvidence: {
         capability: 'search_sources',
+        evidenceRole: 'direct' as const,
         callId: 'pref-current-evidence',
         argumentsHash: 'a'.repeat(64),
         retrievedAt: '2027-09-26T18:00:02Z',
@@ -396,6 +397,15 @@ describe('event, command, and agent-turn envelopes', () => {
       AgentTurnInputSchema.safeParse({
         ...input,
         allowedCapabilities: ['local_conditions'],
+      }).success,
+    ).toBe(false);
+    expect(
+      AgentTurnInputSchema.safeParse({
+        ...input,
+        currentTurnEvidence: {
+          ...input.currentTurnEvidence,
+          evidenceRole: 'context_only',
+        },
       }).success,
     ).toBe(false);
     expect(

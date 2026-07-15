@@ -18,6 +18,8 @@ export const AgentTurnEvidenceAttributeSchema = z.union([
   z.null(),
 ]);
 
+export const AgentTurnEvidenceRoleSchema = z.enum(['direct', 'reference_class', 'context_only']);
+
 export const AgentTurnEvidenceFactSchema = z
   .strictObject({
     kind: z
@@ -50,6 +52,8 @@ export const AgentTurnEvidenceFactSchema = z
 export const AgentTurnEvidencePacketSchema = z
   .strictObject({
     capability: z.string().trim().min(1).max(120),
+    evidenceRole: AgentTurnEvidenceRoleSchema,
+    scopeNote: z.string().trim().min(1).max(500).optional(),
     callId: EntityIdSchema,
     argumentsHash: z.string().regex(/^[a-f0-9]{64}$/u),
     retrievedAt: DateTimeSchema,
@@ -59,6 +63,13 @@ export const AgentTurnEvidencePacketSchema = z
     facts: z.array(AgentTurnEvidenceFactSchema).max(20),
   })
   .superRefine((packet, context) => {
+    if (packet.evidenceRole === 'context_only' && !packet.scopeNote) {
+      context.addIssue({
+        code: 'custom',
+        path: ['scopeNote'],
+        message: 'Context-only current-turn evidence requires an explicit scope note.',
+      });
+    }
     const sourceIds = packet.sources.map((source) => source.id);
     const sourceIdSet = new Set(sourceIds);
     if (sourceIdSet.size !== sourceIds.length) {
@@ -309,5 +320,6 @@ export type AgentTurnAction = z.infer<typeof AgentTurnActionSchema>;
 export type AgentTurnEvidenceAttribute = z.infer<typeof AgentTurnEvidenceAttributeSchema>;
 export type AgentTurnEvidenceFact = z.infer<typeof AgentTurnEvidenceFactSchema>;
 export type AgentTurnEvidencePacket = z.infer<typeof AgentTurnEvidencePacketSchema>;
+export type AgentTurnEvidenceRole = z.infer<typeof AgentTurnEvidenceRoleSchema>;
 export type AgentTurnInput = z.infer<typeof AgentTurnInputSchema>;
 export type AgentTurnOutput = z.infer<typeof AgentTurnOutputSchema>;

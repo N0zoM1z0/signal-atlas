@@ -71,6 +71,14 @@ In progress.
   `local_conditions` source, one real resumed `scout.v1` Codex turn, one accepted deterministic
   claim/signal pair, and no runtime failure or belief/forecast mutation. Public audit events retained
   only the canonical capability; the provider primitive remained confined to source provenance.
+- Scenario authoring exposed that a disclosed real-world proxy still needed a machine-enforced
+  relevance boundary. The current follow-up adds `direct`, `reference_class`, and `context_only`
+  evidence roles to the turn contract and prompt. Non-weather live routes must opt in explicitly;
+  context-only output is rejected unless every signal remains non-directional, outcome-neutral, and
+  unknown-impact.
+- A second bounded live weather-to-Codex smoke passed with the new scope gate. The accepted signal
+  was `context`, had no target outcome, retained `unknown` impact, and caused zero belief or forecast
+  events after the mission began.
 
 ## Goal
 

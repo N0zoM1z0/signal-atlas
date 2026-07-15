@@ -1,11 +1,13 @@
 import {
   AgentTurnEvidencePacketSchema,
+  AgentTurnEvidenceRoleSchema,
   AgentTurnInputSchema,
   AgentTurnOutputSchema,
   ClaimSchema,
   MissionVerbSchema,
   SignalSchema,
   type AgentTurnEvidenceFact,
+  type AgentTurnEvidenceRole,
   type AgentTurnInput,
   type AgentTurnOutput,
   type ExpeditionFixture,
@@ -53,6 +55,8 @@ export interface CreatePrefAgentProxyDriverOptions {
 
 export interface PrefMissionRoute {
   capability: PrefCanonicalCapability;
+  evidenceRole: AgentTurnEvidenceRole;
+  scopeNote?: string;
   input: unknown;
   weatherProxy?: PrefWeatherProxyConfiguration;
 }
@@ -101,6 +105,11 @@ function routeForBinding(
     configuration['queryMode'] === 'mission_objective' ? input.mission.objective : undefined;
   const configuredQuery = optionalString(configuration['query']);
   const query = configuredQuery ?? objectiveQuery;
+  const configuredRole = AgentTurnEvidenceRoleSchema.safeParse(configuration['evidenceRole']);
+  const evidenceRole = configuredRole.success ? configuredRole.data : undefined;
+  const scopeNote = optionalString(configuration['scopeNote']);
+  if (binding.canonicalCapability !== 'local_conditions' && !evidenceRole) return undefined;
+  if (evidenceRole === 'context_only' && !scopeNote) return undefined;
 
   switch (binding.canonicalCapability) {
     case 'local_conditions': {
@@ -125,6 +134,8 @@ function routeForBinding(
       return proxy
         ? {
             capability: 'local_conditions',
+            evidenceRole: 'context_only',
+            scopeNote: `${proxy.displayLabel} is a disclosed real-world interface proxy for fictional ${proxy.fictionalPlaceName}; it is not a direct observation of the scenario market.`,
             input: { location: { label: proxy.providerLocation } },
             weatherProxy: proxy,
           }
@@ -134,6 +145,8 @@ function routeForBinding(
       return query
         ? {
             capability: 'search_sources',
+            evidenceRole: evidenceRole!,
+            ...(scopeNote ? { scopeNote } : {}),
             input: {
               query,
               limit: positiveInteger(configuration['limit'], 3, 20),
@@ -145,6 +158,8 @@ function routeForBinding(
       return query
         ? {
             capability: 'search_markets',
+            evidenceRole: evidenceRole!,
+            ...(scopeNote ? { scopeNote } : {}),
             input: { query, limit: positiveInteger(configuration['limit'], 5, 20) },
           }
         : undefined;
@@ -154,6 +169,8 @@ function routeForBinding(
       return referenceClass
         ? {
             capability: 'search_resolution_history',
+            evidenceRole: evidenceRole!,
+            ...(scopeNote ? { scopeNote } : {}),
             input: {
               referenceClass,
               limit: positiveInteger(configuration['limit'], 5, 20),
@@ -171,6 +188,8 @@ function routeForBinding(
       return query
         ? {
             capability: 'search_economic_series',
+            evidenceRole: evidenceRole!,
+            ...(scopeNote ? { scopeNote } : {}),
             input: { query, limit: positiveInteger(configuration['limit'], 10, 20) },
           }
         : undefined;
@@ -179,6 +198,8 @@ function routeForBinding(
       return seriesId
         ? {
             capability: 'read_economic_series',
+            evidenceRole: evidenceRole!,
+            ...(scopeNote ? { scopeNote } : {}),
             input: {
               seriesId,
               limit: positiveInteger(configuration['limit'], 120, 500),
@@ -393,7 +414,7 @@ function evidenceFact(evidence: PrefCanonicalEvidence): AgentTurnEvidenceFact | 
   }
 }
 
-function currentTurnEvidencePacket(result: PrefCapabilityResult) {
+function currentTurnEvidencePacket(result: PrefCapabilityResult, route: PrefMissionRoute) {
   const sourceIds = new Set(result.sources.map((source) => source.id));
   const facts = result.evidence
     .map(evidenceFact)
@@ -401,6 +422,8 @@ function currentTurnEvidencePacket(result: PrefCapabilityResult) {
     .filter((fact) => fact.sourceIds.every((sourceId) => sourceIds.has(sourceId)));
   return AgentTurnEvidencePacketSchema.parse({
     capability: result.capability,
+    evidenceRole: route.evidenceRole,
+    ...(route.scopeNote ? { scopeNote: route.scopeNote } : {}),
     callId: result.callId,
     argumentsHash: result.argumentsHash,
     retrievedAt: result.retrievedAt,
@@ -691,7 +714,7 @@ export class PrefAgentProxyDriver implements CodexDriver<AgentTurnInput, Scripte
       );
     }
 
-    const packet = currentTurnEvidencePacket(result);
+    const packet = currentTurnEvidencePacket(result, route);
     const delegatedInput = AgentTurnInputSchema.parse({ ...input, currentTurnEvidence: packet });
     try {
       const delegated = await this.#fallback.runTurn(delegatedInput, context);

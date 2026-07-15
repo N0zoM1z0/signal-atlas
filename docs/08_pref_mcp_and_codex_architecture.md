@@ -116,18 +116,21 @@ orchestrator invokes Pref before Codex, records the call, and supplies the agent
 current-turn evidence packet. The model never receives a Pref credential, provider tool reference,
 or permission to invoke MCP directly.
 
-Non-weather place bindings must opt in with `configuration.missionVerbs`. Query capabilities must
-also provide an authored query or declare `queryMode: "mission_objective"`; limits and time windows
-remain bounded by the canonical request schema. `local_conditions` retains the explicit
-`context_only` real-world proxy mapping used by the Helios fixture. An unconfigured binding falls
-back to fixture behavior rather than silently enabling a newly discovered provider.
+Non-weather place bindings must opt in with `configuration.missionVerbs` and an explicit
+`evidenceRole` of `direct`, `reference_class`, or `context_only`. Context-only routes also require a
+human-readable scope note. Query capabilities must provide an authored query or declare
+`queryMode: "mission_objective"`; limits and time windows remain bounded by the canonical request
+schema. `local_conditions` retains the explicit `context_only` real-world proxy mapping used by the
+Helios fixture. An unconfigured binding falls back to fixture behavior rather than silently enabling
+a newly discovered provider.
 
-The current-turn packet contains the canonical capability, Pref call ID, argument hash, retrieval
-time, duration, cache status, canonical `SourceRecord` objects, and bounded evidence facts linked to
-those source IDs. Rights-filtered metadata enters the durable source record; transient adapter facts
-such as a GDELT matched sentence enter only the untrusted prompt packet. Raw provider response
-shapes never enter the model prompt. If local Codex is unavailable or its one repair fails, the
-orchestrator records the retrieved canonical sources but accepts no model-derived claim or signal.
+The current-turn packet contains the canonical capability, evidence role and optional scope note,
+Pref call ID, argument hash, retrieval time, duration, cache status, canonical `SourceRecord`
+objects, and bounded evidence facts linked to those source IDs. Rights-filtered metadata enters the
+durable source record; transient adapter facts such as a GDELT matched sentence enter only the
+untrusted prompt packet. Raw provider response shapes never enter the model prompt. If local Codex
+is unavailable or its one repair fails, the orchestrator records the retrieved canonical sources
+but accepts no model-derived claim or signal.
 
 This dual pattern preserves agent autonomy while ensuring the game knows exactly which sources entered the world.
 
@@ -273,7 +276,8 @@ For a Pref-backed current-turn packet, every cited source, proposed claim source
 source must belong to that packet. Accepted claims and signals receive deterministic orchestrator
 IDs and are materialized only after schema and world validation. A model may select the qualitative
 impact label, but it cannot assign a deterministic probability-point range or mutate belief
-directly; those remain orchestrator-owned decisions.
+directly; those remain orchestrator-owned decisions. `context_only` is also enforced after model
+output: its signals must have `direction: context`, no target outcome, and `impactLabel: unknown`.
 
 Professor output uses the separate strict
 `professor-response.codex.schema.json` transport contract. In addition to Zod validation, the

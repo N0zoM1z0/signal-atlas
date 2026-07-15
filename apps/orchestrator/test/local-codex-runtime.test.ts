@@ -224,6 +224,9 @@ describe('local Codex world integration', () => {
       timeoutMs: 10_000,
       currentTurnEvidence: {
         capability: 'search_sources',
+        evidenceRole: 'context_only',
+        scopeNote:
+          'This reporting is disclosed interface-test context and does not directly observe the fictional scenario.',
         callId: 'call-current-turn-1',
         argumentsHash: 'a'.repeat(64),
         retrievedAt: '2026-07-15T00:00:00.000Z',
@@ -240,7 +243,7 @@ describe('local Codex world integration', () => {
         ],
       },
     };
-    const modelOutput: AgentTurnOutput = {
+    const invalidScopedOutput: AgentTurnOutput = {
       ...validOutput(source.id),
       action: {
         type: 'investigate',
@@ -265,11 +268,21 @@ describe('local Codex world integration', () => {
         },
       ],
     };
+    const modelOutput: AgentTurnOutput = {
+      ...invalidScopedOutput,
+      proposedSignals: invalidScopedOutput.proposedSignals.map((signal) => ({
+        ...signal,
+        impactLabel: 'unknown' as const,
+      })),
+    };
     const requests: CodexProcessRequest[] = [];
     const driver = createConfiguredMissionDriver(fixture, () => 'success', {
       mode: 'local',
       executable: '/test/bin/codex',
-      processRunner: processRunner([JSON.stringify(modelOutput)], requests),
+      processRunner: processRunner(
+        [JSON.stringify(invalidScopedOutput), JSON.stringify(modelOutput)],
+        requests,
+      ),
       isAvailable: () => true,
     });
 
@@ -279,12 +292,14 @@ describe('local Codex world integration', () => {
       emit: () => undefined,
     });
 
-    expect(requests).toHaveLength(1);
+    expect(requests).toHaveLength(2);
     expect(requests[0]?.stdin).toContain(source.id);
     expect(requests[0]?.stdin).toContain(
       'The operator said the readiness review remains scheduled for Friday.',
     );
     expect(requests[0]?.stdin).not.toContain('must-not-enter-the-prompt');
+    expect(requests[0]?.stdin).toContain('"evidenceRole": "context_only"');
+    expect(requests[1]?.stdin).toContain('context-only evidence must use unknown impact');
     expect(turn.artifacts).toMatchObject({
       scenario: 'success',
       capability: 'search_sources',
@@ -295,7 +310,7 @@ describe('local Codex world integration', () => {
         {
           sourceIds: [source.id],
           direction: 'context',
-          impact: { label: 'small' },
+          impact: { label: 'unknown' },
           reliability: {
             reasons: expect.arrayContaining([
               'No deterministic impact range was assigned from model output.',

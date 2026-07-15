@@ -359,12 +359,14 @@ describe('Pref agent proxy driver', () => {
     if (!searchBinding) throw new Error('The fixture newsroom search binding is missing.');
     searchBinding.configuration = {
       missionVerbs: ['investigate'],
+      evidenceRole: 'direct',
       queryMode: 'mission_objective',
       limit: 2,
     };
 
     expect(resolvePrefMissionRoute(fixture, input, ['search_sources'])).toEqual({
       capability: 'search_sources',
+      evidenceRole: 'direct',
       input: {
         query: 'Find recent reporting about the Helios readiness review.',
         limit: 2,
@@ -376,6 +378,7 @@ describe('Pref agent proxy driver', () => {
       canonicalCapability: 'search_resolution_history',
       configuration: {
         missionVerbs: ['search_history'],
+        evidenceRole: 'reference_class',
         referenceClass: 'rocket_maiden_flight',
         outcome: 'NO',
         limit: 3,
@@ -388,6 +391,7 @@ describe('Pref agent proxy driver', () => {
 
     expect(resolvePrefMissionRoute(fixture, input, ['search_resolution_history'])).toEqual({
       capability: 'search_resolution_history',
+      evidenceRole: 'reference_class',
       input: { referenceClass: 'rocket_maiden_flight', outcome: 'NO', limit: 3 },
     });
   });
@@ -401,6 +405,7 @@ describe('Pref agent proxy driver', () => {
     if (!searchBinding) throw new Error('The fixture newsroom search binding is missing.');
     searchBinding.configuration = {
       missionVerbs: ['investigate'],
+      evidenceRole: 'direct',
       queryMode: 'mission_objective',
       limit: 2,
     };
@@ -489,6 +494,7 @@ describe('Pref agent proxy driver', () => {
     expect(receivedInputs).toHaveLength(1);
     expect(receivedInputs[0]?.currentTurnEvidence).toMatchObject({
       capability: 'search_sources',
+      evidenceRole: 'direct',
       callId: result.callId,
       sources: [{ id: source.id }],
       facts: [
@@ -512,6 +518,7 @@ describe('Pref agent proxy driver', () => {
     if (!searchBinding) throw new Error('The fixture newsroom search binding is missing.');
     searchBinding.configuration = {
       missionVerbs: ['investigate'],
+      evidenceRole: 'direct',
       queryMode: 'mission_objective',
       limit: 1,
     };

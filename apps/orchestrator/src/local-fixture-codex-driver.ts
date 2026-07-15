@@ -222,6 +222,25 @@ function validateFixtureEvidence(
         }
       }
     }
+    if (input.currentTurnEvidence.evidenceRole === 'context_only') {
+      output.proposedSignals.forEach((signal, index) => {
+        if (signal.direction !== 'context') {
+          errors.push(
+            `proposedSignals.${index}.direction: context-only evidence cannot support a market outcome.`,
+          );
+        }
+        if (signal.targetOutcomeId) {
+          errors.push(
+            `proposedSignals.${index}.targetOutcomeId: context-only evidence cannot target a market outcome.`,
+          );
+        }
+        if (signal.impactLabel !== 'unknown') {
+          errors.push(
+            `proposedSignals.${index}.impactLabel: context-only evidence must use unknown impact.`,
+          );
+        }
+      });
+    }
     if (
       !output.proposedClaims.some((claim) =>
         claim.sourceIds.some((sourceId) => currentSourceIds.has(sourceId)),
@@ -329,7 +348,11 @@ function materializeCurrentTurnEvidence(
       text: proposed.text,
       sourceIds: proposed.sourceIds,
       extractor: { kind: 'agent', id: input.agentId },
-      qualifiers: [...proposed.qualifiers, `canonical capability: ${packet.capability}`],
+      qualifiers: [
+        ...proposed.qualifiers,
+        `canonical capability: ${packet.capability}`,
+        `evidence role: ${packet.evidenceRole}`,
+      ],
       status: 'active',
       createdAt: packet.retrievedAt,
     }),
@@ -362,6 +385,7 @@ function materializeCurrentTurnEvidence(
         label: 'unverified',
         reasons: [
           'A schema-constrained agent interpreted orchestrator-selected canonical Pref evidence.',
+          `The orchestrator classified the evidence role as ${packet.evidenceRole}.`,
           'No deterministic impact range was assigned from model output.',
         ],
         assessedBy: { kind: 'system' },

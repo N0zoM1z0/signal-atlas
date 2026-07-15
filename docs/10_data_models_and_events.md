@@ -475,6 +475,8 @@ optional so fixture and non-research turns retain the same input contract.
 ```ts
 interface AgentTurnEvidencePacket {
   capability: PrefCanonicalCapability;
+  evidenceRole: 'direct' | 'reference_class' | 'context_only';
+  scopeNote?: string;
   callId: string;
   argumentsHash: string;
   retrievedAt: string;
@@ -496,8 +498,8 @@ interface AgentTurnInput {
 ```
 
 Packet source IDs are unique, every fact references only packet sources, content is rights-filtered,
-and the complete serialized packet is size-bounded. The Codex output contract is intentionally
-narrow.
+and the complete serialized packet is size-bounded. Context-only packets require an explicit scope
+note. The Codex output contract is intentionally narrow.
 
 ```ts
 interface AgentTurnOutput {
@@ -542,7 +544,8 @@ Without a current-turn packet, the runtime validates that every source ID was kn
 or explicitly granted during it. With a packet, all output citations, claim sources, and signal
 sources must be packet members. The model cannot create source identities. Candidate model
 artifacts are assigned deterministic IDs by the orchestrator and no model-proposed probability
-range is accepted as an authoritative belief mutation.
+range is accepted as an authoritative belief mutation. Context-only evidence additionally cannot
+target or directionally support an outcome and must retain unknown impact.
 
 ## 10.14 Domain event catalog
 
