@@ -60,6 +60,7 @@ signal-atlas/
     world-content/       Maps, locations, missions, fixtures
     pref-gateway/        MCP discovery, mapping, normalization
     codex-runtime/       Codex drivers and session management
+    fixture-runtime/     Browser-safe authored mission/professor choreography
     ui/                  Shared DOM components and design tokens
     game-scene/          Phaser scenes, entities, effects
     archive/             Search, provenance, case files
@@ -407,4 +408,31 @@ Expected behavior:
 
 ## 9.16 Deployment boundary
 
-The first release is a single-user local application. Multi-user rooms, hosted persistence, authentication, and shared market worlds are later architecture phases. Keeping the first slice local reduces privacy, latency, and operational complexity while matching the user's Codex-on-device concept.
+The primary release remains a single-user local application. Its web build injects the remote
+runtime adapter, and the local Node orchestrator retains sole authority through Fastify,
+WebSocket, SQLite, Pref Gateway, and Codex Runtime boundaries. Multi-user rooms, hosted
+persistence, authentication, and shared market worlds are later architecture phases. Keeping this
+path local reduces privacy, latency, and operational complexity while matching the user's
+Codex-on-device concept.
+
+An explicitly separate `static-demo` build target publishes the authored showcase to GitHub Pages.
+It injects a browser-resident implementation of the same frontend runtime port at bundle time, so
+the Pages artifact does not contain the remote API/WebSocket adapter. That runtime validates
+commands, owns an append-only in-browser event log, folds events with the production pure reducer,
+and emits in-process contiguous event notifications. It uses only browser-safe contracts,
+simulation, archive, world-content, test-fixture, and fixture-runtime packages; it cannot import
+Fastify, SQLite, Pref, Codex, or server transports.
+
+The static event log is a bounded, versioned showcase cache in `localStorage`, not a substitute for
+the durable workspace. Restore revalidates the complete scenario, event schemas, expedition
+ownership, sequence continuity, and projection fold before accepting stored data. Invalid or
+oversized data falls back to an authored genesis state. Public case-file serialization still strips
+private forecast memos. The UI labels this boundary as a static authored showcase and disables live
+connection controls so it cannot be mistaken for Pref, Codex, or durable SQLite activity.
+
+`pnpm build:pages` writes the `/signal-atlas/`-based artifact and rejects known live-runtime
+signatures. The Pages Playwright profile serves the built files under that subpath, denies API,
+WebSocket, and external-origin traffic, and exercises creation, research, provenance, synthesis,
+forecast, reload, resolution, replay, reset, and export. The checked-in GitHub Actions workflow
+deploys only this verified artifact. Normal `pnpm dev` and `pnpm build` selection remains remote by
+default.

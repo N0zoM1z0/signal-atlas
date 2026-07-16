@@ -2,6 +2,7 @@ import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
   testDir: './tests/e2e',
+  testIgnore: 'static-pages.spec.ts',
   outputDir: './test-results',
   snapshotPathTemplate: '{testDir}/../visual/{arg}{ext}',
   fullyParallel: false,

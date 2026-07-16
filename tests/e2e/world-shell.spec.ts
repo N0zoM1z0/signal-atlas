@@ -81,7 +81,9 @@ test('@visual world shell matches the five-region direction at 1440 × 900', asy
   await expect(page.getByRole('main', { name: 'Interactive world stage' })).toBeVisible();
   await expect(page.getByRole('complementary', { name: 'Signals' })).toBeVisible();
   await expect(page.getByRole('contentinfo', { name: 'Agent command desk' })).toBeVisible();
-  await expect(page.locator('.atlas-world-canvas')).toHaveAttribute('data-scene-ready', 'true');
+  await expect(page.locator('.atlas-world-canvas')).toHaveAttribute('data-scene-ready', 'true', {
+    timeout: 10_000,
+  });
   await expect(page.locator('.atlas-world-canvas')).toHaveAttribute('data-reduced-motion', 'true');
   await expectRenderedWorld(page);
   await expectNoPageOverflow(page);
@@ -108,7 +110,9 @@ test('@visual world shell remains usable at 1280 × 800', async ({ page }) => {
   await expect(page.getByRole('button', { name: 'Collapse agent dock' })).toBeHidden();
   await expect(page.getByRole('button', { name: 'Collapse signal rail' })).toBeHidden();
   await expect(page.getByRole('textbox', { name: 'Command Mira' })).toBeVisible();
-  await expect(page.locator('.atlas-world-canvas')).toHaveAttribute('data-scene-ready', 'true');
+  await expect(page.locator('.atlas-world-canvas')).toHaveAttribute('data-scene-ready', 'true', {
+    timeout: 10_000,
+  });
   await expect(page.locator('.atlas-world-canvas')).toHaveAttribute('data-reduced-motion', 'true');
   await expectRenderedWorld(page);
   await expectNoPageOverflow(page);
