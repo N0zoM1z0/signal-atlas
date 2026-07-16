@@ -3,13 +3,8 @@ import type { RuntimeTurnRecord } from '@signal-atlas/codex-runtime';
 import type { PrefMcpConnectionDiagnostics } from '@signal-atlas/pref-gateway';
 import { useCallback, useEffect, useState } from 'react';
 
-import {
-  disconnectPrefConnection,
-  fetchPrefDiagnostics,
-  fetchRuntimeDiagnostics,
-  testPrefConnection,
-  type SignalAtlasRuntimeDiagnostics,
-} from './runtime-client.js';
+import { useRuntime } from '../app-runtime/runtime-context.js';
+import type { SignalAtlasRuntimeDiagnostics } from './runtime-client.js';
 
 export interface RuntimeDiagnosticsDialogProps {
   expeditionId: string;
@@ -50,6 +45,7 @@ export function RuntimeDiagnosticsDialog({
   onClose,
   onPrefConnectionChange,
 }: RuntimeDiagnosticsDialogProps) {
+  const runtime = useRuntime();
   const [diagnostics, setDiagnostics] = useState<SignalAtlasRuntimeDiagnostics>();
   const [prefDiagnostics, setPrefDiagnostics] = useState<PrefMcpConnectionDiagnostics>();
   const [loading, setLoading] = useState(true);
@@ -62,8 +58,8 @@ export function RuntimeDiagnosticsDialog({
     setError(undefined);
     setPrefError(undefined);
     const [runtimeResult, prefResult] = await Promise.allSettled([
-      fetchRuntimeDiagnostics(expeditionId),
-      fetchPrefDiagnostics(),
+      runtime.fetchRuntimeDiagnostics(expeditionId),
+      runtime.fetchPrefDiagnostics(),
     ]);
     if (runtimeResult.status === 'fulfilled') {
       setDiagnostics(runtimeResult.value);
@@ -85,7 +81,7 @@ export function RuntimeDiagnosticsDialog({
       );
     }
     setLoading(false);
-  }, [expeditionId, onPrefConnectionChange]);
+  }, [expeditionId, onPrefConnectionChange, runtime]);
 
   const changePrefConnection = useCallback(
     async (action: 'test' | 'disconnect') => {
@@ -93,7 +89,9 @@ export function RuntimeDiagnosticsDialog({
       setPrefError(undefined);
       try {
         const next =
-          action === 'test' ? await testPrefConnection() : await disconnectPrefConnection();
+          action === 'test'
+            ? await runtime.testPrefConnection()
+            : await runtime.disconnectPrefConnection();
         setPrefDiagnostics(next);
         onPrefConnectionChange?.(next.connected);
       } catch (connectionError: unknown) {
@@ -106,7 +104,7 @@ export function RuntimeDiagnosticsDialog({
         setPrefBusy(false);
       }
     },
-    [onPrefConnectionChange],
+    [onPrefConnectionChange, runtime],
   );
 
   useEffect(() => {

@@ -3,18 +3,19 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { ComponentDemo } from './ComponentDemo.js';
 import { ExpeditionLobby } from './ExpeditionLobby.js';
-import {
-  createClientId,
-  createExpedition,
-  fetchExpeditions,
-  fetchExpeditionSnapshot,
-  fetchScenarios,
-  type ExpeditionListItem,
-  type ScenarioListItem,
-} from './world-shell/runtime-client.js';
+import { remoteRuntime } from './app-runtime/remote-runtime.js';
+import { RuntimeProvider } from './app-runtime/RuntimeProvider.js';
+import { useRuntime } from './app-runtime/runtime-context.js';
+import type { RuntimePort } from './app-runtime/runtime-port.js';
+import type { ExpeditionListItem, ScenarioListItem } from './world-shell/runtime-client.js';
 import { WorldShell } from './world-shell/WorldShell.js';
 
 export interface AppProps {
+  initialProjection?: WorldProjection;
+  runtime?: RuntimePort;
+}
+
+interface ExpeditionBootstrapProps {
   initialProjection?: WorldProjection;
 }
 
@@ -33,7 +34,8 @@ function worldUrl(expeditionId: string): string {
   return `/?expedition=${encodeURIComponent(expeditionId)}`;
 }
 
-function ExpeditionBootstrap({ initialProjection }: AppProps) {
+function ExpeditionBootstrap({ initialProjection }: ExpeditionBootstrapProps) {
+  const runtime = useRuntime();
   const [projection, setProjection] = useState(initialProjection);
   const [view, setView] = useState<AtlasView>(initialProjection ? 'world' : 'loading');
   const [scenarios, setScenarios] = useState<ScenarioListItem[]>([]);
@@ -44,13 +46,13 @@ function ExpeditionBootstrap({ initialProjection }: AppProps) {
 
   const refreshCatalog = useCallback(async () => {
     const [nextScenarios, nextExpeditions] = await Promise.all([
-      fetchScenarios(),
-      fetchExpeditions(),
+      runtime.fetchScenarios(),
+      runtime.fetchExpeditions(),
     ]);
     setScenarios(nextScenarios);
     setExpeditions(nextExpeditions);
     return { scenarios: nextScenarios, expeditions: nextExpeditions };
-  }, []);
+  }, [runtime]);
 
   const openExpedition = useCallback(
     async (expeditionId: string, updateHistory = true) => {
@@ -59,7 +61,7 @@ function ExpeditionBootstrap({ initialProjection }: AppProps) {
       setBusyScenarioId(expedition?.scenarioId ?? expeditionId);
       setError(undefined);
       try {
-        const nextProjection = await fetchExpeditionSnapshot(expeditionId);
+        const nextProjection = await runtime.fetchExpeditionSnapshot(expeditionId);
         if (navigationEpoch !== navigationEpochRef.current) return;
         setProjection(nextProjection);
         setView('world');
@@ -72,7 +74,7 @@ function ExpeditionBootstrap({ initialProjection }: AppProps) {
         if (navigationEpoch === navigationEpochRef.current) setBusyScenarioId(undefined);
       }
     },
-    [expeditions],
+    [expeditions, runtime],
   );
 
   const openLobby = useCallback(
@@ -95,7 +97,7 @@ function ExpeditionBootstrap({ initialProjection }: AppProps) {
     if (initialProjection) return;
     let active = true;
     const navigationEpoch = ++navigationEpochRef.current;
-    void Promise.all([fetchScenarios(), fetchExpeditions()])
+    void Promise.all([runtime.fetchScenarios(), runtime.fetchExpeditions()])
       .then(async ([availableScenarios, availableExpeditions]) => {
         if (!active || navigationEpoch !== navigationEpochRef.current) return;
         setScenarios(availableScenarios);
@@ -113,7 +115,7 @@ function ExpeditionBootstrap({ initialProjection }: AppProps) {
           if (requestedId) setError(`Expedition ${requestedId} is not available locally.`);
           return;
         }
-        const nextProjection = await fetchExpeditionSnapshot(selected.id);
+        const nextProjection = await runtime.fetchExpeditionSnapshot(selected.id);
         if (!active || navigationEpoch !== navigationEpochRef.current) return;
         setProjection(nextProjection);
         setView('world');
@@ -128,7 +130,7 @@ function ExpeditionBootstrap({ initialProjection }: AppProps) {
     return () => {
       active = false;
     };
-  }, [initialProjection]);
+  }, [initialProjection, runtime]);
 
   useEffect(() => {
     if (initialProjection) return;
@@ -163,15 +165,15 @@ function ExpeditionBootstrap({ initialProjection }: AppProps) {
     setBusyScenarioId(scenario.id);
     setError(undefined);
     try {
-      const result = await createExpedition(
+      const result = await runtime.createExpedition(
         scenario.id,
         scenario.version,
-        createClientId(`create-${scenario.id}`),
+        runtime.createClientId(`create-${scenario.id}`),
       );
-      const nextExpeditions = await fetchExpeditions();
+      const nextExpeditions = await runtime.fetchExpeditions();
       if (navigationEpoch !== navigationEpochRef.current) return;
       setExpeditions(nextExpeditions);
-      const nextProjection = await fetchExpeditionSnapshot(result.expedition.id);
+      const nextProjection = await runtime.fetchExpeditionSnapshot(result.expedition.id);
       if (navigationEpoch !== navigationEpochRef.current) return;
       setProjection(nextProjection);
       setView('world');
@@ -223,10 +225,18 @@ function ExpeditionBootstrap({ initialProjection }: AppProps) {
   );
 }
 
-export function App({ initialProjection }: AppProps = {}) {
+function AppContent({ initialProjection }: ExpeditionBootstrapProps) {
   const pathname = typeof window === 'undefined' ? '/' : window.location.pathname;
 
   if (pathname === '/components') return <ComponentDemo />;
 
   return <ExpeditionBootstrap {...(initialProjection ? { initialProjection } : {})} />;
+}
+
+export function App({ initialProjection, runtime = remoteRuntime }: AppProps = {}) {
+  return (
+    <RuntimeProvider runtime={runtime}>
+      <AppContent {...(initialProjection ? { initialProjection } : {})} />
+    </RuntimeProvider>
+  );
 }
