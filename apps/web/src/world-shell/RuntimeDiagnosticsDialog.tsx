@@ -115,10 +115,16 @@ export function RuntimeDiagnosticsDialog({
 
   return (
     <Dialog
-      description="Inspect the bounded agent driver, Pref source gateway, scheduler, and persisted outcomes."
+      description={
+        runtime.kind === 'static-demo'
+          ? 'Inspect the browser-only authored event runtime and confirm that no live service is connected.'
+          : 'Inspect the bounded agent driver, Pref source gateway, scheduler, and persisted outcomes.'
+      }
       onClose={onClose}
       open={open}
-      title="Codex Runtime Diagnostics"
+      title={
+        runtime.kind === 'static-demo' ? 'Static Demo Diagnostics' : 'Codex Runtime Diagnostics'
+      }
     >
       <div className="atlas-runtime-diagnostics">
         {loading && !diagnostics ? (
@@ -310,8 +316,16 @@ export function RuntimeDiagnosticsDialog({
             <section className="atlas-pref-connection" aria-labelledby="pref-connection-title">
               <header>
                 <div>
-                  <span className="atlas-kicker">Read-only source gateway</span>
-                  <h3 id="pref-connection-title">Pref MCP connection</h3>
+                  <span className="atlas-kicker">
+                    {runtime.kind === 'static-demo'
+                      ? 'No-network source boundary'
+                      : 'Read-only source gateway'}
+                  </span>
+                  <h3 id="pref-connection-title">
+                    {runtime.kind === 'static-demo'
+                      ? 'Authored fixture sources'
+                      : 'Pref MCP connection'}
+                  </h3>
                 </div>
                 {prefDiagnostics && (
                   <span data-state={prefDiagnostics.state}>
@@ -327,15 +341,23 @@ export function RuntimeDiagnosticsDialog({
               ) : prefDiagnostics ? (
                 <>
                   <p>
-                    {prefDiagnostics.mode === 'fixture'
-                      ? 'Deterministic recorded data; no network or credential is used.'
-                      : 'Hosted Streamable HTTP; credentials remain in the orchestrator process.'}
+                    {runtime.kind === 'static-demo'
+                      ? 'Bundled authored records are materialized by the browser demo orchestrator. No Pref, MCP, API, credential, or external request is used.'
+                      : prefDiagnostics.mode === 'fixture'
+                        ? 'Deterministic recorded data; no network or credential is used.'
+                        : 'Hosted Streamable HTTP; credentials remain in the orchestrator process.'}
                   </p>
                   <p className="atlas-pref-connection__mode-note">
-                    <strong>Server-side mode lock.</strong>{' '}
-                    {prefDiagnostics.mode === 'fixture'
-                      ? 'Restart with SIGNAL_ATLAS_PREF_MODE=live to enable the approved live agent proxy.'
-                      : 'Live mode is enabled for this process; restart in fixture mode for deterministic offline play.'}
+                    <strong>
+                      {runtime.kind === 'static-demo'
+                        ? 'Static build boundary.'
+                        : 'Server-side mode lock.'}
+                    </strong>{' '}
+                    {runtime.kind === 'static-demo'
+                      ? 'Connection controls are unavailable because this artifact contains no service transport.'
+                      : prefDiagnostics.mode === 'fixture'
+                        ? 'Restart with SIGNAL_ATLAS_PREF_MODE=live to enable the approved live agent proxy.'
+                        : 'Live mode is enabled for this process; restart in fixture mode for deterministic offline play.'}
                   </p>
                   <dl>
                     <div>
@@ -411,14 +433,18 @@ export function RuntimeDiagnosticsDialog({
                   </div>
                   <div className="atlas-pref-connection__actions">
                     <button
-                      disabled={prefBusy}
+                      disabled={prefBusy || !runtime.supportsConnectionControls}
                       onClick={() => void changePrefConnection('test')}
                       type="button"
                     >
                       {prefBusy ? 'Checking…' : 'Test / reconnect'}
                     </button>
                     <button
-                      disabled={prefBusy || !prefDiagnostics.connected}
+                      disabled={
+                        prefBusy ||
+                        !prefDiagnostics.connected ||
+                        !runtime.supportsConnectionControls
+                      }
                       onClick={() => void changePrefConnection('disconnect')}
                       type="button"
                     >

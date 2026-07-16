@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite --host 127.0.0.1 --port 4173",
     "build": "tsc --build && vite build",
+    "build:pages": "tsc --build && VITE_SIGNAL_ATLAS_RUNTIME=static-demo vite build --mode pages && node ./scripts/verify-pages-build.mjs",
     "typecheck": "tsc --build --pretty false",
     "test": "vitest run",
     "clean": "rm -rf dist .vite"
@@ -14,11 +15,13 @@
     "@signal-atlas/archive": "workspace:*",
     "@signal-atlas/codex-runtime": "workspace:*",
     "@signal-atlas/contracts": "workspace:*",
+    "@signal-atlas/fixture-runtime": "workspace:*",
     "@signal-atlas/game-scene": "workspace:*",
     "@signal-atlas/pref-gateway": "workspace:*",
     "@signal-atlas/simulation": "workspace:*",
     "@signal-atlas/test-fixtures": "workspace:*",
     "@signal-atlas/ui": "workspace:*",
+    "@signal-atlas/world-content": "workspace:*",
     "react": "19.2.7",
     "react-dom": "19.2.7"
   },

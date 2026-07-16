@@ -43,10 +43,7 @@ export interface RuntimePort {
     expeditionId: string,
     after?: number,
   ): Promise<{ events: WorldEvent[]; sequence: number }>;
-  fetchReplayProjection(
-    expeditionId: string,
-    sequence?: number,
-  ): Promise<ReplayProjectionResponse>;
+  fetchReplayProjection(expeditionId: string, sequence?: number): Promise<ReplayProjectionResponse>;
   resolveFixtureCase(expeditionId: string): Promise<{
     resolved: true;
     duplicate: boolean;

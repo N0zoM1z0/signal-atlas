@@ -3,7 +3,6 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { ComponentDemo } from './ComponentDemo.js';
 import { ExpeditionLobby } from './ExpeditionLobby.js';
-import { remoteRuntime } from './app-runtime/remote-runtime.js';
 import { RuntimeProvider } from './app-runtime/RuntimeProvider.js';
 import { useRuntime } from './app-runtime/runtime-context.js';
 import type { RuntimePort } from './app-runtime/runtime-port.js';
@@ -12,7 +11,7 @@ import { WorldShell } from './world-shell/WorldShell.js';
 
 export interface AppProps {
   initialProjection?: WorldProjection;
-  runtime?: RuntimePort;
+  runtime: RuntimePort;
 }
 
 interface ExpeditionBootstrapProps {
@@ -26,12 +25,25 @@ function requestedExpeditionId(): string | undefined {
   return new URLSearchParams(window.location.search).get('expedition') ?? undefined;
 }
 
-function lobbyRequested(): boolean {
-  return typeof window !== 'undefined' && window.location.pathname === '/lobby';
+function basePath(): string {
+  const configured = import.meta.env.BASE_URL || '/';
+  return configured.endsWith('/') ? configured : `${configured}/`;
 }
 
-function worldUrl(expeditionId: string): string {
-  return `/?expedition=${encodeURIComponent(expeditionId)}`;
+function lobbyRequested(runtimeKind: RuntimePort['kind']): boolean {
+  if (typeof window === 'undefined') return false;
+  return runtimeKind === 'static-demo'
+    ? new URLSearchParams(window.location.search).get('view') === 'lobby'
+    : window.location.pathname === '/lobby';
+}
+
+function lobbyUrl(runtimeKind: RuntimePort['kind']): string {
+  return runtimeKind === 'static-demo' ? `${basePath()}?view=lobby` : '/lobby';
+}
+
+function worldUrl(expeditionId: string, runtimeKind: RuntimePort['kind']): string {
+  const root = runtimeKind === 'static-demo' ? basePath() : '/';
+  return `${root}?expedition=${encodeURIComponent(expeditionId)}`;
 }
 
 function ExpeditionBootstrap({ initialProjection }: ExpeditionBootstrapProps) {
@@ -65,7 +77,9 @@ function ExpeditionBootstrap({ initialProjection }: ExpeditionBootstrapProps) {
         if (navigationEpoch !== navigationEpochRef.current) return;
         setProjection(nextProjection);
         setView('world');
-        if (updateHistory) window.history.pushState({}, '', worldUrl(expeditionId));
+        if (updateHistory) {
+          window.history.pushState({}, '', worldUrl(expeditionId, runtime.kind));
+        }
       } catch (caught: unknown) {
         if (navigationEpoch !== navigationEpochRef.current) return;
         setError(caught instanceof Error ? caught.message : 'The expedition could not be opened.');
@@ -83,14 +97,14 @@ function ExpeditionBootstrap({ initialProjection }: ExpeditionBootstrapProps) {
       setProjection(undefined);
       setView('lobby');
       setBusyScenarioId(undefined);
-      if (updateHistory) window.history.pushState({}, '', '/lobby');
+      if (updateHistory) window.history.pushState({}, '', lobbyUrl(runtime.kind));
       if (scenarios.length === 0) {
         void refreshCatalog().catch((caught: unknown) => {
           setError(caught instanceof Error ? caught.message : 'The catalog could not be loaded.');
         });
       }
     },
-    [refreshCatalog, scenarios.length],
+    [refreshCatalog, runtime.kind, scenarios.length],
   );
 
   useEffect(() => {
@@ -102,7 +116,7 @@ function ExpeditionBootstrap({ initialProjection }: ExpeditionBootstrapProps) {
         if (!active || navigationEpoch !== navigationEpochRef.current) return;
         setScenarios(availableScenarios);
         setExpeditions(availableExpeditions);
-        if (lobbyRequested()) {
+        if (lobbyRequested(runtime.kind)) {
           setView('lobby');
           return;
         }
@@ -135,7 +149,7 @@ function ExpeditionBootstrap({ initialProjection }: ExpeditionBootstrapProps) {
   useEffect(() => {
     if (initialProjection) return;
     const onPopState = () => {
-      if (lobbyRequested()) {
+      if (lobbyRequested(runtime.kind)) {
         openLobby(false);
         return;
       }
@@ -145,7 +159,7 @@ function ExpeditionBootstrap({ initialProjection }: ExpeditionBootstrapProps) {
     };
     window.addEventListener('popstate', onPopState);
     return () => window.removeEventListener('popstate', onPopState);
-  }, [expeditions, initialProjection, openExpedition, openLobby]);
+  }, [expeditions, initialProjection, openExpedition, openLobby, runtime.kind]);
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
@@ -177,12 +191,30 @@ function ExpeditionBootstrap({ initialProjection }: ExpeditionBootstrapProps) {
       if (navigationEpoch !== navigationEpochRef.current) return;
       setProjection(nextProjection);
       setView('world');
-      window.history.pushState({}, '', worldUrl(result.expedition.id));
+      window.history.pushState({}, '', worldUrl(result.expedition.id, runtime.kind));
     } catch (caught: unknown) {
       if (navigationEpoch !== navigationEpochRef.current) return;
       setError(caught instanceof Error ? caught.message : 'The expedition could not be created.');
     } finally {
       if (navigationEpoch === navigationEpochRef.current) setBusyScenarioId(undefined);
+    }
+  };
+
+  const resetStaticDemo = async () => {
+    if (!runtime.resetDemoWorkspace) return;
+    navigationEpochRef.current += 1;
+    setBusyScenarioId('static-demo-reset');
+    setError(undefined);
+    try {
+      await runtime.resetDemoWorkspace();
+      setProjection(undefined);
+      setExpeditions([]);
+      setView('lobby');
+      window.history.replaceState({}, '', lobbyUrl(runtime.kind));
+    } catch (caught: unknown) {
+      setError(caught instanceof Error ? caught.message : 'The static demo could not be reset.');
+    } finally {
+      setBusyScenarioId(undefined);
     }
   };
 
@@ -211,6 +243,9 @@ function ExpeditionBootstrap({ initialProjection }: ExpeditionBootstrapProps) {
             );
           });
         }}
+        {...(runtime.kind === 'static-demo'
+          ? { onReset: () => void resetStaticDemo(), runtimeKind: runtime.kind }
+          : { runtimeKind: runtime.kind })}
         scenarios={scenarios}
       />
     );
@@ -228,12 +263,12 @@ function ExpeditionBootstrap({ initialProjection }: ExpeditionBootstrapProps) {
 function AppContent({ initialProjection }: ExpeditionBootstrapProps) {
   const pathname = typeof window === 'undefined' ? '/' : window.location.pathname;
 
-  if (pathname === '/components') return <ComponentDemo />;
+  if (pathname === '/components' || pathname.endsWith('/components')) return <ComponentDemo />;
 
   return <ExpeditionBootstrap {...(initialProjection ? { initialProjection } : {})} />;
 }
 
-export function App({ initialProjection, runtime = remoteRuntime }: AppProps = {}) {
+export function App({ initialProjection, runtime }: AppProps) {
   return (
     <RuntimeProvider runtime={runtime}>
       <AppContent {...(initialProjection ? { initialProjection } : {})} />

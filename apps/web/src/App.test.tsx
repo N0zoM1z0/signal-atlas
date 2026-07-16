@@ -8,13 +8,16 @@ import {
 import { replayFixture } from '@signal-atlas/simulation';
 
 import { App } from './App.js';
+import { remoteRuntime } from './app-runtime/remote-runtime.js';
 import { ExpeditionLobby } from './ExpeditionLobby.js';
 import type { ExpeditionListItem, ScenarioListItem } from './world-shell/runtime-client.js';
 
 describe('Signal Atlas world shell', () => {
   it('renders the five fixture-backed application regions in logical order', () => {
     const projection = replayFixture(createHelios3ExpeditionFixture()).projection;
-    const markup = renderToStaticMarkup(<App initialProjection={projection} />);
+    const markup = renderToStaticMarkup(
+      <App initialProjection={projection} runtime={remoteRuntime} />,
+    );
 
     expect(markup).toContain('Signal Atlas');
     expect(markup).toContain('Will the Helios-3 mission launch before September 30?');
@@ -80,7 +83,9 @@ describe('Signal Atlas world shell', () => {
 
   it('renders Northlight as a distinct harbor world without Helios copy leakage', () => {
     const projection = replayFixture(createNorthlightHarborExpeditionFixture()).projection;
-    const markup = renderToStaticMarkup(<App initialProjection={projection} />);
+    const markup = renderToStaticMarkup(
+      <App initialProjection={projection} runtime={remoteRuntime} />,
+    );
 
     expect(markup).toContain(
       'Will Northlight Harbor suspend outbound traffic before 18:00 UTC on November 12?',
@@ -96,7 +101,9 @@ describe('Signal Atlas world shell', () => {
 
   it('renders Northbridge as a distinct policy world with semantic research places', () => {
     const projection = replayFixture(createNorthbridgeCouncilExpeditionFixture()).projection;
-    const markup = renderToStaticMarkup(<App initialProjection={projection} />);
+    const markup = renderToStaticMarkup(
+      <App initialProjection={projection} runtime={remoteRuntime} />,
+    );
 
     expect(markup).toContain(
       'Will the Northbridge Monetary Council cut its policy rate at the June 18 meeting?',

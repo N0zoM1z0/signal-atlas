@@ -65,6 +65,9 @@ importers:
       '@signal-atlas/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@signal-atlas/fixture-runtime':
+        specifier: workspace:*
+        version: link:../../packages/fixture-runtime
       '@signal-atlas/pref-gateway':
         specifier: workspace:*
         version: link:../../packages/pref-gateway
@@ -96,6 +99,9 @@ importers:
       '@signal-atlas/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@signal-atlas/fixture-runtime':
+        specifier: workspace:*
+        version: link:../../packages/fixture-runtime
       '@signal-atlas/game-scene':
         specifier: workspace:*
         version: link:../../packages/game-scene
@@ -111,6 +117,9 @@ importers:
       '@signal-atlas/ui':
         specifier: workspace:*
         version: link:../../packages/ui
+      '@signal-atlas/world-content':
+        specifier: workspace:*
+        version: link:../../packages/world-content
       react:
         specifier: 19.2.7
         version: 19.2.7
@@ -155,6 +164,15 @@ importers:
       zod:
         specifier: 4.4.3
         version: 4.4.3
+
+  packages/fixture-runtime:
+    dependencies:
+      '@signal-atlas/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@signal-atlas/simulation':
+        specifier: workspace:*
+        version: link:../simulation
 
   packages/game-scene:
     dependencies:

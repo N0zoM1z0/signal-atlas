@@ -1306,11 +1306,13 @@ export function WorldShell({ initialProjection, onOpenLobby }: WorldShellProps) 
   const marketKindLabel =
     workspace === 'replay'
       ? 'Read-only case-file replay'
-      : projection.market.tags.includes('fictional')
-        ? 'Fictional sandbox market'
-        : projection.expedition.settings.fixtureMode
-          ? 'Offline research scenario'
-          : 'Read-only market research';
+      : runtime.kind === 'static-demo'
+        ? 'Static authored showcase'
+        : projection.market.tags.includes('fictional')
+          ? 'Fictional sandbox market'
+          : projection.expedition.settings.fixtureMode
+            ? 'Offline research scenario'
+            : 'Read-only market research';
   const commandDisabledReason = workspacePersistenceIssue
     ? 'Workspace persistence paused; commands are closed.'
     : ['resolved', 'archived'].includes(projection.expedition.status)
@@ -1356,6 +1358,7 @@ export function WorldShell({ initialProjection, onOpenLobby }: WorldShellProps) 
           ? { replaySequence: replayProjection.sequence }
           : {})}
         runtimeState={runtimeState}
+        runtimeKind={runtime.kind}
         secondaryOutcomeLabel={ribbonModel.market.secondaryOutcome.shortLabel}
         speed={speed}
         streamStatus={eventStreamStatus}
@@ -1424,19 +1427,24 @@ export function WorldShell({ initialProjection, onOpenLobby }: WorldShellProps) 
         onSkipTravel={(agentId, missionId) => void skipTravelForAgent(agentId, missionId)}
         onToggleCollapsed={() => setAgentDockCollapsed((current) => !current)}
         prefConnectionLabel={
-          prefMode === 'live'
-            ? prefConnected
-              ? 'Live'
-              : prefConnectionState === 'auth_required'
-                ? 'Auth needed'
-                : 'Unavailable'
-            : prefMode === 'fixture'
+          runtime.kind === 'static-demo'
+            ? 'Static'
+            : prefMode === 'live'
               ? prefConnected
-                ? 'Fixture'
-                : 'Unavailable'
-              : 'Checking'
+                ? 'Live'
+                : prefConnectionState === 'auth_required'
+                  ? 'Auth needed'
+                  : 'Unavailable'
+              : prefMode === 'fixture'
+                ? prefConnected
+                  ? 'Fixture'
+                  : 'Unavailable'
+                : 'Checking'
         }
-        prefWarning={!prefConnected && prefConnectionState !== 'checking'}
+        prefWarning={
+          runtime.kind !== 'static-demo' && !prefConnected && prefConnectionState !== 'checking'
+        }
+        runtimeKind={runtime.kind}
         places={model.places}
         selectedAgentId={selectedAgentId}
       />
