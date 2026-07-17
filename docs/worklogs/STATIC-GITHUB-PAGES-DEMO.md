@@ -165,14 +165,16 @@ All commands used Node.js 22.18.0 and pnpm 10.33.0.
 - `pnpm test:visual` - passed; 12 existing reviewed visual states. World-scene readiness permits 10
   seconds under the serial suite, and Replay permits 150 changed pixels for the inspected
   sequence-label-only scheduler variation (114 observed pixels, about 0.009% of the image).
-- `pnpm test:pages` - passed; the Pages build transformed 175 modules, verified two JavaScript
-  assets with the project base and no live-runtime signatures, then passed all 3 static tests.
-  Those tests cover the full authored Helios journey, all-world create/reset, reload persistence,
-  public-export privacy, zero service traffic, and the reviewed 1440 x 900 baseline.
+- `pnpm test:pages` - passed; the Pages build transformed 175 modules, verified ten JavaScript
+  assets with the project base, no live-runtime signatures, and no eager WorldShell/Phaser preload,
+  then passed all 4 static tests. Those tests cover the full authored Helios journey, all-world
+  create/reset, reload persistence, public-export privacy, zero service traffic, deferred renderer
+  loading, and the reviewed 1440 x 900 baseline.
 
-The final static output sizes were 675.80 kB (184.06 kB gzip) for the application JavaScript and
-1,198.00 kB (319.07 kB gzip) for Phaser. Vite reports both as large chunks; this is a performance
-follow-up, not a correctness or deployment blocker for the authored showcase.
+The final static output uses a 317.44 kB (90.72 kB gzip) application entry, a 180.60 kB (48.40 kB
+gzip) lazy WorldShell, and a 1,198.01 kB (319.08 kB gzip) lazy Phaser renderer. The entry is 51%
+smaller than the previous 184.06 kB gzip application module. Vite continues to report Phaser as a
+large chunk; it no longer belongs to the static Lobby's network path.
 
 ## Files and boundaries
 
@@ -198,8 +200,10 @@ staged.
   environment permissions, and the public URL must be confirmed after push/merge.
 - Browser storage is intentionally bounded and device-local. It is a showcase cache, not durable
   SQLite, synchronization, or migration support for long-term workspaces.
-- The static application and Phaser chunks exceed Vite's 500 kB warning threshold. Route-level UI
-  splitting and later Phaser loading can improve first load without changing the runtime boundary.
+- Phaser remains above Vite's 500 kB warning threshold. It is deferred until a world opens. A
+  source-alias custom build was evaluated and rejected because it grew the artifact and required an
+  unresolved optional upstream WebGL dependency; future renderer reduction needs an officially
+  supported Phaser custom-build pipeline.
 - The existing remote Replay sequence can differ by one intermediate scheduler event under the
   skip-travel visual setup. The reviewed layout comparison isolates that tiny sequence-label
   variation; event ordering and replay correctness remain covered by domain and E2E assertions.

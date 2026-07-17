@@ -1,13 +1,25 @@
 import type { WorldProjection } from '@signal-atlas/simulation';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 
-import { ComponentDemo } from './ComponentDemo.js';
-import { ExpeditionLobby } from './ExpeditionLobby.js';
 import { RuntimeProvider } from './app-runtime/RuntimeProvider.js';
 import { useRuntime } from './app-runtime/runtime-context.js';
 import type { RuntimePort } from './app-runtime/runtime-port.js';
 import type { ExpeditionListItem, ScenarioListItem } from './world-shell/runtime-client.js';
-import { WorldShell } from './world-shell/WorldShell.js';
+
+const ComponentDemo = lazy(async () => {
+  const module = await import('./ComponentDemo.js');
+  return { default: module.ComponentDemo };
+});
+
+const ExpeditionLobby = lazy(async () => {
+  const module = await import('./ExpeditionLobby.js');
+  return { default: module.ExpeditionLobby };
+});
+
+const WorldShell = lazy(async () => {
+  const module = await import('./world-shell/WorldShell.js');
+  return { default: module.WorldShell };
+});
 
 export interface AppProps {
   initialProjection?: WorldProjection;
@@ -19,6 +31,30 @@ interface ExpeditionBootstrapProps {
 }
 
 type AtlasView = 'loading' | 'lobby' | 'world';
+
+function AtlasViewLoadingBoundary({
+  description = 'Loading the local expedition catalog and authoritative snapshot.',
+}: {
+  description?: string;
+}) {
+  return (
+    <main aria-busy="true" className="atlas-bootstrap-boundary" role="status">
+      <strong>Opening Signal Atlas…</strong>
+      <span>{description}</span>
+    </main>
+  );
+}
+
+function FocusWhenMounted({ children, selector }: { children: ReactNode; selector: string }) {
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      document.querySelector<HTMLElement>(selector)?.focus();
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [selector]);
+
+  return children;
+}
 
 function requestedExpeditionId(): string | undefined {
   if (typeof window === 'undefined') return undefined;
@@ -161,19 +197,6 @@ function ExpeditionBootstrap({ initialProjection }: ExpeditionBootstrapProps) {
     return () => window.removeEventListener('popstate', onPopState);
   }, [expeditions, initialProjection, openExpedition, openLobby, runtime.kind]);
 
-  useEffect(() => {
-    const frame = window.requestAnimationFrame(() => {
-      const destination =
-        view === 'lobby'
-          ? document.querySelector<HTMLElement>('[data-atlas-view="lobby"]')
-          : view === 'world'
-            ? document.querySelector<HTMLElement>('#world-stage')
-            : undefined;
-      destination?.focus();
-    });
-    return () => window.cancelAnimationFrame(frame);
-  }, [projection?.expedition.id, view]);
-
   const createScenarioExpedition = async (scenario: ScenarioListItem) => {
     const navigationEpoch = ++navigationEpochRef.current;
     setBusyScenarioId(scenario.id);
@@ -219,51 +242,66 @@ function ExpeditionBootstrap({ initialProjection }: ExpeditionBootstrapProps) {
   };
 
   if (view === 'loading') {
-    return (
-      <main aria-busy="true" className="atlas-bootstrap-boundary" role="status">
-        <strong>Opening Signal Atlas…</strong>
-        <span>Loading the local expedition catalog and authoritative snapshot.</span>
-      </main>
-    );
+    return <AtlasViewLoadingBoundary />;
   }
 
   if (view === 'lobby' || !projection) {
     return (
-      <ExpeditionLobby
-        {...(busyScenarioId ? { busyScenarioId } : {})}
-        {...(error ? { error } : {})}
-        expeditions={expeditions}
-        onCreate={(scenario) => void createScenarioExpedition(scenario)}
-        onOpen={(expeditionId) => void openExpedition(expeditionId)}
-        onRetry={() => {
-          setError(undefined);
-          void refreshCatalog().catch((caught: unknown) => {
-            setError(
-              caught instanceof Error ? caught.message : 'The catalog could not be refreshed.',
-            );
-          });
-        }}
-        {...(runtime.kind === 'static-demo'
-          ? { onReset: () => void resetStaticDemo(), runtimeKind: runtime.kind }
-          : { runtimeKind: runtime.kind })}
-        scenarios={scenarios}
-      />
+      <Suspense
+        fallback={<AtlasViewLoadingBoundary description="Loading the selected Atlas workspace." />}
+      >
+        <FocusWhenMounted selector="[data-atlas-view='lobby']">
+          <ExpeditionLobby
+            {...(busyScenarioId ? { busyScenarioId } : {})}
+            {...(error ? { error } : {})}
+            expeditions={expeditions}
+            onCreate={(scenario) => void createScenarioExpedition(scenario)}
+            onOpen={(expeditionId) => void openExpedition(expeditionId)}
+            onRetry={() => {
+              setError(undefined);
+              void refreshCatalog().catch((caught: unknown) => {
+                setError(
+                  caught instanceof Error ? caught.message : 'The catalog could not be refreshed.',
+                );
+              });
+            }}
+            {...(runtime.kind === 'static-demo'
+              ? { onReset: () => void resetStaticDemo(), runtimeKind: runtime.kind }
+              : { runtimeKind: runtime.kind })}
+            scenarios={scenarios}
+          />
+        </FocusWhenMounted>
+      </Suspense>
     );
   }
 
   return (
-    <WorldShell
-      initialProjection={projection}
-      key={projection.expedition.id}
-      onOpenLobby={() => openLobby()}
-    />
+    <Suspense
+      fallback={<AtlasViewLoadingBoundary description="Loading the selected Atlas workspace." />}
+    >
+      <FocusWhenMounted selector="#world-stage">
+        <WorldShell
+          initialProjection={projection}
+          key={projection.expedition.id}
+          onOpenLobby={() => openLobby()}
+        />
+      </FocusWhenMounted>
+    </Suspense>
   );
 }
 
 function AppContent({ initialProjection }: ExpeditionBootstrapProps) {
   const pathname = typeof window === 'undefined' ? '/' : window.location.pathname;
 
-  if (pathname === '/components' || pathname.endsWith('/components')) return <ComponentDemo />;
+  if (pathname === '/components' || pathname.endsWith('/components')) {
+    return (
+      <Suspense
+        fallback={<AtlasViewLoadingBoundary description="Loading the selected Atlas workspace." />}
+      >
+        <ComponentDemo />
+      </Suspense>
+    );
+  }
 
   return <ExpeditionBootstrap {...(initialProjection ? { initialProjection } : {})} />;
 }

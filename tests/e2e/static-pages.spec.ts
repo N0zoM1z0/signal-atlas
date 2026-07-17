@@ -175,6 +175,23 @@ test('the static Lobby creates all authored worlds and resets only browser demo 
   expect(violations).toEqual([]);
 });
 
+test('the static Lobby defers the world renderer until an authored world opens', async ({
+  page,
+}) => {
+  const requests: string[] = [];
+  page.on('request', (request) => requests.push(request.url()));
+
+  await page.goto('./?view=lobby');
+  await expect(page.getByRole('heading', { name: 'Signal Atlas Expeditions' })).toBeVisible();
+  expect(requests.some((url) => /\/phaser-[^/]+\.js$/u.test(url))).toBe(false);
+  expect(requests.some((url) => /\/WorldShell-[^/]+\.js$/u.test(url))).toBe(false);
+
+  await page.getByRole('button', { name: 'Start Helios-3 Launch Window' }).click();
+  await expect(page.locator('.atlas-world-canvas')).toHaveAttribute('data-scene-ready', 'true');
+  expect(requests.some((url) => /\/WorldShell-[^/]+\.js$/u.test(url))).toBe(true);
+  expect(requests.some((url) => /\/phaser-[^/]+\.js$/u.test(url))).toBe(true);
+});
+
 test('@visual the static showcase preserves the five-part world at 1440 × 900', async ({
   page,
 }) => {

@@ -8,6 +8,10 @@ if (!indexHtml.includes('/signal-atlas/assets/')) {
   throw new Error('The Pages artifact does not use the /signal-atlas/ project base path.');
 }
 
+if (indexHtml.includes('WorldShell-') || indexHtml.includes('phaser-')) {
+  throw new Error('The Pages entry eagerly preloads the world renderer instead of deferring it.');
+}
+
 const assetDirectory = new URL('assets/', distDirectory);
 const assetNames = await readdir(assetDirectory);
 const javascript = (
