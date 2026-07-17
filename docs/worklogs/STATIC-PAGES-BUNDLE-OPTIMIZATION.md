@@ -81,3 +81,8 @@ official prebuilt Phaser module remains the safe lazy renderer.
   new deferred-renderer network assertion and 1440 x 900 visual baseline.
 - `pnpm clean && pnpm test:pages` - passed; proves a clean checkout rebuilds every required
   workspace package before producing and exercising the Pages artifact.
+
+The GitHub Actions PR gate runs the three behavior/no-network tests and intentionally excludes the
+reviewed `@visual` baseline. The baseline is validated locally with the pinned reference environment;
+GitHub-hosted Chromium/font rasterization differed by 931 pixels despite the behavior tests passing.
+The main deployment still uses the same verified artifact.

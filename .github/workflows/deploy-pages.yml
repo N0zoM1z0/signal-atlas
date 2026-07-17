@@ -46,8 +46,8 @@ jobs:
       - name: Install Chromium for the static acceptance test
         run: pnpm exec playwright install --with-deps chromium
 
-      - name: Test the built showcase without service traffic
-        run: pnpm exec playwright test --config playwright.pages.config.ts
+      - name: Test the built showcase behavior without service traffic
+        run: pnpm exec playwright test --config playwright.pages.config.ts --grep-invert @visual
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v5
