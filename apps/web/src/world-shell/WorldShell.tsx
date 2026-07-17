@@ -9,6 +9,7 @@ import {
 import type { WorldProjection } from '@signal-atlas/simulation';
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 
+import { useRuntime } from '../app-runtime/runtime-context.js';
 import { AgentDock } from './AgentDock.js';
 import { ArchiveWorkspace } from './ArchiveWorkspace.js';
 import { CommandTray } from './CommandTray.js';
@@ -19,7 +20,7 @@ import {
   writeEvidencePreferences,
   type EvidencePreferences,
 } from './evidence-preferences.js';
-import { ExpeditionEventStream, type EventStreamStatus } from './event-stream-client.js';
+import type { EventStreamStatus } from './event-stream-client.js';
 import { MarketRibbon } from './MarketRibbon.js';
 import { MeetingWorkspace } from './MeetingWorkspace.js';
 import { ForecastWorkspace, type ForecastCommitInput } from './ForecastWorkspace.js';
@@ -32,19 +33,7 @@ import { chooseLatestProjection } from './projection-state.js';
 import { ProfessorWorkspace, type ProfessorQuestionInput } from './ProfessorWorkspace.js';
 import { ReplayWorkspace } from './ReplayWorkspace.js';
 import { RuntimeDiagnosticsDialog } from './RuntimeDiagnosticsDialog.js';
-import {
-  createClientId,
-  fetchExpeditionEvents,
-  fetchExpeditionSnapshot,
-  fetchFixtureConfiguration,
-  fetchPrefDiagnostics,
-  fetchRuntimeDiagnostics,
-  interpretMissionDraft,
-  submitWorldCommand,
-  updateFixtureMissionScenario,
-  type FixtureMissionScenario,
-  type MissionDraft,
-} from './runtime-client.js';
+import { type FixtureMissionScenario, type MissionDraft } from './runtime-client.js';
 import { SignalRail } from './SignalRail.js';
 import { readSkipTravelPreference, writeSkipTravelPreference } from './skip-travel-preference.js';
 import { SourceInspector } from './SourceInspector.js';
@@ -162,6 +151,7 @@ export interface WorldShellProps {
 }
 
 export function WorldShell({ initialProjection, onOpenLobby }: WorldShellProps) {
+  const runtime = useRuntime();
   const [projection, setProjection] = useState(initialProjection);
   const model = useMemo(() => createShellModel(projection), [projection]);
   const [agentDockCollapsed, setAgentDockCollapsed] = useState(false);
@@ -268,7 +258,7 @@ export function WorldShell({ initialProjection, onOpenLobby }: WorldShellProps) 
       candidatePlaceIds: mission.destinationPlaceId ? [mission.destinationPlaceId] : [],
       missing,
       explanation: 'Prepared from Professor Vale’s explicit suggested mission.',
-      submissionId: createClientId('professor-handoff'),
+      submissionId: runtime.createClientId('professor-handoff'),
       createdAt: new Date().toISOString(),
     });
     setWorkspace('world');
@@ -356,11 +346,11 @@ export function WorldShell({ initialProjection, onOpenLobby }: WorldShellProps) 
   };
 
   const refreshProjection = useCallback(async () => {
-    const nextProjection = await fetchExpeditionSnapshot(projection.expedition.id);
+    const nextProjection = await runtime.fetchExpeditionSnapshot(projection.expedition.id);
     installAuthoritativeProjection(nextProjection);
     setRuntimeState('ready');
     return nextProjection;
-  }, [installAuthoritativeProjection, projection.expedition.id]);
+  }, [installAuthoritativeProjection, projection.expedition.id, runtime]);
 
   const openArchiveWorkspace = useCallback(async () => {
     workspaceFocusCycleRef.current = true;
@@ -371,8 +361,8 @@ export function WorldShell({ initialProjection, onOpenLobby }: WorldShellProps) 
     setArchiveLoading(true);
     try {
       const [nextProjection, eventLog] = await Promise.all([
-        fetchExpeditionSnapshot(projection.expedition.id),
-        fetchExpeditionEvents(projection.expedition.id),
+        runtime.fetchExpeditionSnapshot(projection.expedition.id),
+        runtime.fetchExpeditionEvents(projection.expedition.id),
       ]);
       installAuthoritativeProjection(nextProjection);
       setArchiveEvents(eventLog.events);
@@ -385,7 +375,7 @@ export function WorldShell({ initialProjection, onOpenLobby }: WorldShellProps) 
     } finally {
       setArchiveLoading(false);
     }
-  }, [installAuthoritativeProjection, projection.expedition.id]);
+  }, [installAuthoritativeProjection, projection.expedition.id, runtime]);
 
   const conveneMeeting = useCallback(async () => {
     if (!meetingPlace) {
@@ -394,8 +384,8 @@ export function WorldShell({ initialProjection, onOpenLobby }: WorldShellProps) 
     }
     const participantAgentIds = Object.keys(projection.agentsById);
     const issuedAt = new Date().toISOString();
-    const meetingId = createClientId('meeting');
-    const commandId = createClientId('cmd-meeting');
+    const meetingId = runtime.createClientId('meeting');
+    const commandId = runtime.createClientId('cmd-meeting');
     const worldCommand = {
       ...commandEnvelope(projection.expedition.id, commandId, `meeting:${meetingId}`, issuedAt),
       type: 'meeting.request',
@@ -408,10 +398,10 @@ export function WorldShell({ initialProjection, onOpenLobby }: WorldShellProps) 
     setMeetingBusy(true);
     setCommandError(undefined);
     try {
-      await submitWorldCommand(worldCommand);
+      await runtime.submitWorldCommand(worldCommand);
       const [nextProjection, eventLog] = await Promise.all([
-        fetchExpeditionSnapshot(projection.expedition.id),
-        fetchExpeditionEvents(projection.expedition.id),
+        runtime.fetchExpeditionSnapshot(projection.expedition.id),
+        runtime.fetchExpeditionEvents(projection.expedition.id),
       ]);
       installAuthoritativeProjection(nextProjection);
       setMeetingEvents(eventLog.events);
@@ -435,6 +425,7 @@ export function WorldShell({ initialProjection, onOpenLobby }: WorldShellProps) 
     meetingPlace,
     projection.agentsById,
     projection.expedition.id,
+    runtime,
   ]);
 
   const skipMeetingArrivals = useCallback(async () => {
@@ -442,15 +433,15 @@ export function WorldShell({ initialProjection, onOpenLobby }: WorldShellProps) 
     setMeetingBusy(true);
     setCommandError(undefined);
     try {
-      let nextProjection = await fetchExpeditionSnapshot(projection.expedition.id);
+      let nextProjection = await runtime.fetchExpeditionSnapshot(projection.expedition.id);
       for (const agent of Object.values(nextProjection.agentsById)) {
         const missionId = agent.activeMissionId;
         if (!agent.movement || !missionId?.startsWith(`meeting-mission-${activeMeetingId}-`)) {
           continue;
         }
         const issuedAt = new Date().toISOString();
-        const commandId = createClientId('cmd-skip-meeting');
-        await submitWorldCommand({
+        const commandId = runtime.createClientId('cmd-skip-meeting');
+        await runtime.submitWorldCommand({
           ...commandEnvelope(
             projection.expedition.id,
             commandId,
@@ -460,9 +451,9 @@ export function WorldShell({ initialProjection, onOpenLobby }: WorldShellProps) 
           type: 'agent.skip_travel',
           payload: { agentId: agent.id, missionId },
         });
-        nextProjection = await fetchExpeditionSnapshot(projection.expedition.id);
+        nextProjection = await runtime.fetchExpeditionSnapshot(projection.expedition.id);
       }
-      const eventLog = await fetchExpeditionEvents(projection.expedition.id);
+      const eventLog = await runtime.fetchExpeditionEvents(projection.expedition.id);
       installAuthoritativeProjection(nextProjection);
       setMeetingEvents(eventLog.events);
       setAnnouncement('Arrivals skipped with every route and arrival event preserved.');
@@ -473,7 +464,7 @@ export function WorldShell({ initialProjection, onOpenLobby }: WorldShellProps) 
     } finally {
       setMeetingBusy(false);
     }
-  }, [activeMeetingId, installAuthoritativeProjection, projection.expedition.id]);
+  }, [activeMeetingId, installAuthoritativeProjection, projection.expedition.id, runtime]);
 
   const openProfessorWorkspace = useCallback(async () => {
     workspaceFocusCycleRef.current = true;
@@ -527,8 +518,8 @@ export function WorldShell({ initialProjection, onOpenLobby }: WorldShellProps) 
   const commitForecast = useCallback(
     async (input: ForecastCommitInput) => {
       const createdAt = nextRecordedTimestamp(projection.appliedEvents);
-      const commitId = createClientId('forecast');
-      const commandId = createClientId('cmd-forecast');
+      const commitId = runtime.createClientId('forecast');
+      const commandId = runtime.createClientId('cmd-forecast');
       const previousProbabilities = projection.forecasts.at(-1)?.newProbabilities ?? {
         [primaryOutcome.id]:
           projection.market.currentPublicProbabilities?.[primaryOutcome.id] ?? 0.5,
@@ -564,7 +555,7 @@ export function WorldShell({ initialProjection, onOpenLobby }: WorldShellProps) 
           },
         },
       } satisfies WorldCommand;
-      await submitWorldCommand(worldCommand);
+      await runtime.submitWorldCommand(worldCommand);
       await refreshProjection();
       setAnnouncement(
         `${unchanged ? 'Forecast hold' : 'Forecast revision'} committed at ${Math.round(input.primaryProbability * 100)} percent ${primaryOutcome.shortLabel}.`,
@@ -578,6 +569,7 @@ export function WorldShell({ initialProjection, onOpenLobby }: WorldShellProps) 
       projection.forecasts,
       projection.market.currentPublicProbabilities,
       refreshProjection,
+      runtime,
       secondaryOutcome.id,
     ],
   );
@@ -585,8 +577,8 @@ export function WorldShell({ initialProjection, onOpenLobby }: WorldShellProps) 
   const askProfessor = useCallback(
     async (input: ProfessorQuestionInput): Promise<ProfessorResponse> => {
       const createdAt = new Date().toISOString();
-      const queryId = createClientId('professor-query');
-      const commandId = createClientId('cmd-professor');
+      const queryId = runtime.createClientId('professor-query');
+      const commandId = runtime.createClientId('cmd-professor');
       const worldCommand = {
         ...commandEnvelope(projection.expedition.id, commandId, `professor:${queryId}`, createdAt),
         type: 'professor.query',
@@ -602,7 +594,7 @@ export function WorldShell({ initialProjection, onOpenLobby }: WorldShellProps) 
           },
         },
       } satisfies WorldCommand;
-      await submitWorldCommand(worldCommand);
+      await runtime.submitWorldCommand(worldCommand);
       const deadline = Date.now() + 125_000;
       while (Date.now() < deadline) {
         const nextProjection = await refreshProjection();
@@ -621,7 +613,7 @@ export function WorldShell({ initialProjection, onOpenLobby }: WorldShellProps) 
       }
       throw new Error('Professor agent did not finish within its bounded runtime window.');
     },
-    [projection.expedition.id, refreshProjection],
+    [projection.expedition.id, refreshProjection, runtime],
   );
 
   const openPanel = useCallback(
@@ -651,7 +643,7 @@ export function WorldShell({ initialProjection, onOpenLobby }: WorldShellProps) 
 
   const changePauseState = useCallback(async () => {
     const issuedAt = new Date().toISOString();
-    const id = createClientId(paused ? 'cmd-resume' : 'cmd-pause');
+    const id = runtime.createClientId(paused ? 'cmd-resume' : 'cmd-pause');
     const worldCommand: WorldCommand = paused
       ? {
           ...commandEnvelope(projection.expedition.id, id, `resume:${id}`, issuedAt),
@@ -664,7 +656,7 @@ export function WorldShell({ initialProjection, onOpenLobby }: WorldShellProps) 
           payload: { reason: 'Paused by player.' },
         };
     try {
-      await submitWorldCommand(worldCommand);
+      await runtime.submitWorldCommand(worldCommand);
       await refreshProjection();
       setAnnouncement(paused ? 'Expedition resumed.' : 'Expedition paused.');
     } catch (error: unknown) {
@@ -672,7 +664,7 @@ export function WorldShell({ initialProjection, onOpenLobby }: WorldShellProps) 
       setCommandError(message);
       setAnnouncement(`Simulation control failed: ${message}`);
     }
-  }, [paused, projection.expedition.id, refreshProjection]);
+  }, [paused, projection.expedition.id, refreshProjection, runtime]);
 
   const changeSpeed = useCallback(
     async (direction: -1 | 1 = 1) => {
@@ -680,14 +672,14 @@ export function WorldShell({ initialProjection, onOpenLobby }: WorldShellProps) 
       const index = speeds.indexOf(speed);
       const nextSpeed = speeds[(index + direction + speeds.length) % speeds.length] ?? 1;
       const issuedAt = new Date().toISOString();
-      const id = createClientId('cmd-speed');
+      const id = runtime.createClientId('cmd-speed');
       const worldCommand = {
         ...commandEnvelope(projection.expedition.id, id, `speed:${id}`, issuedAt),
         type: 'expedition.change_speed',
         payload: { speed: nextSpeed },
       } satisfies WorldCommand;
       try {
-        await submitWorldCommand(worldCommand);
+        await runtime.submitWorldCommand(worldCommand);
         await refreshProjection();
         setAnnouncement(`Simulation speed changed to ${nextSpeed} times.`);
       } catch (error: unknown) {
@@ -696,13 +688,13 @@ export function WorldShell({ initialProjection, onOpenLobby }: WorldShellProps) 
         setAnnouncement(`Simulation control failed: ${message}`);
       }
     },
-    [projection.expedition.id, refreshProjection, speed],
+    [projection.expedition.id, refreshProjection, runtime, speed],
   );
 
   const skipTravelForAgent = useCallback(
     async (agentId: string, missionId: string, automatic = false) => {
       const issuedAt = new Date().toISOString();
-      const id = createClientId('cmd-skip');
+      const id = runtime.createClientId('cmd-skip');
       const worldCommand = {
         ...commandEnvelope(
           projection.expedition.id,
@@ -714,7 +706,7 @@ export function WorldShell({ initialProjection, onOpenLobby }: WorldShellProps) 
         payload: { agentId, missionId },
       } satisfies WorldCommand;
       try {
-        await submitWorldCommand(worldCommand);
+        await runtime.submitWorldCommand(worldCommand);
         await refreshProjection();
         setAnnouncement(
           automatic
@@ -729,7 +721,7 @@ export function WorldShell({ initialProjection, onOpenLobby }: WorldShellProps) 
         }
       }
     },
-    [projection.expedition.id, refreshProjection],
+    [projection.expedition.id, refreshProjection, runtime],
   );
 
   useEffect(() => {
@@ -737,9 +729,9 @@ export function WorldShell({ initialProjection, onOpenLobby }: WorldShellProps) 
 
     let active = true;
     void Promise.allSettled([
-      fetchExpeditionSnapshot(projection.expedition.id),
-      fetchFixtureConfiguration(projection.expedition.id),
-      fetchPrefDiagnostics(),
+      runtime.fetchExpeditionSnapshot(projection.expedition.id),
+      runtime.fetchFixtureConfiguration(projection.expedition.id),
+      runtime.fetchPrefDiagnostics(),
     ]).then(([snapshotResult, configurationResult, prefResult]) => {
       if (!active) return;
       if (snapshotResult.status === 'rejected' || configurationResult.status === 'rejected') {
@@ -765,7 +757,7 @@ export function WorldShell({ initialProjection, onOpenLobby }: WorldShellProps) 
     return () => {
       active = false;
     };
-  }, [installAuthoritativeProjection, projection.expedition.id]);
+  }, [installAuthoritativeProjection, projection.expedition.id, runtime]);
 
   useEffect(() => {
     if (forcedRuntimeStateFromLocation()) return;
@@ -774,7 +766,7 @@ export function WorldShell({ initialProjection, onOpenLobby }: WorldShellProps) 
     let timer: number | undefined;
     const checkWorkspace = async () => {
       try {
-        const diagnostics = await fetchRuntimeDiagnostics(projection.expedition.id);
+        const diagnostics = await runtime.fetchRuntimeDiagnostics(projection.expedition.id);
         if (!active) return;
         setWorkspacePersistenceIssue(
           diagnostics.workspace.state === 'degraded'
@@ -794,16 +786,16 @@ export function WorldShell({ initialProjection, onOpenLobby }: WorldShellProps) 
       active = false;
       if (timer !== undefined) window.clearTimeout(timer);
     };
-  }, [projection.expedition.id]);
+  }, [projection.expedition.id, runtime]);
 
   useEffect(() => {
     if (forcedRuntimeStateFromLocation()) return;
     let active = true;
-    const stream = new ExpeditionEventStream({
+    const stream = runtime.createEventSubscription({
       expeditionId: projection.expedition.id,
       initialSequence: initialProjection.sequence,
       onEvents: async (envelope) => {
-        const nextProjection = await fetchExpeditionSnapshot(projection.expedition.id);
+        const nextProjection = await runtime.fetchExpeditionSnapshot(projection.expedition.id);
         if (
           nextProjection.expedition.id !== envelope.expeditionId ||
           nextProjection.sequence < envelope.sequence
@@ -833,7 +825,12 @@ export function WorldShell({ initialProjection, onOpenLobby }: WorldShellProps) 
       active = false;
       stream.stop();
     };
-  }, [initialProjection.sequence, installAuthoritativeProjection, projection.expedition.id]);
+  }, [
+    initialProjection.sequence,
+    installAuthoritativeProjection,
+    projection.expedition.id,
+    runtime,
+  ]);
 
   useEffect(() => {
     if (!activeCue) return;
@@ -895,7 +892,8 @@ export function WorldShell({ initialProjection, onOpenLobby }: WorldShellProps) 
   useEffect(() => {
     if (workspace !== 'meeting' || !activeMeetingId) return;
     let active = true;
-    void fetchExpeditionEvents(projection.expedition.id)
+    void runtime
+      .fetchExpeditionEvents(projection.expedition.id)
       .then((eventLog) => {
         if (active) setMeetingEvents(eventLog.events);
       })
@@ -905,7 +903,7 @@ export function WorldShell({ initialProjection, onOpenLobby }: WorldShellProps) 
     return () => {
       active = false;
     };
-  }, [activeMeetingId, projection.expedition.id, projection.sequence, workspace]);
+  }, [activeMeetingId, projection.expedition.id, projection.sequence, runtime, workspace]);
 
   useEffect(() => {
     if (!skipTravel) return;
@@ -1045,7 +1043,7 @@ export function WorldShell({ initialProjection, onOpenLobby }: WorldShellProps) 
     setCommandBusy(true);
     setCommandError(undefined);
     try {
-      const draft = await interpretMissionDraft(
+      const draft = await runtime.interpretMissionDraft(
         projection.expedition.id,
         objective,
         selectedAgent.id,
@@ -1081,7 +1079,7 @@ export function WorldShell({ initialProjection, onOpenLobby }: WorldShellProps) 
       candidatePlaceIds: [suggestion.destinationPlaceId],
       missing: [],
       explanation: 'This authored suggestion has an explicit agent, destination, and mission type.',
-      submissionId: createClientId('suggested-mission'),
+      submissionId: runtime.createClientId('suggested-mission'),
       createdAt,
     });
     setCommandError(undefined);
@@ -1145,7 +1143,7 @@ export function WorldShell({ initialProjection, onOpenLobby }: WorldShellProps) 
     } satisfies WorldCommand;
 
     try {
-      const accepted = await submitWorldCommand(worldCommand);
+      const accepted = await runtime.submitWorldCommand(worldCommand);
       await refreshProjection();
       setMissionDraft(undefined);
       setAnnouncement(
@@ -1164,7 +1162,7 @@ export function WorldShell({ initialProjection, onOpenLobby }: WorldShellProps) 
 
   const cancelMission = async (missionId: string) => {
     const issuedAt = new Date().toISOString();
-    const id = createClientId('cmd-cancel');
+    const id = runtime.createClientId('cmd-cancel');
     const worldCommand = {
       ...commandEnvelope(projection.expedition.id, id, `cancel:${id}`, issuedAt),
       type: 'agent.cancel_mission',
@@ -1173,7 +1171,7 @@ export function WorldShell({ initialProjection, onOpenLobby }: WorldShellProps) 
     setCommandBusy(true);
     setCommandError(undefined);
     try {
-      await submitWorldCommand(worldCommand);
+      await runtime.submitWorldCommand(worldCommand);
       await refreshProjection();
       setAnnouncement('Mission canceled. The event remains in expedition history.');
     } catch (error: unknown) {
@@ -1198,7 +1196,7 @@ export function WorldShell({ initialProjection, onOpenLobby }: WorldShellProps) 
       orderedMissionIds[index] as string,
     ];
     const issuedAt = new Date().toISOString();
-    const id = createClientId('cmd-reorder');
+    const id = runtime.createClientId('cmd-reorder');
     const worldCommand = {
       ...commandEnvelope(projection.expedition.id, id, `reorder:${id}`, issuedAt),
       type: 'agent.reorder_missions',
@@ -1207,7 +1205,7 @@ export function WorldShell({ initialProjection, onOpenLobby }: WorldShellProps) 
     setCommandBusy(true);
     setCommandError(undefined);
     try {
-      await submitWorldCommand(worldCommand);
+      await runtime.submitWorldCommand(worldCommand);
       await refreshProjection();
       setAnnouncement('Mission priority updated from an authoritative reorder event.');
     } catch (error: unknown) {
@@ -1223,7 +1221,10 @@ export function WorldShell({ initialProjection, onOpenLobby }: WorldShellProps) 
     setCommandBusy(true);
     setCommandError(undefined);
     try {
-      const configuration = await updateFixtureMissionScenario(projection.expedition.id, scenario);
+      const configuration = await runtime.updateFixtureMissionScenario(
+        projection.expedition.id,
+        scenario,
+      );
       setFixtureScenario(configuration.missionScenario);
       setAnnouncement(`Offline mission result set to ${scenario.replace('_', ' ')}.`);
     } catch (error: unknown) {
@@ -1238,7 +1239,7 @@ export function WorldShell({ initialProjection, onOpenLobby }: WorldShellProps) 
   const retryMission = async (mission: (typeof model.missions)[number]) => {
     if (!mission.failedTurnId) return;
     const issuedAt = new Date().toISOString();
-    const id = createClientId('cmd-retry');
+    const id = runtime.createClientId('cmd-retry');
     const worldCommand = {
       ...commandEnvelope(
         projection.expedition.id,
@@ -1256,7 +1257,7 @@ export function WorldShell({ initialProjection, onOpenLobby }: WorldShellProps) 
     setCommandBusy(true);
     setCommandError(undefined);
     try {
-      await submitWorldCommand(worldCommand);
+      await runtime.submitWorldCommand(worldCommand);
       await refreshProjection();
       setAnnouncement(`Retry started for ${mission.agentName}.`);
     } catch (error: unknown) {
@@ -1288,7 +1289,7 @@ export function WorldShell({ initialProjection, onOpenLobby }: WorldShellProps) 
       explanation: place
         ? 'Review the explicit fields before confirming this direct mission.'
         : 'Choose a destination and supported mission type.',
-      submissionId: createClientId('submission'),
+      submissionId: runtime.createClientId('submission'),
       createdAt,
     });
     setTrayExpanded(true);
@@ -1305,11 +1306,13 @@ export function WorldShell({ initialProjection, onOpenLobby }: WorldShellProps) 
   const marketKindLabel =
     workspace === 'replay'
       ? 'Read-only case-file replay'
-      : projection.market.tags.includes('fictional')
-        ? 'Fictional sandbox market'
-        : projection.expedition.settings.fixtureMode
-          ? 'Offline research scenario'
-          : 'Read-only market research';
+      : runtime.kind === 'static-demo'
+        ? 'Static authored showcase'
+        : projection.market.tags.includes('fictional')
+          ? 'Fictional sandbox market'
+          : projection.expedition.settings.fixtureMode
+            ? 'Offline research scenario'
+            : 'Read-only market research';
   const commandDisabledReason = workspacePersistenceIssue
     ? 'Workspace persistence paused; commands are closed.'
     : ['resolved', 'archived'].includes(projection.expedition.status)
@@ -1355,6 +1358,7 @@ export function WorldShell({ initialProjection, onOpenLobby }: WorldShellProps) 
           ? { replaySequence: replayProjection.sequence }
           : {})}
         runtimeState={runtimeState}
+        runtimeKind={runtime.kind}
         secondaryOutcomeLabel={ribbonModel.market.secondaryOutcome.shortLabel}
         speed={speed}
         streamStatus={eventStreamStatus}
@@ -1423,19 +1427,24 @@ export function WorldShell({ initialProjection, onOpenLobby }: WorldShellProps) 
         onSkipTravel={(agentId, missionId) => void skipTravelForAgent(agentId, missionId)}
         onToggleCollapsed={() => setAgentDockCollapsed((current) => !current)}
         prefConnectionLabel={
-          prefMode === 'live'
-            ? prefConnected
-              ? 'Live'
-              : prefConnectionState === 'auth_required'
-                ? 'Auth needed'
-                : 'Unavailable'
-            : prefMode === 'fixture'
+          runtime.kind === 'static-demo'
+            ? 'Static'
+            : prefMode === 'live'
               ? prefConnected
-                ? 'Fixture'
-                : 'Unavailable'
-              : 'Checking'
+                ? 'Live'
+                : prefConnectionState === 'auth_required'
+                  ? 'Auth needed'
+                  : 'Unavailable'
+              : prefMode === 'fixture'
+                ? prefConnected
+                  ? 'Fixture'
+                  : 'Unavailable'
+                : 'Checking'
         }
-        prefWarning={!prefConnected && prefConnectionState !== 'checking'}
+        prefWarning={
+          runtime.kind !== 'static-demo' && !prefConnected && prefConnectionState !== 'checking'
+        }
+        runtimeKind={runtime.kind}
         places={model.places}
         selectedAgentId={selectedAgentId}
       />

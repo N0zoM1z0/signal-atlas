@@ -8,6 +8,7 @@ export interface AgentDockProps {
   places: readonly ShellPlace[];
   prefConnectionLabel: string;
   prefWarning: boolean;
+  runtimeKind?: 'remote' | 'static-demo';
   selectedAgentId: string;
   onFollowAgent: (agentId: string) => void;
   onOpenRuntimeDiagnostics: () => void;
@@ -30,6 +31,7 @@ export function AgentDock({
   places,
   prefConnectionLabel,
   prefWarning,
+  runtimeKind = 'remote',
   selectedAgentId,
 }: AgentDockProps) {
   const quickMissions = missionSuggestionsForPlaces(places).slice(0, 2);
@@ -164,11 +166,13 @@ export function AgentDock({
 
       <section className="atlas-connections" aria-label="Runtime connections">
         <span>
-          <i className={prefWarning ? 'is-warning' : ''} aria-hidden="true" /> Pref Gateway
+          <i className={prefWarning ? 'is-warning' : ''} aria-hidden="true" />{' '}
+          {runtimeKind === 'static-demo' ? 'Authored Sources' : 'Pref Gateway'}
           <b>{prefConnectionLabel}</b>
         </span>
         <button onClick={onOpenRuntimeDiagnostics} type="button">
-          <i aria-hidden="true" /> Codex Runtime <b>Inspect</b>
+          <i aria-hidden="true" />{' '}
+          {runtimeKind === 'static-demo' ? 'Static Runtime' : 'Codex Runtime'} <b>Inspect</b>
         </button>
       </section>
     </aside>

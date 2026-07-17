@@ -15,6 +15,7 @@ export interface MarketRibbonProps {
   prefConnectionState: string;
   prefMode: 'fixture' | 'live' | 'unknown';
   replaySequence?: number;
+  runtimeKind: 'remote' | 'static-demo';
   runtimeState: RuntimeState;
   streamStatus: EventStreamStatus;
   speed: 1 | 2 | 4;
@@ -50,6 +51,7 @@ export function MarketRibbon({
   question,
   replaySequence,
   resolvedOutcomeLabel,
+  runtimeKind,
   runtimeState,
   secondaryOutcomeLabel,
   speed,
@@ -67,27 +69,29 @@ export function MarketRibbon({
   );
   const runtimeLabel = replaying
     ? `◇ Replay · sequence ${replaySequence}`
-    : runtimeState === 'loading'
-      ? '◌ Loading expedition'
-      : runtimeState === 'disconnected'
-        ? '△ Orchestrator offline'
-        : streamStatus.phase === 'schema_error'
-          ? `△ Stream schema error · seq ${streamStatus.cursor}`
-          : streamStatus.phase === 'boundary_error'
-            ? `△ Stream boundary error · seq ${streamStatus.cursor}`
-            : streamStatus.phase === 'reconnecting'
-              ? `◌ Reconnecting · seq ${streamStatus.cursor}`
-              : streamStatus.phase === 'connecting'
-                ? `◌ Connecting · seq ${streamStatus.cursor}`
-                : !prefConnected
-                  ? prefMode === 'live' && prefConnectionState === 'auth_required'
-                    ? '△ Live Pref auth required'
-                    : prefMode === 'unknown'
-                      ? '△ Pref status unavailable'
-                      : `△ ${prefMode === 'live' ? 'Live Pref' : 'Fixture Pref'} disconnected`
-                  : prefMode === 'live'
-                    ? '● Live sources connected'
-                    : '● Offline sources ready';
+    : runtimeKind === 'static-demo'
+      ? '◆ Static authored runtime'
+      : runtimeState === 'loading'
+        ? '◌ Loading expedition'
+        : runtimeState === 'disconnected'
+          ? '△ Orchestrator offline'
+          : streamStatus.phase === 'schema_error'
+            ? `△ Stream schema error · seq ${streamStatus.cursor}`
+            : streamStatus.phase === 'boundary_error'
+              ? `△ Stream boundary error · seq ${streamStatus.cursor}`
+              : streamStatus.phase === 'reconnecting'
+                ? `◌ Reconnecting · seq ${streamStatus.cursor}`
+                : streamStatus.phase === 'connecting'
+                  ? `◌ Connecting · seq ${streamStatus.cursor}`
+                  : !prefConnected
+                    ? prefMode === 'live' && prefConnectionState === 'auth_required'
+                      ? '△ Live Pref auth required'
+                      : prefMode === 'unknown'
+                        ? '△ Pref status unavailable'
+                        : `△ ${prefMode === 'live' ? 'Live Pref' : 'Fixture Pref'} disconnected`
+                    : prefMode === 'live'
+                      ? '● Live sources connected'
+                      : '● Offline sources ready';
 
   return (
     <header className="atlas-market-ribbon" aria-label="Market overview">
@@ -128,9 +132,11 @@ export function MarketRibbon({
           {resolvedOutcomeLabel ?? deadlineLabel} ·{' '}
           {replaying
             ? `Replay sequence ${replaySequence}`
-            : prefMode === 'live' && prefConnected
-              ? 'Live sources'
-              : 'Offline sources'}
+            : runtimeKind === 'static-demo'
+              ? 'Static authored sources'
+              : prefMode === 'live' && prefConnected
+                ? 'Live sources'
+                : 'Offline sources'}
         </span>
       </div>
 
@@ -173,7 +179,9 @@ export function MarketRibbon({
           className="atlas-runtime-badge"
           title={streamStatus.message}
           tone={
-            !replaying && (runtimeState === 'disconnected' || streamUnavailable || !prefConnected)
+            !replaying &&
+            runtimeKind !== 'static-demo' &&
+            (runtimeState === 'disconnected' || streamUnavailable || !prefConnected)
               ? 'disputed'
               : 'context'
           }

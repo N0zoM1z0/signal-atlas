@@ -6,7 +6,9 @@ export interface ExpeditionLobbyProps {
   expeditions: ExpeditionListItem[];
   onCreate: (scenario: ScenarioListItem) => void;
   onOpen: (expeditionId: string) => void;
+  onReset?: () => void;
   onRetry: () => void;
+  runtimeKind?: 'remote' | 'static-demo';
   scenarios: ScenarioListItem[];
 }
 
@@ -42,9 +44,12 @@ export function ExpeditionLobby({
   expeditions,
   onCreate,
   onOpen,
+  onReset,
   onRetry,
+  runtimeKind = 'remote',
   scenarios,
 }: ExpeditionLobbyProps) {
+  const staticDemo = runtimeKind === 'static-demo';
   return (
     <main className="atlas-lobby" data-atlas-view="lobby" tabIndex={-1}>
       <a className="atlas-skip-link" href="#scenario-catalog">
@@ -57,13 +62,16 @@ export function ExpeditionLobby({
             <i />
           </span>
           <div>
-            <span className="atlas-kicker">Local research workspace</span>
+            <span className="atlas-kicker">
+              {staticDemo ? 'Browser-only authored showcase' : 'Local research workspace'}
+            </span>
             <h1>Signal Atlas Expeditions</h1>
           </div>
         </div>
         <p>
-          Choose an authored world. Each expedition keeps its own event history, evidence desk,
-          forecasts, and replay checkpoint on this machine.
+          {staticDemo
+            ? 'Choose an authored world. Every mission, source, forecast, and replay runs inside this browser without a backend or live service.'
+            : 'Choose an authored world. Each expedition keeps its own event history, evidence desk, forecasts, and replay checkpoint on this machine.'}
         </p>
         <dl className="atlas-lobby__summary" aria-label="Workspace summary">
           <div>
@@ -76,9 +84,22 @@ export function ExpeditionLobby({
           </div>
           <div>
             <dt>Data boundary</dt>
-            <dd>On this device</dd>
+            <dd>{staticDemo ? 'This browser' : 'On this device'}</dd>
           </div>
         </dl>
+        {staticDemo && onReset && expeditions.length > 0 && (
+          <button
+            className="atlas-lobby__reset"
+            onClick={() => {
+              if (window.confirm('Reset every static showcase expedition in this browser?')) {
+                onReset();
+              }
+            }}
+            type="button"
+          >
+            Reset static demo
+          </button>
+        )}
       </header>
 
       {error && (
@@ -105,7 +126,9 @@ export function ExpeditionLobby({
             <h2 id="scenario-catalog-title">Available expeditions</h2>
           </div>
           <p>
-            Complete fixture worlds work offline; live Pref capabilities enrich them when ready.
+            {staticDemo
+              ? 'Complete authored worlds run locally in this page; no Pref, Codex, MCP, or API connection is used.'
+              : 'Complete fixture worlds work offline; live Pref capabilities enrich them when ready.'}
           </p>
         </header>
 
@@ -191,7 +214,11 @@ export function ExpeditionLobby({
       </section>
 
       <footer className="atlas-lobby__footer">
-        <span>Local-first · read-only research · source-linked claims</span>
+        <span>
+          {staticDemo
+            ? 'Static fixture · browser-local progress · source-linked claims'
+            : 'Local-first · read-only research · source-linked claims'}
+        </span>
         <span>No real trading path is enabled.</span>
       </footer>
     </main>

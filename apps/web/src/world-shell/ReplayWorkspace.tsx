@@ -3,12 +3,8 @@ import { binaryMarketOutcomes, type ProbabilityDistribution } from '@signal-atla
 import type { WorldProjection } from '@signal-atlas/simulation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import {
-  fetchCaseFile,
-  fetchReplayProjection,
-  resolveFixtureCase,
-  type ReplayProjectionResponse,
-} from './runtime-client.js';
+import { useRuntime } from '../app-runtime/runtime-context.js';
+import type { ReplayProjectionResponse } from './runtime-client.js';
 
 export interface ReplayWorkspaceProps {
   expeditionId: string;
@@ -53,6 +49,7 @@ export function ReplayWorkspace({
   onClose,
   onReplayProjectionChange,
 }: ReplayWorkspaceProps) {
+  const runtime = useRuntime();
   const [replay, setReplay] = useState<ReplayProjectionResponse>();
   const [caseFile, setCaseFile] = useState<SignalAtlasCaseFile>();
   const [loading, setLoading] = useState(true);
@@ -68,7 +65,7 @@ export function ReplayWorkspace({
       setLoading(true);
       setError(undefined);
       try {
-        const nextReplay = await fetchReplayProjection(expeditionId, sequence);
+        const nextReplay = await runtime.fetchReplayProjection(expeditionId, sequence);
         if (requestId !== requestIdRef.current) return;
         setReplay(nextReplay);
         onReplayProjectionChange(nextReplay.projection);
@@ -82,15 +79,15 @@ export function ReplayWorkspace({
         if (requestId === requestIdRef.current) setLoading(false);
       }
     },
-    [expeditionId, onReplayProjectionChange],
+    [expeditionId, onReplayProjectionChange, runtime],
   );
 
   useEffect(() => {
     const requestId = ++requestIdRef.current;
     let active = true;
     void Promise.all([
-      fetchReplayProjection(expeditionId, initialSequence),
-      fetchCaseFile(expeditionId),
+      runtime.fetchReplayProjection(expeditionId, initialSequence),
+      runtime.fetchCaseFile(expeditionId),
     ])
       .then(([nextReplay, nextCaseFile]) => {
         if (!active || requestId !== requestIdRef.current) return;
@@ -114,16 +111,16 @@ export function ReplayWorkspace({
     return () => {
       active = false;
     };
-  }, [expeditionId, initialSequence, onReplayProjectionChange]);
+  }, [expeditionId, initialSequence, onReplayProjectionChange, runtime]);
 
   const resolveCase = async () => {
     setResolving(true);
     setError(undefined);
     try {
-      const resolution = await resolveFixtureCase(expeditionId);
+      const resolution = await runtime.resolveFixtureCase(expeditionId);
       const [nextReplay, nextCaseFile] = await Promise.all([
-        fetchReplayProjection(expeditionId),
-        fetchCaseFile(expeditionId),
+        runtime.fetchReplayProjection(expeditionId),
+        runtime.fetchCaseFile(expeditionId),
       ]);
       setReplay(nextReplay);
       setCaseFile(nextCaseFile);
@@ -147,7 +144,7 @@ export function ReplayWorkspace({
     setExporting(true);
     setError(undefined);
     try {
-      const exported = await fetchCaseFile(expeditionId);
+      const exported = await runtime.fetchCaseFile(expeditionId);
       setCaseFile(exported);
       const blob = new Blob([`${JSON.stringify(exported, null, 2)}\n`], {
         type: 'application/json',

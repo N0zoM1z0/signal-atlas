@@ -162,6 +162,17 @@ body {
   font-size: var(--sa-typography-size-lg);
 }
 
+.atlas-lobby__reset {
+  grid-column: 1 / -1;
+  justify-self: end;
+  padding: 0 var(--sa-spacing-4);
+  border: var(--sa-border-hairline) solid var(--sa-color-window-gold);
+  color: var(--sa-color-window-gold);
+  background: transparent;
+  font-family: var(--sa-typography-mono-family);
+  font-size: var(--sa-typography-size-xs);
+}
+
 .atlas-lobby__error {
   display: flex;
   align-items: center;

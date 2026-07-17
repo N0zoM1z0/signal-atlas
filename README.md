@@ -82,6 +82,32 @@ pnpm dev
 
 The web application listens on `http://127.0.0.1:4173` and the orchestrator health endpoint is `http://127.0.0.1:4317/api/health`.
 
+### Browser-only GitHub Pages showcase
+
+The same React, Phaser, contracts, reducer, world content, and authored fixtures can also be built
+as a static showcase. This distribution deliberately does not start or imitate the local Fastify,
+SQLite, Pref MCP, Codex, or WebSocket services. A browser-resident fixture runtime validates the
+same commands, appends schema-valid domain events, rebuilds projections with the pure reducer, and
+labels every connection surface as static authored data.
+
+Build and verify the project-path artifact:
+
+```bash
+pnpm build:pages
+pnpm test:pages
+```
+
+The output is `apps/web/dist` and uses `/signal-atlas/` as its GitHub Pages base. `test:pages`
+serves that exact artifact, completes the authored research loop, checks all three worlds, verifies
+reload persistence and public-export privacy, captures the reviewed 1440 × 900 state, and fails if
+the page requests an API, opens a WebSocket, or contacts an external origin.
+
+Static progress is kept only in a versioned `localStorage` namespace for that browser. The Lobby's
+**Reset static demo** action clears only this showcase state. Malformed, incompatible, oversized,
+or wrong-expedition data is ignored safely. No credential is read or stored, and this mode never
+adds a real trading path. The default `pnpm dev` and `pnpm build` commands continue to use the local
+Node orchestrator and durable SQLite workspace.
+
 ### Pref fixture and live modes
 
 Pref runs in deterministic fixture mode unless `SIGNAL_ATLAS_PREF_MODE=live` is present when the orchestrator starts. Changing modes requires a process restart; the browser can inspect and reconnect the active mode, but cannot read or replace its credential.
@@ -223,6 +249,7 @@ Run the browser gates separately:
 ```bash
 pnpm test:e2e
 pnpm test:visual
+pnpm test:pages
 pnpm test:soak
 ```
 

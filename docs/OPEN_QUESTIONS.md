@@ -51,6 +51,23 @@ This log records design-package ambiguities that must be resolved without silent
 - **Implementation decision:** Use hosted Streamable HTTP with a server-only bearer, discover exact provider contracts through `search_tools`, execute only through `call_tool`, and allow only the read-only `weather.get_current_conditions` mapping for the first mission. Do not copy the Codex OAuth credential or automatically register an agent. Since Galehaven is fictional, call the provider with an explicitly configured Cape Canaveral proxy and materialize the result only as a disclosed, non-directional context signal with unknown impact.
 - **Reason:** The inspected weather contract is read-only, non-destructive, idempotent, and exercises the Helios-3 information path without pretending that real weather verifies a fictional place. The considered news-search contract currently reports an external-write side effect and therefore fails the MVP safety policy.
 
+## OQ-008: Static showcase authority without the local Node orchestrator
+
+- **Status:** Resolved by owner direction for the GitHub Pages showcase.
+- **Conflict:** The local application makes the Node orchestrator the sole authoritative state
+  owner, while a GitHub Pages artifact cannot run Fastify, SQLite, Pref MCP, Codex, or the
+  WebSocket service.
+- **Implementation decision:** Add an explicit `static-demo` build mode that supplies the same UI
+  runtime port with a browser-resident, fixture-only demo orchestrator. React continues to send
+  validated commands and consume snapshots/events; it never mutates the domain projection
+  directly. The demo orchestrator appends schema-valid events and folds them through the same pure
+  simulation reducer, but it is labeled as an authored static showcase, stores no credentials,
+  performs no external calls, and is not presented as the durable SQLite workspace.
+- **Reason:** This preserves one UI and one command/event model without duplicating the product or
+  weakening the normal local authority boundary. The public artifact demonstrates the complete
+  deterministic research loop while the default build continues to use the local Node
+  orchestrator unchanged.
+
 ## Owner decisions that do not block the offline vertical slice
 
 - Initial audience priority and distribution target.

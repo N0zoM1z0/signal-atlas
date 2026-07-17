@@ -18,6 +18,9 @@ export default defineConfig({
       '@signal-atlas/contracts': fileURLToPath(
         new URL('../../packages/contracts/src/index.ts', import.meta.url),
       ),
+      '@signal-atlas/fixture-runtime': fileURLToPath(
+        new URL('../../packages/fixture-runtime/src/index.ts', import.meta.url),
+      ),
       '@signal-atlas/simulation': fileURLToPath(
         new URL('../../packages/simulation/src/index.ts', import.meta.url),
       ),

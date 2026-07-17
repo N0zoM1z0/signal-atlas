@@ -3,7 +3,11 @@
   "compilerOptions": {
     "module": "ESNext",
     "moduleResolution": "Bundler",
+    "baseUrl": ".",
     "jsx": "react-jsx",
+    "paths": {
+      "@signal-atlas/build-runtime": ["src/app-runtime/build-runtime-remote.ts"]
+    },
     "noEmit": true,
     "types": ["vite/client", "vitest/globals"],
     "tsBuildInfoFile": "node_modules/.cache/tsconfig.tsbuildinfo"

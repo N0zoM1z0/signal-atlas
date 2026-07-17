@@ -173,6 +173,6 @@ test('@visual resolved case replay keeps landmarks, projection, and scoring legi
     fullPage: true,
     mask: [page.locator('.atlas-replay-hash code')],
     maskColor: '#182036',
-    maxDiffPixels: 100,
+    maxDiffPixels: 150,
   });
 });

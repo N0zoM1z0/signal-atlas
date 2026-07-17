@@ -17,6 +17,7 @@
     "@signal-atlas/archive": "workspace:*",
     "@signal-atlas/codex-runtime": "workspace:*",
     "@signal-atlas/contracts": "workspace:*",
+    "@signal-atlas/fixture-runtime": "workspace:*",
     "@signal-atlas/pref-gateway": "workspace:*",
     "@signal-atlas/simulation": "workspace:*",
     "@signal-atlas/test-fixtures": "workspace:*",
