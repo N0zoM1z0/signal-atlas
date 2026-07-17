@@ -13,7 +13,7 @@
     "predev": "pnpm --recursive --filter './packages/**' --if-present build",
     "dev": "concurrently --kill-others-on-fail --names orchestrator,web --prefix-colors yellow,cyan \"pnpm --filter @signal-atlas/orchestrator dev\" \"pnpm --filter @signal-atlas/web dev\"",
     "build": "pnpm --recursive --if-present build",
-    "build:pages": "pnpm --filter @signal-atlas/web build:pages",
+    "build:pages": "pnpm --recursive --filter './packages/**' --if-present build && pnpm --filter @signal-atlas/web build:pages",
     "typecheck": "pnpm --recursive --if-present typecheck",
     "lint": "eslint . --max-warnings 0",
     "format": "prettier --write .",

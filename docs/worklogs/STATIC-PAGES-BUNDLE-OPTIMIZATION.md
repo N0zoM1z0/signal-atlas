@@ -79,3 +79,5 @@ official prebuilt Phaser module remains the safe lazy renderer.
 - `pnpm test:visual` - passed; all 12 existing visual baselines.
 - `pnpm test:pages` - passed; build verifier passed and all 4 Pages tests passed, including the
   new deferred-renderer network assertion and 1440 x 900 visual baseline.
+- `pnpm clean && pnpm test:pages` - passed; proves a clean checkout rebuilds every required
+  workspace package before producing and exercising the Pages artifact.
